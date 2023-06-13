@@ -52,12 +52,12 @@ the datasets you use (see the [Dataset](#dataset) section), and the libraries yo
 ## License
 
 The code implemented for the review (that is, the wrappers, the dismantlers and the output scripts) available in this
-repository is released under the GPT-3 License.
+repository is released under the GPLv3 License.
 See the LICENSE file for more information.
 However, **please note that the code of the specific integrated algorithms is redistributed from their original
 repositories and may be
 subject to different licenses**.
-Thus, the GPT-3 License may not apply to them and to the code in their folders.
+Thus, the GPLv3 License may not apply to them and to the code in their folders.
 If you wish to use them, please refer to their original LICENSE files (in the respective folders), and to the original
 authors.
 
@@ -89,10 +89,7 @@ with [Min-Sum](https://github.com/abraunst/decycler/).
 **If you use any of these algorithms, please also cite the original papers.
 See the [Citations file](CITATIONS.md) for more information.**
 
-References
-
 ## Setup
-
 > Expected time for this step: 30m - 1h
 
 This package is written in Python (tested with version 3.9), and uses graph-tool[1] for the graph processing.

@@ -1,0 +1,120 @@
+import tempfile
+from os import remove
+from subprocess import check_output, STDOUT
+
+import numpy as np
+from graph_tool.stats import remove_parallel_edges, remove_self_loops
+from parse import compile
+
+from network_dismantling._sorters import dismantling_method
+
+targets_num_expression = compile("Vaccinated nodes {num:d}")
+
+
+def _explosive_immunization(network, sigma, candidates, **kwargs):
+    folder = 'network_dismantling/EI/'
+    cd_cmd = 'cd {} && '.format(folder)
+
+    # Not sure if EI supports parallel edges or self loops.
+    # Remove them as this fixes a bug and as they do not alter the dismantling set
+    remove_parallel_edges(network)
+    remove_self_loops(network)
+
+    static_id = network.vertex_properties["static_id"]
+
+    assert static_id.a.min() == 0, "Static id must start from 0"
+    assert static_id.a.max() == network.num_vertices() - 1, "Static id must be consecutive"
+
+    network_fd, network_path = tempfile.mkstemp()
+    output_fd, output_path = tempfile.mkstemp()
+    threshold_condition_fd, threshold_condition_path = tempfile.mkstemp()
+
+    # vaccinated_nodes = []
+    unvaccinated_nodes = []
+    try:
+        with open(network_fd, 'w+') as tmp:
+            tmp.write("{}\n".format(network.num_vertices()))
+            for edge in network.edges():
+                tmp.write("{} {}\n".format(
+                    static_id[edge.source()],
+                    static_id[edge.target()]
+                )
+                )
+
+        cmds = [
+            # 'make clean && make',
+            'make -C Library',
+            './exploimmun {} {} {} {} {} {}'.format(
+                candidates,
+                network_path,
+                output_path,
+                kwargs["stop_condition"],
+                # kwargs["threshold"],
+                sigma,
+                threshold_condition_path
+            )
+        ]
+
+        for cmd in cmds:
+            try:
+                print(f"Running cmd: {cmd}")
+
+                print(
+                    check_output(cd_cmd + cmd,
+                                 shell=True,
+                                 text=True,
+                                 stderr=STDOUT,
+                                 )
+                )
+            except Exception as e:
+                exit("ERROR! {}".format(e))
+
+        # # Safety check
+        # with open(threshold_condition_fd, 'r+') as tmp:
+        #     for line in tmp.readlines():
+        #         node, vaccinated = line.strip().split()
+        #
+        #         vaccinated = int(vaccinated)
+        #
+        #         if vaccinated:
+        #             vaccinated_nodes.append(int(node))
+
+        with open(output_fd, 'r+') as tmp:
+            for line in tmp.readlines():
+                node = line.strip()
+
+                unvaccinated_nodes.append(node)
+
+    finally:
+        # os.close(network_fd)
+        # os.close(output_fd)
+        # os.close(threshold_condition_fd)
+
+        remove(network_path)
+        remove(output_path)
+        remove(threshold_condition_path)
+
+    output = np.arange(start=1, stop=network.num_vertices() + 1)
+
+    for n in unvaccinated_nodes:
+        output[int(n)] = 0
+
+    return output
+
+
+method_info = {
+    # "name": "Explosive Immunization",
+    # "short_name": "EI",
+    # "description": "Explosive Immunization",
+    "source": "https://github.com/pclus/explosive-immunization/",
+
+}
+
+@dismantling_method()
+def EI_s1(network, **kwargs):
+    return _explosive_immunization(network, candidates=1000, sigma=1, **kwargs)
+
+
+@dismantling_method()
+def EI_s2(network, **kwargs):
+    return _explosive_immunization(network, candidates=1000, sigma=2, **kwargs)

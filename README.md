@@ -66,8 +66,7 @@ authors.
 This library integrates and provides a common interface to the following algorithms:
 
 - Brute Force
-- [Collective Influence (CI)](https://github.com/makselab/Collective-Influence)  (ready to be added, missing license
-  from the original repository)
+- [Collective Influence (CI)](https://github.com/makselab/Collective-Influence)
 - CoreGDM (almost ready, needs some fixes)
 - CoreHD  (ready to be added, requested authorization to authors)
 - [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling)
@@ -83,13 +82,11 @@ This library integrates and provides a common interface to the following algorit
     - Eigenvector centrality
     - PageRank
 
-The package also includes the reinsertion greedy algorithm proposed
-with [Min-Sum](https://github.com/abraunst/decycler/).
+The package also includes the greedy reinsertion algorithm proposed for the reinsertion phase
+of [Min-Sum](https://github.com/abraunst/decycler/).
 
 **If you use any of these algorithms, please also cite the original papers.
 See the [Citations file](CITATIONS.md) for more information.**
-
-References
 
 ## Setup
 
@@ -162,14 +159,14 @@ To set up the provided environments:
 Finder environment3
 
   ```bash
-  cd ../Heuristics
+  cd review
   
   conda install conda-pack
   
   conda-unpack -n gdm -f environment_full.tar.gz  
   ```
 
-3. Follow the instructions # TODO
+3. Follow the instructions in section [Common](#common)
 
 ### Building your own environment
 
@@ -258,13 +255,22 @@ If you wish to use this code to dismantle your own networks, you can do so as fo
 1. First, convert your networks to the GT/GraphML formats.
 
     ```bash
-    python -u network_dismantling/common/any2graphml.py -i <INPUT_FOLDER> -o <OUTPUT_FOLDER> -e <INPUT_FORMAT>
+    python -u network_dismantling/converter.py -i <INPUT_FOLDER> -o <OUTPUT_FOLDER> -e <INPUT_FORMAT>
     
     # Example
-    python -u network_dismantling/common/any2graphml.py -i dataset/MY_FOLDER/ -o dataset/MY_FOLDER/dataset/ -e el
+    python -u network_dismantling/converter.py -i dataset/MY_FOLDER/ -o dataset/MY_FOLDER/dataset/ -e el
     ```
 
-2. After converting (or, if you already have networks in such formats), you can run the dismantler script as detailed in section [Running the dismantler](#running-the-dismantler).
+   Arguments:
+    - -h, --help show this help message and exit
+    - -i, --input INPUT Location of the input networks (directory)
+    - -o, --output OUTPUT Location of the output directory
+    - -nw, --no_weights Discard weights
+    - -ei, --input_ext [EXT(s)]   Input extension(s) without dot
+    - -eo, --output_ext EXT Output file extension without dot (e.g., gt, graphml, ...)
+
+3. After converting (or, if you already have networks in such formats), you can run the dismantler script as detailed in
+   section [Running the dismantler](#running-the-dismantler).
 
 ## Running the dismantler
 
@@ -344,15 +350,16 @@ python plot.py -f <DATAFRAME_FILE(s)> [-q <QUERY>] [-sf <MAX>] [-o <OUTPUT>] [-s
 ```
 
 Flags:
--h, --help Shows the help message and exit
--f, --file FILE(s)            Output DataFrame file(s) location
--q, --query QUERY Provides a way to query the DataFrame.
-See [pandas.DataFrame.query](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.query.html) for
-the syntax.
--sf, --show_first MAX Shows at most the first MAX dismantling curves (the best)
--o OUTPUT, --output OUTPUT Output plot location
--s, --sort_column COLUMN DataFrame column used to sort the entries
--sa, --sort_descending Sorting descending
+
+- -h, --help Shows the help message and exit
+- -f, --file FILE(s)            Output DataFrame file(s) location
+- -q, --query QUERY Provides a way to query the DataFrame.
+  See [pandas.DataFrame.query](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.query.html)
+  for the syntax.
+- -sf, --show_first MAX Shows at most the first MAX dismantling curves (the best)
+- -o, --output OUTPUT Output plot location
+- -s, --sort_column COLUMN DataFrame column used to sort the entries
+- -sa, --sort_descending Sorting the entries in descending order
 
 Example usage:
 
@@ -383,19 +390,20 @@ python table_output.py -f <DATAFRAME_FILE(s)> [-q <QUERY>] [-o <OUTPUT>] [-s <CO
 ```
 
 Flags:
--h, --help Show the help message and exit
--f, --file FILE(s)            Output DataFrame file(s) location
--q, --query QUERY Provides a way to query the DataFrame.
-See [pandas.DataFrame.query](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.query.html) for
-the syntax.
--o, --output OUTPUT Output plot location
--s, --sort_column COLUMN Column values to display in the table
--sa, --sort_descending Sorting descending
--i, --index INDEX DF column used as table rows
--c, --columns COLUMNS DF column used as table columns
--P, --pivot Transpose axis
--rn, --row_nan Drop any row with NaN values
--cn, --col_nan Drop any column with NaN values
+
+- -h, --help Shows the help message and exit
+- -f, --file FILE(s)            Output DataFrame file(s) location
+- -q, --query QUERY Provides a way to query the DataFrame.
+  See [pandas.DataFrame.query](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.query.html)
+  for the syntax.
+- -o, --output OUTPUT Output plot location
+- -s, --sort_column COLUMN Column values to display in the table
+- -sa, --sort_descending Sorting descending
+- -i, --index INDEX DataFrame column used as table rows
+- -c, --columns COLUMNS DataFrame columns used as table columns
+- -P, --pivot Transpose x and y axes (convenience flag for leaving -i and -c as defaults)
+- -rn, --row_nan Drop any row with NaN values
+- -cn, --col_nan Drop any column with NaN values
 
 ```bash
 # Generate the table for the results of the dismantling algorithms store in the out/df/heuristics.csv file, uses the out/table/ folder as root for the output tables
@@ -423,7 +431,7 @@ repository.
 Please provide information about your system, your environment, the traceback of the exception (if any), the script
 where the issue appeared, the input parameters and any other useful information.
 
-## Contributing
+## [WIP] Contributing
 
 This repository is meant to be a collaborative project, where new dismantling algorithms can be easily integrated and
 benchmarked.

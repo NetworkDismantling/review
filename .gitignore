@@ -209,3 +209,6 @@ network_dismantling/heuristics/reinsertion/config_r.h
 network_dismantling/heuristics/reinsertion/reinsertion
 dataset.tar.gz
 /network_dismantling/decycler/.idea/
+
+
+*.idea/*

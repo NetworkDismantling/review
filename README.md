@@ -64,16 +64,15 @@ authors.
 This library integrates and provides a common interface to the following algorithms:
 
 - Brute Force
-- [Collective Influence (CI)](https://github.com/makselab/Collective-Influence)
-- CoreGDM (almost ready, needs some fixes)
-- CoreHD
-- [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling)
-- [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization)
-- [FINDER](https://github.com/FFrankyy/FINDER)
-- Generalized Network Dismantling (GND) (ready to be added, missing license from the original repository)
-- [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling) (almost ready to be
-  added, common interface wrapper in progress)
-- [Min-Sum](https://github.com/abraunst/decycler/)
+- [Collective Influence (CI)](https://github.com/makselab/Collective-Influence):  [reference](CITATIONS.md#collective-influence-ci)
+- CoreGDM (almost ready, needs some fixes): [reference](CITATIONS.md#coregdm)
+- CoreHD: [reference](CITATIONS.md#corehd)
+- [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling): [reference](CITATIONS.md#ensemble-gnd-egnd)
+- [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization): [reference](CITATIONS.md#explosive-immunization-ei)
+- [FINDER](https://github.com/FFrankyy/FINDER): [reference](CITATIONS.md#finder)
+- Generalized Network Dismantling (GND) (ready to be added, missing license from the original repository): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
+- [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling) (almost ready to be added, common interface wrapper in progress): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
+- [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
 - Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)
     - Degree
     - Betweenness

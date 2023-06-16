@@ -15,8 +15,6 @@ Radicchi.
 The manuscript is currently under review.
 
 
-[//]: # ([![DOI]&#40;https://zenodo.org/badge/DOI/10.5281/zenodo.5105912.svg&#41;]&#40;https://doi.org/10.5281/zenodo.5105912&#41;)
-
 ## Citations
 
 ### How to cite the paper
@@ -68,7 +66,7 @@ This library integrates and provides a common interface to the following algorit
 - Brute Force
 - [Collective Influence (CI)](https://github.com/makselab/Collective-Influence)
 - CoreGDM (almost ready, needs some fixes)
-- CoreHD  (ready to be added, requested authorization to authors)
+- CoreHD
 - [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling)
 - [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization)
 - [FINDER](https://github.com/FFrankyy/FINDER)
@@ -147,23 +145,22 @@ To set up the provided environments:
     ```
 
 2. Unpack the environments using conda-pack as follows:
-   Generic environment
-
-  ```bash
-  cd review
-  
-  conda-unpack -n gdm -f environment_full.tar.gz
-  ```
-
-Finder environment3
-
-  ```bash
-  cd review
-  
-  conda install conda-pack
-  
-  conda-unpack -n gdm -f environment_full.tar.gz  
-  ```
+   - Generic and GDM's environment
+      ```bash
+      cd review
+      
+      conda-unpack -n gdm -f environment_full.tar.gz
+      ```
+    
+      Finder environment:
+    
+      ```bash
+      cd review
+      
+      conda install conda-pack
+      
+      conda-unpack -n gdm -f environment_full.tar.gz  
+      ```
 
 3. Follow the instructions in section [Common](#common)
 
@@ -185,7 +182,9 @@ conda activate dismantling
 
 #### GDM
 
-# TODO: check if this is correct
+In progress.
+
+TODO: Update the old environment and convert the pre-trained PyG 1.2.1 models to the newer PyG GAT models.
 
 ```bash
 conda env create -f environment.yml
@@ -451,5 +450,4 @@ handle the output.
 
 
 [1]: https://graph-tool.skewed.de/
-
 [2]: https://www.anaconda.com/products/individual

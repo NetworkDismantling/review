@@ -70,7 +70,7 @@ This library integrates and provides a common interface to the following algorit
 - [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling): [reference](CITATIONS.md#ensemble-gnd-egnd)
 - [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization): [reference](CITATIONS.md#explosive-immunization-ei)
 - [FINDER](https://github.com/FFrankyy/FINDER): [reference](CITATIONS.md#finder)
-- Generalized Network Dismantling (GND) (ready to be added, missing license from the original repository): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
+- Generalized Network Dismantling (GND): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
 - [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling) (almost ready to be added, common interface wrapper in progress): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
 - [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
 - Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)

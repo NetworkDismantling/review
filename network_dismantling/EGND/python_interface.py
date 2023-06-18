@@ -38,8 +38,8 @@ def _ensemble_generalized_network_dismantling(network, reinsertion=False, remove
 
         with open(folder + config_file, "w+") as f:
             f.write(("const int NODE_NUM = {};                  // the number of nodes\n"
-                     "const char* fileNet = \"{}\";            // input format of each line: id1 id2\n"
-                     "const char* fileId = \"{}\";             // output the id of the removed nodes in order\n"
+                     "const char* FILE_NET = \"{}\";            // input format of each line: id1 id2\n"
+                     "const char* FILE_ID = \"{}\";             // output the id of the removed nodes in order\n"
                      "const char* FILE_PLOT = \"{}\";           // format of each line: gcc removed_cost removed_nodes\n"
                      "const char* FILE_SEED = \"{}\";\n"
                      "const int TARGET_SIZE = {};               // If the gcc size is smaller than TARGET_SIZE, the dismantling will stop. Default value can be 0.01*NODE_NUM  OR  1000\n"

@@ -1,6 +1,28 @@
 # Citations
-In this section, we provide the citations for the algorithms and libraries we used in our project.
+In this section, we provide the citations for the paper, for the data, for the algorithms and for the libraries used in our project.
 
+
+### How to cite the paper
+
+The paper is currently under review.
+We will update this section as soon as it is published.
+
+DOI: 
+
+>
+
+BibTex:
+```bibtex
+
+```
+
+RIS:
+```ris
+
+```
+
+Also, please cite the original papers of the algorithms you use (see the [Algorithms](#algorithms) section),
+the datasets you use (see the [Dataset](#dataset) section), and the libraries you use (see the [Setup](#setup)
 
 ## Datasets
 See the [Datasets](dataset/README.md) section for more information.

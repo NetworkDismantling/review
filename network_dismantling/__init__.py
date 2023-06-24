@@ -1,15 +1,7 @@
+import pkgutil
 from pathlib import Path
 
-import pkgutil
-
-
 dismantling_methods = {}
-# dismantling_methods_citation = {}
-# dismantling_methods_descriptions = {}
-# dismantling_methods_authors = {}
-# dismantling_methods_include_reinsertion = {}
-# dismantling_methods_license_file = {}
-# dismantling_methods_source = {}
 
 
 class DismantlingMethod:
@@ -59,6 +51,4 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
             print("Error importing:", module_name, e)
             continue
 
-
 __alldict__ = {k: globals()[k] for k in __all__}
-

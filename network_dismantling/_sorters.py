@@ -6,10 +6,10 @@ from network_dismantling import DismantlingMethod, dismantling_methods
 
 def dismantling_method(name=None,
                        includes_reinsertion=False,
-                       description="",
-                       citation="",
-                       authors="",
-                       source="",
+                       description=None,
+                       citation=None,
+                       authors=None,
+                       source=None,
                        ):
     def wrapper(funct):
         if name is None:
@@ -32,20 +32,26 @@ def dismantling_method(name=None,
         else:
             license_file = None
 
+        citation_text = ""
         citation_file = None
+
         if citation is None:
             # TODO sort files according to some priority...
             for citation_file in method_path.glob("CITATION.*"):
                 if citation_file.is_file():
+                    citation_text = citation_file.read_text()
                     # dismantling_methods_citation[key] = citation_file
 
                     break
                 else:
                     citation_file = None
 
+        else:
+            citation_text = citation
+
         method = DismantlingMethod(name=key,
                                    description=description,
-                                   citation=citation,
+                                   citation=citation_text,
                                    authors=authors,
                                    function=funct,
                                    includes_reinsertion=includes_reinsertion,

@@ -103,7 +103,7 @@ DOI [10.1038/srep37954](https://doi.org/10.1038/srep37954)
 ### Ensemble GND (EGND)
 DOI [10.1007/978-3-030-36687-2_65](https://doi.org/10.1007/978-3-030-36687-2_65)
 > Ren, X.-L., Antulov-Fantulin, N.: Ensemble approach for generalized network dismantling. In: Cherifi, H., Gaito, S., Mendes, J.F., Moro, E., Rocha, L.M. (eds.) Complex Networks and Their Applications VIII, pp. 783–793. Springer, Cham (2020)
-> 
+
 ```bibtex
 @InProceedings{10.1007/978-3-030-36687-2_65,
     author="Ren, Xiao-Long
@@ -127,8 +127,7 @@ DOI [10.1007/978-3-030-36687-2_65](https://doi.org/10.1007/978-3-030-36687-2_65)
 
 ### Explosive Immunization (EI)
 DOI [10.1103/PhysRevLett.117.208301](https://doi.org/10.1103/PhysRevLett.117.208301)
-> Clusella, P., Grassberger, P., Pérez-Reche, F.J., Politi, A.: Immunization and targeted destruction of networks using explosive percolation.
-> Physical Review Letters 117, 208301 (2016). https://doi.org/10.1103/PhysRevLett.117.208301
+> Clusella, P., Grassberger, P., Pérez-Reche, F.J., Politi, A.: Immunization and targeted destruction of networks using explosive percolation. Physical Review Letters 117, 208301 (2016). https://doi.org/10.1103/PhysRevLett.117.208301
 
 ```bibtex
 @article{PhysRevLett.117.208301,

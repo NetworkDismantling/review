@@ -108,8 +108,8 @@ method_info = {
     # "name": "Collective Influence",
     # "short_name": "CI",
     "source": "https://github.com/makselab/Collective-Influence",
-    "authors": "",
-    "citation": "",
+    # "authors": "",
+    # "citation": "",
     "includes_reinsertion": True,
 }
 

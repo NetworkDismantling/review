@@ -86,6 +86,7 @@ def main(args):
     else:
         df = pd.DataFrame(columns=args.output_df_columns)
 
+    # noinspection PyTypeChecker
     for name in tqdm(test_networks_list,
                      desc="Networks",
                      position=0,
@@ -118,30 +119,30 @@ def main(args):
         stop_condition = np.ceil(network_size * args.threshold)
 
         generator_args = {
-            # "sorting_function": sorters.__all_dict__[heuristic],
             "logger": logger,
             "network_name": name,
             "stop_condition": int(stop_condition),
             "threshold": args.threshold,
         }
 
+        # noinspection PyTypeChecker
         for heuristic in tqdm(
                 args.heuristics,
                 position=1,
                 desc="Heuristics",
         ):
-            generator_args["sorting_function"] = dismantling_methods[heuristic].function
+            heuristic_info = dismantling_methods[heuristic]
+            display_name = heuristic_info.name
 
-            display_name = ' '.join(heuristic.split("_")).upper()
+            generator_args["sorting_function"] = heuristic_info.function
 
-            logger.info(f"Running {display_name} heuristic.\nCite as {dismantling_methods[heuristic].citation}")
+            logger.info(f"Running {display_name} heuristic. Cite as:\n"
+                        f"{heuristic_info.citation}\n\n"
+                        )
 
-            # TODO improve me
             filter = {
                 "heuristic": heuristic
             }
-            # add_run_parameters(params, filter)
-            # sorter.add_run_parameters(filter)
 
             df_filtered = network_df.loc[
                 (network_df[list(filter.keys())] == list(filter.values())).all(axis='columns'),
@@ -166,8 +167,6 @@ def main(args):
                                                                                           generator_args,
                                                                                           stop_condition,
                                                                                           )
-                # removals, prediction_time, dismantle_time = threshold_dismantler(network.copy(), static_generator,
-                #                                                                  generator_args, stop_condition)
 
                 peak_slcc = max(removals, key=itemgetter(4))
 
@@ -175,7 +174,7 @@ def main(args):
 
                 if rem_num > 0:
                     assert removals[0][0] > -1, "First removal is just the LCC size!"
-                #     if (removals[0][0] == -1)
+
                 run = {
                     "network": name,
                     "removals": removals,
@@ -226,53 +225,12 @@ def main(args):
 
             time_queue.put(time_dataframe)
 
-            # if args.output_file is not None:
-            #     output_file = Path(args.output_file)
-            #     kwargs = {
-            #         "path_or_buf": output_file,
-            #         "index": False,
-            #         # header='column_names',
-            #         "columns": args.output_df_columns
-            #     }
-            #
-            #     # If dataframe exists append without writing the header
-            #     if kwargs["path_or_buf"].exists():
-            #         kwargs["mode"] = "a"
-            #         kwargs["header"] = False
-            #
-            #     runs_dataframe.to_csv(**kwargs)
-            #
-            #     time_file = args.time_output_file
-            #     if time_file is not None:
-            #         time_kwargs = {
-            #             "path_or_buf": Path(time_file),
-            #             "index": False,
-            #             # header='column_names',
-            #             # "columns": args.output_df_columns
-            #         }
-            #
-            #         # If dataframe exists append without writing the header
-            #         if time_kwargs["path_or_buf"].exists():
-            #             time_kwargs["mode"] = "a"
-            #             time_kwargs["header"] = False
-            #
-            #         time_run = {
-            #             "network": name,
-            #             "heuristic": heuristic,
-            #             "static": None,
-            #             "prediction_time": prediction_time,
-            #             "dismantle_time": dismantle_time
-            #         }
-            #         time_dataframe = pd.DataFrame(data=[time_run],
-            #                                       columns=["network", "heuristic", "static", "prediction_time",
-            #                                                "dismantle_time"])
-            #         time_dataframe.to_csv(**time_kwargs)
-
     df_queue.put(None)
     time_queue.put(None)
 
     dp.join()
     tp.join()
+
 
 def get_df_columns():
     return ["network", "heuristic", "slcc_peak_at", "lcc_size_at_peak",
@@ -323,8 +281,8 @@ if __name__ == "__main__":
         "-H",
         "--heuristics",
         type=str,
-        choices=sorted(dismantling_methods.keys()),
-        default=sorted(dismantling_methods.keys()),
+        choices=sorted(dismantling_methods.keys()) + ["all"],
+        default="all",
         nargs="+",
         help="Dismantling heuristics to run. Default: all. See the repository README for more information.",
     )
@@ -394,5 +352,10 @@ if __name__ == "__main__":
 
     logger.info(f"Output file {args.output_file}")
     logger.info(f"Time output file {args.time_output_file}")
+
+    if "all" in args.heuristics:
+        args.heuristics = list(dismantling_methods.keys())
+
+    logger.info(f"Running the following heuristics: {', '.join(args.heuristics)}")
 
     main(args)

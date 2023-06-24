@@ -39,7 +39,7 @@ def dismantling_method(name=None,
             # TODO sort files according to some priority...
             for citation_file in method_path.glob("CITATION.*"):
                 if citation_file.is_file():
-                    citation_text = citation_file.read_text()
+                    citation_text = citation_file.read_text().strip()
                     # dismantling_methods_citation[key] = citation_file
 
                     break

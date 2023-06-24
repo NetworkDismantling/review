@@ -136,8 +136,11 @@ def main(args):
 
             generator_args["sorting_function"] = heuristic_info.function
 
-            logger.info(f"Running {display_name} heuristic. Cite as:\n"
-                        f"{heuristic_info.citation}\n\n"
+            logger.info(f"\n"
+                        f"==================================\n"
+                        f"Running {display_name} heuristic. Cite as:\n"
+                        f"{heuristic_info.citation}\n"
+                        f"==================================\n"
                         )
 
             filter = {

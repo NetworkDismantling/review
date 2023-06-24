@@ -1,3 +1,4 @@
+import logging
 from argparse import ArgumentParser
 from ast import literal_eval
 from operator import itemgetter
@@ -8,6 +9,12 @@ import seaborn as sns
 from matplotlib.ticker import MaxNLocator
 
 from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(TqdmLoggingHandler())
+
 
 replace_labels = {
     "Machine Learning": "GDM",
@@ -118,7 +125,7 @@ filtered_columns = ["network", "removals", "model_seed", "seed",
 def load_and_display_df(args):
     df = df_reader(args.file, include_removals=True)
 
-    display_df(args, df)
+    display_df(df, args)
 
 
 def prepare_df(df, args):
@@ -126,10 +133,13 @@ def prepare_df(df, args):
         df["average_dmg"] = (1 - df["lcc_size_at_peak"]) / df["slcc_peak_at"]
 
     sort_by = [args.sort_column]
-    if args.sort_column == "r_auc":
-        sort_by.append("rem_num")
-    elif args.sort_column == "rem_num":
-        sort_by.append("r_auc")
+    if "rem_num" in df.columns:
+        if args.sort_column == "r_auc":
+            sort_by.append("rem_num")
+        elif args.sort_column == "rem_num":
+            sort_by.append("r_auc")
+    else:
+        logger.warning("rem_num not in df.columns, not sorting by rem_num")
 
     # Sort the dataframe
     df.sort_values(by=sort_by,
@@ -153,7 +163,7 @@ def prepare_df(df, args):
     df.loc[:, "slcc_size_at_peak"] *= 100
 
 
-def display_df(df, print=print):
+def display_df(df, args):
     prepare_df(df, args)
 
     groups = df.groupby("network")
@@ -162,97 +172,98 @@ def display_df(df, print=print):
                                              x not in filtered_columns]
                             ]
 
-        print("Network {}, showing first {}/{} runs:\n{}\n".format(network_name,
+        logger.info("Network {}, showing first {}/{} runs:\n{}\n".format(network_name,
                                                                    min(args.show_first, group_df.shape[0]),
                                                                    group_df.shape[0],
                                                                    group_df_filtered.set_index("idx")
                                                                    )
               )
 
-        removals_list = []
-        max_num_removals = 0
-        for heuristic_name, heuristic_df in group_df.groupby("heuristic"):
-            assert heuristic_df.shape[0] == 1, \
-                f"There should be only one row per heuristic. Found {heuristic_df.shape[0]} for {heuristic_name} in network {network_name}"
+        if args.plot:
+            removals_list = []
+            max_num_removals = 0
+            for heuristic_name, heuristic_df in group_df.groupby("heuristic"):
+                assert heuristic_df.shape[0] == 1, \
+                    f"There should be only one row per heuristic. Found {heuristic_df.shape[0]} for {heuristic_name} in network {network_name}"
 
-            heuristic_df.reset_index(drop=True, inplace=True)
+                heuristic_df.reset_index(drop=True, inplace=True)
 
-            infos = heuristic_df.loc[0, :]
+                infos = heuristic_df.loc[0, :]
 
-            removals = literal_eval(infos.pop("removals"))
-            num_removals = len(removals)
-            max_num_removals = max(max_num_removals, num_removals)
+                removals = literal_eval(infos.pop("removals"))
+                num_removals = len(removals)
+                max_num_removals = max(max_num_removals, num_removals)
 
-            removals_list = [(heuristic_name, removals)]
+                removals_list = [(heuristic_name, removals)]
 
-        # Create new figure
-        fig, ax = plt.subplots()
-        plt.xticks(rotation=45)
+            # Create new figure
+            fig, ax = plt.subplots()
+            plt.xticks(rotation=45)
 
-        fig.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+            fig.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        zindex = len(removals_list)
-        for heuristic_name, removals in removals_list:
-            heuristic_name = str(heuristic_name.strip().title())
-            heuristic_name = replace_labels.get(heuristic_name, heuristic_name)
+            zindex = len(removals_list)
+            for heuristic_name, removals in removals_list:
+                heuristic_name = str(heuristic_name.strip().title())
+                heuristic_name = replace_labels.get(heuristic_name, heuristic_name)
 
-            color = color_mapping[heuristic_name]
+                color = color_mapping[heuristic_name]
 
-            x = list(map(itemgetter(0), removals))
-            y = list(map(itemgetter(3), removals))
+                x = list(map(itemgetter(0), removals))
+                y = list(map(itemgetter(3), removals))
 
-            plt.plot(x, y, ('-o' if "+R" not in heuristic_name else '-s'),
-                     markersize=4,
-                     linewidth=2,
-                     color=color,
-                     zorder=zindex,
-                     label=str(heuristic_name)
-                     )
-            zindex -= 1
+                plt.plot(x, y, ('-o' if "+R" not in heuristic_name else '-s'),
+                         markersize=4,
+                         linewidth=2,
+                         color=color,
+                         zorder=zindex,
+                         label=str(heuristic_name)
+                         )
+                zindex -= 1
 
-            fig.gca().set_xbound(lower=1)
+                fig.gca().set_xbound(lower=1)
 
-            # Add labels
-            plt.xlabel('Number of removed nodes')
-            plt.ylabel('LCC Size')
+                # Add labels
+                plt.xlabel('Number of removed nodes')
+                plt.ylabel('LCC Size')
 
-            # Despine the plot
-            sns.despine()
+                # Despine the plot
+                sns.despine()
 
-            plt.legend(title="Method",
-                       bbox_to_anchor=(1.05, 0.5),
-                       loc="center left",
-                       borderaxespad=0.,
-                       frameon=False,
-                       )
+                plt.legend(title="Method",
+                           bbox_to_anchor=(1.05, 0.5),
+                           loc="center left",
+                           borderaxespad=0.,
+                           frameon=False,
+                           )
 
-            plt.tight_layout()
+                plt.tight_layout()
 
-            if args.output is None:
-                # plt.xlim(right=num_removals * (1.10))
-                plt.show()
-            else:
-                plt.xlim(right=max_num_removals * (1.05))
+                if args.output is None:
+                    # plt.xlim(right=num_removals * (1.10))
+                    plt.show()
+                else:
+                    plt.xlim(right=max_num_removals * (1.05))
 
-                file = args.output / f"{network_name}.pdf"
+                    file = args.output / f"{network_name}.pdf"
 
-                if not file.parent.exists():
-                    file.parent.mkdir(parents=True)
+                    if not file.parent.exists():
+                        file.parent.mkdir(parents=True)
 
-                plt.savefig(str(file), bbox_inches='tight')
+                    plt.savefig(str(file), bbox_inches='tight')
 
-                # figLegend = pylab.figure()
-                #
-                # file = args.output / "legend.pdf"
-                # # produce a legend for the objects in the other figure
-                # pylab.figlegend(*ax.get_legend_handles_labels(),
-                #                 ncol=len(removals_list),
-                #                 loc='upper left',
-                #                 )
-                #
-                # figLegend.savefig(str(file), bbox_inches='tight')
+                    # figLegend = pylab.figure()
+                    #
+                    # file = args.output / "legend.pdf"
+                    # # produce a legend for the objects in the other figure
+                    # pylab.figlegend(*ax.get_legend_handles_labels(),
+                    #                 ncol=len(removals_list),
+                    #                 loc='upper left',
+                    #                 )
+                    #
+                    # figLegend.savefig(str(file), bbox_inches='tight')
 
-            plt.close('all')
+                plt.close('all')
 
 
 FUNCTION_MAP = {
@@ -343,6 +354,14 @@ if __name__ == "__main__":
         help="Descending sorting",
     )
 
+    parser.add_argument(
+        "-P",
+        "--plot",
+        default=False,
+        required=False,
+        action="store_true",
+        help="Plot the dismantling curves",
+    )
     args, cmdline_args = parser.parse_known_args()
 
     FUNCTION_MAP[args.command](args)

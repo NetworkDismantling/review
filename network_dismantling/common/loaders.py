@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, List
+from typing import Union
 
 
 def load_graph(file: Union[Path, str], fmt="auto", ignore_vp=None, ignore_ep=None,
@@ -42,17 +42,3 @@ def load_graph(file: Union[Path, str], fmt="auto", ignore_vp=None, ignore_ep=Non
                        )
 
     return g
-
-
-def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*"):
-    from network_dismantling.machine_learning.pytorch.dataset_providers import storage_provider
-
-    if not isinstance(location, list):
-        location = [location]
-
-    networks = []
-    for loc in location:
-        print(f"Loading networks from {loc}...", flush=True)
-        networks += storage_provider(loc, max_num_vertices=max_num_vertices, filter=filter)
-
-    return networks

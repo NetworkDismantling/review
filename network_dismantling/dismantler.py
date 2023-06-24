@@ -9,16 +9,15 @@ from time import time
 
 import numpy as np
 import pandas as pd
+from network_dismantling.common.dataset_providers import list_files, init_network_provider
+from network_dismantling.common.helpers import extend_filename
 from scipy.integrate import simps
 from tqdm.auto import tqdm
 
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
     threshold_dismantler as external_threshold_dismantler
-from network_dismantling.common.loaders import init_network_provider
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler, dataset_writer
-from network_dismantling.machine_learning.pytorch.common import extend_filename
-from network_dismantling.machine_learning.pytorch.dataset_providers import list_files
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -172,6 +171,11 @@ def main(args):
 
                 peak_slcc = max(removals, key=itemgetter(4))
 
+                rem_num = len(removals)
+
+                if rem_num > 0:
+                    assert removals[0][0] > -1, "First removal is just the LCC size!"
+                #     if (removals[0][0] == -1)
                 run = {
                     "network": name,
                     "removals": removals,
@@ -180,7 +184,8 @@ def main(args):
                     "slcc_size_at_peak": peak_slcc[4],
                     "heuristic": heuristic,
                     "static": None,
-                    "r_auc": simps(list(r[3] for r in removals), dx=1)
+                    "r_auc": simps(list(r[3] for r in removals), dx=1),
+                    "rem_num": rem_num,
                 }
 
                 if args.verbose == 2:

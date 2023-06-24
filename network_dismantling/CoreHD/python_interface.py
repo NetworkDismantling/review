@@ -48,7 +48,7 @@ def _coreHD(network, **kwargs):
             # 'make clean && make',
             'make',
             f'./{executable} '
-            f'--NetworkFile {network_path} '
+            f'--NetworkFile "{network_path}" '
             f'--VertexNumber {network.num_vertices()} '
             f'--EdgeNumber {network.num_edges()} '
             f'--Afile "{output_path}" '

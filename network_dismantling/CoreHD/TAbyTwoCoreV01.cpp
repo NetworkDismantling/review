@@ -58,11 +58,33 @@ webpage: power.itp.ac.cn/~zhouhj/
 #include <valarray>
 #include <ctime>
 
-//#include "/home/Haijun/bin/Programs/zhjrandom.h"
-//#include "/Users/zhouhj/Programs/zhjrandom.h"      //a random number generator
 #include "zhjrandom.h" //a random number generator
 
+#include <boost/program_options.hpp>
+
+using namespace boost;
 using namespace std;
+
+namespace po = boost::program_options;
+
+namespace params {
+    int VertexNumber;
+    int EdgeNumber;
+    // You can set Csize to be 1 percent of VertexNumber of even smaller
+    // assumed to be 1 percent
+    int Csize;
+    string graphfile;
+    string Afile;
+    string FVSfile;
+    string Timefile;
+
+    //  random number generator initialization
+    int rdseed = 93276792; //you can set this seed to another value
+    int prerun = 14000000; //you can set it to another value
+
+}
+
+using namespace params;
 
 /*---               random real uniformly distributed in [0,1)            ---*/
 double u01prn(ZHJRANDOMv3 *rd) {
@@ -73,21 +95,19 @@ struct IntPair {
     int first;
     int second;
 
-    IntPair(void);
+    IntPair();
 
     IntPair(int, int);
 };
 
-IntPair::IntPair(void) {
+IntPair::IntPair() {
     first = 0;
     second = 0;
-    return;
 }
 
 IntPair::IntPair(int a, int b) {
     first = a;
     second = b;
-    return;
 }
 
 bool operator<(IntPair a, IntPair b) {
@@ -111,12 +131,11 @@ bool operator==(IntPair a, IntPair b) {
 struct outmessage //cavity out message to a vertex
 {
     struct vstruct *v_ptr; //pointer to the receiving vertex
-    outmessage(void);
+    outmessage();
 };
 
-outmessage::outmessage(void) {
+outmessage::outmessage() {
     v_ptr = nullptr;
-    return;
 }
 
 struct vstruct //vertex struct
@@ -129,10 +148,10 @@ struct vstruct //vertex struct
     bool active;               //=true (need to be considered in BP iteration)
     struct outmessage *om_ptr; //start position of output message
     int b_size;                //size of a branch (used in ComponentRefinement)
-    vstruct(void);
+    vstruct();
 };
 
-vstruct::vstruct(void) {
+vstruct::vstruct() {
     index = 0;
     degree = 0;
     active_degree = 0;
@@ -141,15 +160,14 @@ vstruct::vstruct(void) {
     active = true;   //initially all vertices are active
     om_ptr = nullptr;
     b_size = 0;
-    return;
 }
 
 class FVS //feedback vertex set
 {
 public:
-    FVS(ZHJRANDOMv3 *);                      //constructor
+    explicit FVS(ZHJRANDOMv3 *);                      //constructor
     bool Graph(string &, int);               //read graph connection pattern
-    int Fix0(void);                          //fix some variables to be un-occupied and simplify
+    int Fix0();                          //fix some variables to be un-occupied and simplify
     void ComponentRefinement(int, string &); //refinement of components
     void AttackEffect(string &);             //the accumulated effect of node deletion
 //    bool ReadFVS(string &);                  //read a FVS into the program
@@ -173,31 +191,42 @@ private:
     int CandidateNumber;             //number of vertices in CandidateVertices
 };
 
-#include "config.h"
 
-int main(int argc, char **argv) {
+po::variables_map parse_command_line(int ac, char **av) {
+    po::options_description desc("Usage: " + string(av[0]) + " <option> ... \n\twhere <option> is one or more of");
 
-    if (argc != 5) {
-        fprintf(stderr,
-                "usage: %s <VERTEX_NUM> <EDGE_NUM> <STOP_CONDITION> <OUTPUT_FILE>\n",
-                argv[0]
-                );
+    desc.add_options()
+            ("help", "produce help message")
+            ("NetworkFile,F", po::value(&graphfile), "File containing the network")
+            ("VertexNumber,N", po::value(&VertexNumber), "Number of vertices of the network")
+            ("EdgeNumber,E", po::value(&EdgeNumber), "Number of edges of the network")
+            ("Csize,C", po::value(&Csize), "Target component size")
+            ("seed,s", po::value(&rdseed)->default_value(rdseed), "Pseudo-random number generator seed")
+            ("prerun,P", po::value(&prerun)->default_value(prerun), "Pre-run number of iterations")
+            ("Afile,A", po::value(&Afile), "File containing the adjacency matrix")
+            ("FVSfile,O", po::value(&FVSfile), "[UNUSED] File containing the Feedback Vertex Set (FVS)")
+            ("Timefile,T", po::value(&Timefile), "File containing the time to find the feedback");
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(ac, av, desc), vm);
+    po::notify(vm);
+
+    if (vm.count("help")) {
+        std::cout << desc << "\n";
         exit(1);
     }
 
-    int VertexNumber = 511;
-    int EdgeNumber   = 679;
-//          You can set Csize to be 1 percent of VertexNumber of even smaller
-    int Csize = 52;                       //assumed to be 1 percent
-    string graphfile = "../../../../../../../../../tmp/tmpeeh9vufl";
-    string Afile    = "../../../../../../../../../tmp/tmpb6__v23e";
-    string FVSfile  = "../../../../../../../../../tmp/tmp80_axazi";
-    string Timefile = "../../../../../../../../../tmp/tmp47lvkvib";
+    return vm;
+}
 
-    //                                     random number generator initialization
-    int rdseed = 93276792; //you can set this seed to another value
+
+int main(int argc, char **argv) {
+//    cout << "Feedback Vertex Set (FVS) algorithm\n";
+    po::variables_map vm = parse_command_line(argc, argv);
+
+    cout << "NetworkFile = " << graphfile << endl;
+
     ZHJRANDOMv3 rdgenerator(rdseed);
-    int prerun = 14000000; //you can set it to another value
     for (int i = 0; i < prerun; ++i)
         rdgenerator.rdflt();
 
@@ -245,7 +274,6 @@ int main(int argc, char **argv) {
 /*---                       constructor of FVS cluster                    ---*/
 FVS::FVS(ZHJRANDOMv3 *rd) {
     PRNG = rd; //random number generator
-    return;
 }
 
 /* -                           Read graph from file                           -
@@ -272,7 +300,7 @@ bool FVS::Graph(string &gname, int enumber) {
     try {
         Vertex.resize(VertexNumber + 1);
     }
-    catch (bad_alloc) {
+    catch (std::bad_alloc const &) {
         cerr << "Vertex construction failed.\n";
         graphf.close();
         return false;
@@ -280,14 +308,14 @@ bool FVS::Graph(string &gname, int enumber) {
     try {
         Permutation.resize(VertexNumber + 1);
     }
-    catch (bad_alloc) {
+    catch (std::bad_alloc const &) {
         cerr << "Permutation construction failed.\n";
         return false;
     }
     try {
         CandidateVertices.resize(VertexNumber + 1);
     }
-    catch (bad_alloc) {
+    catch (std::bad_alloc const &) {
         cerr << "CandidateVertices construction failed.\n";
         return false;
     }
@@ -320,7 +348,7 @@ bool FVS::Graph(string &gname, int enumber) {
     try {
         OutMessage.resize(2 * EdgeNumber);
     }
-    catch (bad_alloc) {
+    catch (std::bad_alloc const &) {
         cerr << "OutMessage construction failed.\n";
         return false;
     }
@@ -398,12 +426,11 @@ void FVS::Simplify(struct vstruct *v_ptr) {
             }
         }
     }
-    return;
 }
 
 /*-- externally fixing one vertex to be empty and simplify the system --*/
-int FVS::Fix0(void) {
-    struct vstruct *v_ptr = 0;
+int FVS::Fix0() {
+    struct vstruct *v_ptr = nullptr;
     int DeletionNumber = 0;
     int MaxActiveDegree = 0;
     CandidateNumber = 0;
@@ -411,7 +438,7 @@ int FVS::Fix0(void) {
         if (CandidateNumber == 0) {
             MaxActiveDegree = 0;
             for (int quant = ActiveVertexNumber0 - 1; quant >= 0; --quant) {
-                if (Vertex[Permutation[quant]].active == false) {
+                if (!Vertex[Permutation[quant]].active) {
                     --ActiveVertexNumber0;
                     Permutation[quant] = Permutation[ActiveVertexNumber0];
                 } else {
@@ -454,7 +481,7 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
     struct vstruct *v_ptr = &Vertex[1];
     for (int v = 1; v <= VertexNumber; ++v, ++v_ptr) {
         v_ptr->c_index = 0;
-        if (v_ptr->occupied == false)
+        if (!v_ptr->occupied)
             ++num_empty;
     }
     int max_comp_size = 0;
@@ -531,7 +558,7 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
                     for (int d = 0; d < Vertex[vtx].degree; ++d, ++om_ptr)
                         if (om_ptr->v_ptr->occupied) {
                             om_ptr->v_ptr->active_degree -= 1;
-                            if (om_ptr->v_ptr->active == false) {
+                            if (!om_ptr->v_ptr->active) {
                                 int bsize = om_ptr->v_ptr->b_size;
                                 if (maxbsize < bsize)
                                     maxbsize = bsize;
@@ -557,9 +584,9 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
                 ++num_empty;
                 Targets.push(cvtx);
                 ++NumberDelete;
-                for (set<int>::const_iterator sci = gtree.begin(); sci != gtree.end();
-                     ++sci)
-                    Vertex[*sci].c_index = 0;
+                for (int sci: gtree) {
+                    Vertex[sci].c_index = 0;
+                }
                 --c_index;
                 --v;
                 --v_ptr;
@@ -581,15 +608,14 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
                     cgroups.insert(Vertex[vtx2].c_index);
             }
             c_size = 1;
-            for (set<int>::const_iterator sci = cgroups.begin(); sci != cgroups.end();
-                 ++sci)
-                c_size += Permutation[*sci];
+            for (int cgroup: cgroups)
+                c_size += Permutation[cgroup];
             if (c_size <= Sthreshold)
                 candidates.insert(IntPair(c_size, vtx));
         }
     while (!candidates.empty()) {
         c_index = 0;
-        set<IntPair>::const_iterator sci = candidates.begin();
+        auto sci = candidates.begin();
         int csize0 = sci->first;
         int vtx = sci->second;
         candidates.erase(IntPair(csize0, vtx));
@@ -604,9 +630,8 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
             }
         }
         c_size = 1;
-        for (set<int>::const_iterator sci2 = cgroups.begin(); sci2 != cgroups.end();
-             ++sci2)
-            c_size += Permutation[*sci2];
+        for (int cgroup: cgroups)
+            c_size += Permutation[cgroup];
         if (c_size <= Sthreshold) {
             if (c_size > csize0)
                 candidates.insert(IntPair(c_size, vtx));
@@ -642,10 +667,9 @@ void FVS::ComponentRefinement(int Sthreshold, string &outfile) {
           << endl;
     v_ptr = &Vertex[1];
     for (int v = 1; v <= VertexNumber; ++v, ++v_ptr)
-        if (v_ptr->occupied == false)
+        if (!v_ptr->occupied)
             pfile << v_ptr->index << endl;
     pfile.close();
-    return;
 }
 
 /* Report the attack order and its effect. */
@@ -664,7 +688,7 @@ void FVS::AttackEffect(string &attackfile) {
     v_ptr = &Vertex[1];
     struct outmessage *om_ptr;
     for (int v = 1; v <= VertexNumber; ++v, ++v_ptr) {
-        if (v_ptr->occupied == false) {
+        if (!v_ptr->occupied) {
             ++num_empty;
             finaltargets.insert(v_ptr->index);
         } else if (v_ptr->c_index == 0) {
@@ -698,7 +722,7 @@ void FVS::AttackEffect(string &attackfile) {
     while (!Targets.empty()) {
         int vtx = Targets.top();
         Targets.pop();
-        if (Vertex[vtx].occupied == false) {
+        if (!Vertex[vtx].occupied) {
             int c_index = 0;
             set<int> cgroups;
             om_ptr = Vertex[vtx].om_ptr;
@@ -711,9 +735,8 @@ void FVS::AttackEffect(string &attackfile) {
                 }
             }
             int c_size = 1;
-            for (set<int>::const_iterator sci2 = cgroups.begin();
-                 sci2 != cgroups.end(); ++sci2)
-                c_size += Permutation[*sci2];
+            for (int cgroup: cgroups)
+                c_size += Permutation[cgroup];
             Vertex[vtx].occupied = true;
             --num_empty;
             Permutation[c_index] = c_size;
@@ -741,8 +764,6 @@ void FVS::AttackEffect(string &attackfile) {
         }
     }
     output.close();
-    for (set<int>::const_iterator sci = finaltargets.begin();
-         sci != finaltargets.end(); ++sci)
-        Vertex[*sci].occupied = false;
-    return;
+    for (int finaltarget: finaltargets)
+        Vertex[finaltarget].occupied = false;
 }

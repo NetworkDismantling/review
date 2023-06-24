@@ -54,42 +54,42 @@ double gammln(double xx)
 
 class ZHJRANDOMv3 {
 public:
-    double rdflt(void);
+    double rdflt();
 
     double poidev(double);
 
-    double gasdev(void);
+    double gasdev();
 
-    ZHJRANDOMv3(long i = 0);
+    explicit ZHJRANDOMv3(long i = 0);
 
 private:
-    static const long IM1 = 2147483563;
-    static const long IM2 = 2147483399;
-    static const float AM = (1.0 / IM1);
-    static const long IMM1 = (IM1 - 1);
-    static const int IA1 = 40014;
-    static const int IA2 = 40692;
-    static const int IQ1 = 53668;
-    static const int IQ2 = 52774;
-    static const int IR1 = 12211;
-    static const int IR2 = 3791;
-    static const int NTAB = 32;
-    static const int NDIV = (1 + IMM1 / NTAB);
+    constexpr static const long IM1 = 2147483563;
+    constexpr static const long IM2 = 2147483399;
+    constexpr static const double AM = (1.0 / IM1);
+    constexpr static const long IMM1 = (IM1 - 1);
+    constexpr static const int IA1 = 40014;
+    constexpr static const int IA2 = 40692;
+    constexpr static const int IQ1 = 53668;
+    constexpr static const int IQ2 = 52774;
+    constexpr static const int IR1 = 12211;
+    constexpr static const int IR2 = 3791;
+    constexpr static const int NTAB = 32;
+    constexpr static const int NDIV = (1 + IMM1 / NTAB);
     constexpr static const double EPS = 1.2e-7;
     constexpr static const double RNMX = 9.9999988e-1; //=1.0-EPS;
 
-    long iv[NTAB];
+    long iv[NTAB]{};
     long idum;
     long idum2;
     long iy;
-    double gas_gset;
+    double gas_gset{};
     int gas_iset;
-    double gas_rsq;
-    double gas_v1;
-    double gas_v2;
-    double gas_fac;
+    double gas_rsq{};
+    double gas_v1{};
+    double gas_v2{};
+    double gas_fac{};
 
-    double GammlnVal[1000];
+    double GammlnVal[1000]{};
 };
 
 
@@ -124,7 +124,7 @@ double ZHJRANDOMv3::rdflt() {
 
     if (idum2 < 0) idum2 += IM2;
 
-    int j = iy / NDIV;
+    long j = iy / NDIV;
     iy = iv[j] - idum2;
     iv[j] = idum;
     if (iy < 1) iy += IMM1;
@@ -176,7 +176,7 @@ double ZHJRANDOMv3::poidev(double xm)
     return em;
 }
 
-double ZHJRANDOMv3::gasdev(void)
+double ZHJRANDOMv3::gasdev()
 /* Returns a normally distributed deviate with zero mean and unit variance. */
 {
     if (gas_iset <= 0) {

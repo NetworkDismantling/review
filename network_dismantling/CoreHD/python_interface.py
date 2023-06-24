@@ -16,7 +16,7 @@ targets_num_expression = compile("Targets  {targets:d}")
 def _coreHD(network, **kwargs):
     folder = 'network_dismantling/CoreHD/'
     cd_cmd = 'cd {} && '.format(folder)
-    config_file = "config.h"
+    executable = 'coreHD'
 
     nodes = []
 
@@ -35,40 +35,29 @@ def _coreHD(network, **kwargs):
     try:
 
         with open(network_fd, 'w+') as tmp:
-            tmp.write("{} {}\n".format(network.num_vertices(),
-                                       network.num_edges()))
+            tmp.write(f"{network.num_vertices()} {network.num_edges()}\n")
 
             for edge in network.edges():
-                tmp.write("{} {}\n".format(
-                    static_id[edge.source()] + 1,
-                    static_id[edge.target()] + 1
-                    )
-                )
+                tmp.write(f"{static_id[edge.source()] + 1} {static_id[edge.target()] + 1}\n")
+
             # for edge in network.get_edges():
             #     tmp.write("{} {}\n".format(int(edge[0]) + 1, int(edge[1]) + 1))
 
-        with open(folder + config_file, "w+") as f:
-            f.write(("int VertexNumber = {};\n"
-                     "int EdgeNumber   = {};\n"
-                     "//          You can set Csize to be 1 percent of VertexNumber of even smaller\n"
-                     "int Csize = {};                       //assumed to be 1 percent\n"
-                     "string graphfile = \"{}\";\n"
-                     "string Afile    = \"{}\";\n"
-                     "string FVSfile  = \"{}\";\n"
-                     "string Timefile = \"{}\";\n"
-                     ).format(network.num_vertices(),
-                              network.num_edges(),
-                              kwargs["stop_condition"],
-                              "../" + relpath(network_path, dirname(realpath(__file__))),
-                              "../" + relpath(output_path, dirname(realpath(__file__))),
-                              "../" + relpath(feedback_path, dirname(realpath(__file__))),
-                              "../" + relpath(time_path, dirname(realpath(__file__))),
-                              )
-                    )
-
         cmds = [
-            'make clean && make',
-            './coreHD'
+            # TODO move build to setup.py?
+            # 'make clean && make',
+            'make',
+            f'./{executable} '
+            f'--NetworkFile {network_path} '
+            f'--VertexNumber {network.num_vertices()} '
+            f'--EdgeNumber {network.num_edges()} '
+            f'--Afile "{output_path}" '
+            f'--FVSfile "{feedback_path}" '
+            f'--Timefile "{time_path}" '
+            f'--Csize {kwargs["stop_condition"]} '
+            # f'--seed {kwargs["seed"]} '
+            #     int rdseed = 93276792; //you can set this seed to another value
+            #     int prerun = 14000000; //you can set it to another value
         ]
 
         for cmd in cmds:

@@ -9,18 +9,22 @@ BOOST_LIB_VERSION := $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=li
 BOOST_LIB_FILE := boost_python$(BOOST_LIB_VERSION)
 
 CXX=g++
-FLAGS=-fPIC -Wall -O3 -march=native -std=gnu++11 -g -Wno-deprecated -Wno-unknown-pragmas -I.
-LIBS=-Wl,-soname,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) -L$(BOOST_LIB_LOCATION) -l$(BOOST_LIB_FILE) -I$(BOOST_INC) -I$(PYTHON_INC) -lboost_program_options
+
+FLAGS=-fPIC -Wall -O3 -march=native -std=gnu++11 -g -Wno-deprecated -fpermissive
+CInc := -I. -I$(BOOST_INC) -I$(PYTHON_INC)
+CLinkFlags= -Wl,-soname,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) -L$(BOOST_LIB_LOCATION)
+LIBS= -lboost_program_options
+
 BIN=GND reinsertion
 
 
 all: $(BIN)
 
 GND: GND.cpp
-	${CXX} ${FLAGS} GND.cpp ${LIBS} -o $@
+	${CXX} ${FLAGS} ${CInc} ${CLinkFlags} ${LIBS} GND.cpp -o $@
 
 reinsertion: reinsertion.cpp 
-	${CXX} ${FLAGS} reinsertion.cpp ${LIBS} -o $@
+	${CXX} ${FLAGS} ${CInc} ${CLinkFlags} ${LIBS} reinsertion.cpp -o $@
 clean:
 	rm -f $(BIN) *.o
 

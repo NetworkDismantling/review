@@ -57,10 +57,10 @@ webpage: power.itp.ac.cn/~zhouhj/
 #include <string>
 #include <valarray>
 #include <ctime>
+#include <boost/program_options.hpp>
 
 #include "zhjrandom.h" //a random number generator
 
-#include <boost/program_options.hpp>
 
 using namespace boost;
 using namespace std;
@@ -220,57 +220,6 @@ po::variables_map parse_command_line(int ac, char **av) {
 }
 
 
-int main(int argc, char **argv) {
-//    cout << "Feedback Vertex Set (FVS) algorithm\n";
-    po::variables_map vm = parse_command_line(argc, argv);
-
-    cout << "NetworkFile = " << graphfile << endl;
-
-    ZHJRANDOMv3 rdgenerator(rdseed);
-    for (int i = 0; i < prerun; ++i)
-        rdgenerator.rdflt();
-
-    FVS system(&rdgenerator);
-
-    bool succeed = system.Graph(graphfile, EdgeNumber);
-    if (!succeed)
-        return -1;
-
-    clock_t t1c = clock();
-    time_t t1 = time(nullptr);
-
-    int DeletionNumber = system.Fix0();
-    cout << "FVS size = " << DeletionNumber << endl;
-
-    //          report feedback vertex set, please change the name as you prefer
-    /*
-    if( system.CheckFVS(FVSfile) == false)
-    {
-      cerr<<"Not a feedback vertex set.\n";
-      return -1;
-    }
-    */
-
-    system.ComponentRefinement(Csize, Afile);
-
-    clock_t t2c = clock();
-    time_t t2 = time(nullptr);
-
-    ofstream Toutf(Timefile.c_str());
-    Toutf << "Total seconds used="
-          << static_cast<double>(t2c - t1c) / CLOCKS_PER_SEC
-          << " s" << endl;
-    Toutf << "Total time used = " << t2 - t1 << "s" << endl;
-    Toutf.close();
-
-    //The following two lines report size evolution of the largest component
-    //  string Bfile="ERn100kM1mg100.TAeffect";
-    //  system.AttackEffect(Bfile);
-
-    //  return 1;
-    return 0;
-}
-
 /*---                       constructor of FVS cluster                    ---*/
 FVS::FVS(ZHJRANDOMv3 *rd) {
     PRNG = rd; //random number generator
@@ -283,7 +232,7 @@ enumber: read the first enumber edges only.
 bool FVS::Graph(string &gname, int enumber) {
     ifstream graphf(gname.c_str());
     if (!graphf.good()) {
-        cerr << "Graph probably non-existant.\n";
+        cerr << "Graph probably non-existent.\n";
         return false;
     }
     while (!Targets.empty()) {
@@ -766,4 +715,54 @@ void FVS::AttackEffect(string &attackfile) {
     output.close();
     for (int finaltarget: finaltargets)
         Vertex[finaltarget].occupied = false;
+}
+
+
+int main(int argc, char **argv) {
+    po::variables_map vm = parse_command_line(argc, argv);
+
+    cout << "NetworkFile = " << graphfile << endl;
+
+    auto rdgenerator = new ZHJRANDOMv3(rdseed);
+    for (int i = 0; i < prerun; ++i)
+        rdgenerator->rdflt();
+
+    auto system = new FVS(rdgenerator);
+
+    bool succeed = system->Graph(graphfile, EdgeNumber);
+    if (!succeed) return -1;
+
+    clock_t t1c = clock();
+    time_t t1 = time(nullptr);
+
+    int DeletionNumber = system->Fix0();
+    cout << "FVS size = " << DeletionNumber << endl;
+
+    //          report feedback vertex set, please change the name as you prefer
+    /*
+    if( system.CheckFVS(FVSfile) == false)
+    {
+      cerr<<"Not a feedback vertex set.\n";
+      return -1;
+    }
+    */
+
+    system->ComponentRefinement(Csize, Afile);
+
+    clock_t t2c = clock();
+    time_t t2 = time(nullptr);
+
+    ofstream Toutf(Timefile.c_str());
+    Toutf << "Total seconds used="
+          << static_cast<double>(t2c - t1c) / CLOCKS_PER_SEC
+          << " s" << endl;
+    Toutf << "Total time used = " << t2 - t1 << "s" << endl;
+    Toutf.close();
+
+    //The following two lines report size evolution of the largest component
+    //  string Bfile="ERn100kM1mg100.TAeffect";
+    //  system.AttackEffect(Bfile);
+
+    //  return 1;
+    return 0;
 }

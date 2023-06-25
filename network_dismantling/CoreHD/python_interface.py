@@ -1,11 +1,9 @@
-import os
 import tempfile
 from os import remove
-from os.path import relpath, dirname, realpath
 from subprocess import check_output
 
 import numpy as np
-from graph_tool.stats import remove_parallel_edges, remove_self_loops
+from graph_tool.all import remove_parallel_edges, remove_self_loops
 from parse import compile
 
 from network_dismantling._sorters import dismantling_method
@@ -15,7 +13,7 @@ targets_num_expression = compile("Targets  {targets:d}")
 
 def _coreHD(network, **kwargs):
     folder = 'network_dismantling/CoreHD/'
-    cd_cmd = 'cd {} && '.format(folder)
+    cd_cmd = f'cd {folder} && '
     executable = 'coreHD'
 
     nodes = []

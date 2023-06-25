@@ -1,11 +1,7 @@
 import logging
 from pathlib import Path
 
-from parse import compile
-from torch.multiprocessing import current_process
 from tqdm.auto import tqdm
-
-child_num_format = compile("{}-{number:d}")
 
 
 def dataset_writer(queue, output_file):
@@ -78,15 +74,6 @@ def clean_up_the_pool(*args, **kwargs):
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-
-
-def get_position():
-    try:
-        position = child_num_format.parse(current_process().name)["number"]
-    except:
-        position = 2
-
-    return position
 
 
 class TqdmLoggingHandler(logging.Handler):

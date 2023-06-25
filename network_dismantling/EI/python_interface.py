@@ -3,7 +3,7 @@ from os import remove
 from subprocess import check_output, STDOUT
 
 import numpy as np
-from graph_tool.stats import remove_parallel_edges, remove_self_loops
+from graph_tool.all import remove_parallel_edges, remove_self_loops
 from parse import compile
 
 from network_dismantling._sorters import dismantling_method
@@ -109,6 +109,7 @@ method_info = {
     "source": "https://github.com/pclus/explosive-immunization/",
 
 }
+
 
 @dismantling_method()
 def EI_s1(network, **kwargs):

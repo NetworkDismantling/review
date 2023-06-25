@@ -1,6 +1,5 @@
 import tempfile
 from os import remove
-from os.path import relpath, dirname, realpath
 from subprocess import check_output, STDOUT
 
 import numpy as np

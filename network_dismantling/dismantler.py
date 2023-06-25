@@ -9,14 +9,14 @@ from time import time
 
 import numpy as np
 import pandas as pd
-from network_dismantling.common.dataset_providers import list_files, init_network_provider
-from network_dismantling.common.helpers import extend_filename
 from scipy.integrate import simps
 from tqdm.auto import tqdm
 
+from network_dismantling.common.dataset_providers import list_files, init_network_provider
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
     threshold_dismantler as external_threshold_dismantler
+from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler, dataset_writer
 
 logger = logging.getLogger(__name__)

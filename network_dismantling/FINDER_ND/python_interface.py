@@ -59,7 +59,7 @@ def _finder_nd(network: Graph, reinsertion=True, model_file_ckpt='nrange_30_50_i
     :return:
     """
 
-    from graph_tool.stats import remove_parallel_edges, remove_self_loops
+    from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     remove_parallel_edges(network)
     remove_self_loops(network)

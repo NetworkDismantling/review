@@ -7,7 +7,7 @@ from network_dismantling.common.external_dismantlers.dismantler import Graph, lc
 
 
 def test_network_callback(network):
-    from graph_tool.stats import remove_parallel_edges, remove_self_loops
+    from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     remove_parallel_edges(network)
     remove_self_loops(network)

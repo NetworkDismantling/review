@@ -33,7 +33,7 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
     folder = f'network_dismantling/CI/'
     cd_cmd = f'cd {folder} && '
 
-    from graph_tool.stats import remove_parallel_edges, remove_self_loops
+    from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     remove_parallel_edges(network)
     remove_self_loops(network)

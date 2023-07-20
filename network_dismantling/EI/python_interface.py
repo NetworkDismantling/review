@@ -3,18 +3,21 @@ from os import remove
 from subprocess import check_output, STDOUT
 
 import numpy as np
+from graph_tool import Graph
 from graph_tool.all import remove_parallel_edges, remove_self_loops
 from parse import compile
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
 targets_num_expression = compile("Vaccinated nodes {num:d}")
 
+folder = 'network_dismantling/EI/'
+cd_cmd = 'cd {} && '.format(folder)
+executable = 'exploimmun'
 
-def _explosive_immunization(network, sigma, candidates, **kwargs):
-    folder = 'network_dismantling/EI/'
-    cd_cmd = 'cd {} && '.format(folder)
 
+def _explosive_immunization(network: Graph, stop_condition: int, sigma: int, candidates: int, **kwargs):
     # Not sure if EI supports parallel edges or self loops.
     # Remove them as this fixes a bug and as they do not alter the dismantling set
     remove_parallel_edges(network)
@@ -44,15 +47,7 @@ def _explosive_immunization(network, sigma, candidates, **kwargs):
         cmds = [
             # 'make clean && make',
             'make -C Library',
-            './exploimmun {} {} {} {} {} {}'.format(
-                candidates,
-                network_path,
-                output_path,
-                kwargs["stop_condition"],
-                # kwargs["threshold"],
-                sigma,
-                threshold_condition_path
-            )
+            f'./{executable} {candidates} {network_path} {output_path} {stop_condition} {sigma} {threshold_condition_path}'
         ]
 
         for cmd in cmds:
@@ -107,15 +102,26 @@ method_info = {
     # "short_name": "EI",
     # "description": "Explosive Immunization",
     "source": "https://github.com/pclus/explosive-immunization/",
-
 }
 
 
-@dismantling_method()
+@dismantling_method(name="Explosive Immunization $\sigma=1$",
+                    short_name="EI $\sigma=1$",
+
+                    includes_reinsertion=False,
+                    # plot_color="",
+                    **method_info)
+@dismantler_wrapper
 def EI_s1(network, **kwargs):
     return _explosive_immunization(network, candidates=1000, sigma=1, **kwargs)
 
 
-@dismantling_method()
+@dismantling_method(name="Explosive Immunization $\sigma=2$",
+                    short_name="EI $\sigma=2$",
+
+                    includes_reinsertion=False,
+                    # plot_color="",
+                    **method_info)
+@dismantler_wrapper
 def EI_s2(network, **kwargs):
     return _explosive_immunization(network, candidates=1000, sigma=2, **kwargs)

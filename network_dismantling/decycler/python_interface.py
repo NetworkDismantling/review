@@ -4,12 +4,16 @@ from subprocess import check_output, STDOUT
 
 import numpy as np
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
+cd_cmd = 'cd network_dismantling/decycler/ && '
+executable = 'decycler'
+reverse_greedy_executable = 'reverse-greedy'
 
-def _decycler(network, reinsertion=True, **kwargs):
-    cd_cmd = 'cd network_dismantling/decycler/ && '
 
+@dismantler_wrapper
+def _decycler(network, stop_condition: int, reinsertion=True, **kwargs):
     network_type = "D" if network.is_directed() else "E"
 
     static_id = network.vertex_properties["static_id"]
@@ -37,27 +41,14 @@ def _decycler(network, reinsertion=True, **kwargs):
 
         cmds = [
             'make',
-            'cat {} | ./decycler -o > {}'.format(
-                network_path,
-                seeds_path
-            ),
-            '(cat {} {}) | python treebreaker.py {} > {}'.format(
-                network_path,
-                seeds_path,
-                kwargs["stop_condition"],
-                broken_path
-            ),
+            f'cat {network_path} | ./{executable} -o > {seeds_path}',
+            f'(cat {network_path} {seeds_path}) | python treebreaker.py {stop_condition} > {broken_path}'
         ]
 
         if reinsertion is True:
             cmds.append(
-                '(cat {} {} {}) | ./reverse-greedy -t {} > {}'.format(
-                    network_path,
-                    seeds_path,
-                    broken_path,
-                    kwargs["stop_condition"],
-                    output_path
-                )
+                f'(cat {network_path} {seeds_path} {broken_path}) | '
+                f'./{reverse_greedy_executable} -t {stop_condition} > {output_path}'
             )
 
             output = [output_fd]
@@ -118,11 +109,23 @@ method_info = {
 }
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Min-Sum",
+                    short_name="MS",
+
+                    plot_color="#98df8a",
+
+                    includes_reinsertion=False,
+                    **method_info)
 def MS(network, **kwargs):
     return _decycler(network, reinsertion=False, **kwargs)
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Min-Sum + Reinsertion",
+                    short_name="MS +R",
+
+                    plot_color="#2ca02c",
+
+                    includes_reinsertion=True,
+                    **method_info)
 def MSR(network, **kwargs):
     return _decycler(network, reinsertion=True, **kwargs)

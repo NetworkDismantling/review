@@ -62,7 +62,7 @@ using namespace std;
 
 namespace params {
 
-real_t threshold = 1000000;
+real_t threshold;
 
 }
 
@@ -232,8 +232,7 @@ po::variables_map parse_command_line(int ac, char ** av)
 			);
 	desc.add_options()
 		("help,h", "produce help message")
-		("threshold,t", po::value(&threshold)->default_value(threshold), 
-		 "stop on threshold");
+		("threshold,t", po::value(&threshold), "stop on threshold");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(ac, av, desc), vm);

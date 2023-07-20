@@ -1,3 +1,6 @@
+import logging
+from _operator import itemgetter
+from functools import wraps
 from operator import itemgetter
 from typing import Dict, Callable, Union
 
@@ -5,6 +8,10 @@ import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
 from graph_tool.topology import label_components, kcore_decomposition
 from scipy.integrate import simps
+
+from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
+    threshold_dismantler as external_threshold_dismantler
+from network_dismantling.dismantler import get_predictions
 
 
 def get_lcc_slcc(network):
@@ -27,7 +34,7 @@ def get_lcc_slcc(network):
 
 
 def threshold_dismantler(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int,
-                         early_stopping_auc=np.inf, early_stopping_removals=np.inf, pbar=None):
+                         early_stopping_auc=np.inf, early_stopping_removals=np.inf, logger=logging.getLogger("dummy"),):
     removals = []
 
     network.set_fast_edge_removal(fast=True)
@@ -69,13 +76,12 @@ def threshold_dismantler(network: Graph, node_generator: Callable, generator_arg
 
         current_auc = simps(list(map(itemgetter(3), removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
-
             # if current_auc > early_stopping_auc:
             removals.append(
                 (-1, -1, -1, -1, -1)
             )
 
-            print("EARLY STOPPING")
+            logging.debug("EARLY STOPPING")
             break
 
     return removals, None, None
@@ -83,9 +89,7 @@ def threshold_dismantler(network: Graph, node_generator: Callable, generator_arg
 
 # TODO REMOVE THIS FROM THE REVIEW. IT IS NOT USED!
 def kcore_lcc_threshold_dismantler(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int,
-                                   early_stopping_auc=np.inf, early_stopping_removals=np.inf, pbar=None):
-    logger = generator_args["logger"]
-
+                                   early_stopping_auc=np.inf, early_stopping_removals=np.inf, logger=logging.getLogger("dummy"),):
     removals = []
 
     network.set_fast_edge_removal(fast=True)
@@ -160,9 +164,7 @@ def kcore_lcc_threshold_dismantler(network: Graph, node_generator: Callable, gen
     return removals, None, None
 
 
-def lcc_threshold_dismantle(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int):
-    logger = generator_args["logger"]
-
+def lcc_threshold_dismantle(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int, logger=logging.getLogger("dummy")):
     removals = []
 
     network.set_fast_edge_removal(fast=True)
@@ -235,7 +237,7 @@ def lcc_threshold_dismantle(network: Graph, node_generator: Callable, generator_
 
 
 def lcc_peak_dismantler(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int,
-                        logger: Callable = print):
+                        logger: Callable = logging.getLogger("dummy")):
     removals = []
 
     network.set_fast_edge_removal(fast=True)
@@ -325,3 +327,59 @@ def lcc_peak_dismantler(network: Graph, node_generator: Callable, generator_args
     generator.close()
 
     return removals, None, None  # prediction_time, dismantle_time
+
+
+def dismantler_wrapper(function: Callable):
+    @wraps(function)
+    def wrapper(network: Graph,
+                predictor: Callable = get_predictions,
+                dismantler: Callable = external_threshold_dismantler,
+                **kwargs
+                ):
+
+        generator_args = kwargs.pop("generator_args")
+        try:
+            logger = kwargs.get("logger")
+        except KeyError:
+            logger = generator_args.get("logger", logging.getLogger("dummy"))
+
+        generator_args["sorting_function"] = function
+
+        print("WRAPPING FUNCTION", function.__name__)
+
+        removals, prediction_time, dismantle_time = dismantler(network=network,
+                                                               predictor=predictor,
+                                                               generator_args=generator_args,
+                                                               # stop_condition=stop_condition,
+                                                               # *args,
+                                                               **kwargs
+                                                               )
+
+        peak_slcc = max(removals, key=itemgetter(4))
+        rem_num = len(removals)
+
+        if rem_num > 0:
+            if removals[0][0] < 0:
+                raise RuntimeError("First removal is just the LCC size!")
+
+            if removals[-1][2] == 0:
+                raise RuntimeError("ERROR: removed more nodes than predicted!")
+
+        run = {
+            # "network": name,
+            "removals": removals,
+            "slcc_peak_at": peak_slcc[0],
+            "lcc_size_at_peak": peak_slcc[3],
+            "slcc_size_at_peak": peak_slcc[4],
+            # "heuristic": heuristic,
+            # "static": None,
+            "r_auc": simps(list(r[3] for r in removals), dx=1),
+            "rem_num": rem_num,
+
+            "prediction_time": prediction_time,
+            "dismantle_time": dismantle_time
+        }
+
+        return run  # , time_run
+
+    return wrapper

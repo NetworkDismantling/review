@@ -1,18 +1,24 @@
+import logging
 import tempfile
 from os import remove
 from subprocess import check_output, STDOUT
 
 import numpy as np
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
+folder = 'network_dismantling/GND/'
+cd_cmd = f'cd {folder} && '
+executable = 'GND'
+reinsertion_executable = 'reinsertion'
 
-def _generalized_network_dismantling(network, reinsertion=False, remove_strategy=3, reinsertion_strategy=2, **kwargs):
-    folder = 'network_dismantling/GND/'
-    cd_cmd = f'cd {folder} && '
-    executable = 'GND'
-    reinsertion_executable = 'reinsertion'
 
+def _generalized_network_dismantling(network, stop_condition: int,
+                                     reinsertion=False, remove_strategy=3, reinsertion_strategy=2,
+                                     logger=logging.getLogger("dummy"),
+                                     **kwargs
+                                     ):
     static_id = network.vertex_properties["static_id"]
 
     network_fd, network_path = tempfile.mkstemp()
@@ -34,11 +40,12 @@ def _generalized_network_dismantling(network, reinsertion=False, remove_strategy
             # TODO move build to setup.py?
             # 'make clean && make',
             'make',
+
             f'./{executable} '
             f'--NetworkFile {network_path} '
             f'--IDFile "{broken_path}" '
             f'--NodeNum {network.num_vertices()} '
-            f'--TargetSize {kwargs["stop_condition"]} '
+            f'--TargetSize {stop_condition} '
             f'--RemoveStrategy {remove_strategy} '
         ]
 
@@ -49,7 +56,7 @@ def _generalized_network_dismantling(network, reinsertion=False, remove_strategy
                 f'--NetworkFile {network_path} '
                 f'--IDFile "{broken_path}" '
                 f'--OutFile "{output_path}" '
-                f'--TargetSize {kwargs["stop_condition"]} '
+                f'--TargetSize {stop_condition} '
                 f'--SortStrategy {reinsertion_strategy} '
             )
 
@@ -59,8 +66,8 @@ def _generalized_network_dismantling(network, reinsertion=False, remove_strategy
 
         for cmd in cmds:
             try:
-                print(f"Running cmd: {cmd}")
-                print(
+                logger.debug(f"Running cmd: {cmd}")
+                logger.debug(
                     check_output(cd_cmd + cmd,
                                  shell=True,
                                  text=True,
@@ -98,11 +105,28 @@ method_info = {
 }
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Generalized Network Dismantling",
+                    # display_name="GND",
+                    short_name="GND",
+
+                    plot_color="#ffbb78",
+
+                    includes_reinsertion=False,
+                    **method_info)
+@dismantler_wrapper
 def GND(network, **kwargs):
     return _generalized_network_dismantling(network, reinsertion=False, **kwargs)
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Generalized Network Dismantling + Reinsertion",
+                    # display_name="GND +R",
+                    short_name="GND +R",
+
+                    plot_color="#ff7f0e",
+                    # plot_marker="s",
+
+                    includes_reinsertion=True,
+                    **method_info)
+@dismantler_wrapper
 def GNDR(network, **kwargs):
     return _generalized_network_dismantling(network, reinsertion=True, **kwargs)

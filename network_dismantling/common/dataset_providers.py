@@ -1,8 +1,9 @@
+import logging
 from glob import glob
 from pathlib import Path
 from typing import Union, List
 
-from network_dismantling.common.loaders import load_graph
+from network_utils.io.graph_tool import load_graph
 
 
 def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", "gt"), **kwargs):
@@ -76,13 +77,16 @@ def storage_provider(location, max_num_vertices=None, filter="*", extensions: Un
     return networks
 
 
-def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*"):
+def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*", logger=logging.getLogger("dummy"), **kwargs):
     if not isinstance(location, list):
         location = [location]
 
     networks = []
     for loc in location:
-        print(f"Loading networks from {loc}...", flush=True)
+        loc = Path(loc)
+        loc = loc.resolve()
+
+        logger.info(f"Loading networks from: {loc}")
         networks += storage_provider(loc, max_num_vertices=max_num_vertices, filter=filter)
 
     return networks

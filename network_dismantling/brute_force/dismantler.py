@@ -7,7 +7,7 @@ import numpy as np
 from graph_tool.topology import label_largest_component
 from tqdm import tqdm
 
-from network_dismantling.machine_learning.pytorch.dataset_providers import storage_provider
+from network_dismantling.common.dataset_providers import storage_provider
 
 
 def init_network_provider(location, filter="*"):

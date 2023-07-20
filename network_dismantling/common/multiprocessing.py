@@ -1,7 +1,11 @@
 import logging
 from pathlib import Path
 
+from parse import compile
+from torch.multiprocessing import current_process
 from tqdm.auto import tqdm
+
+child_num_format = compile("{}-{number:d}")
 
 
 def dataset_writer(queue, output_file):
@@ -57,14 +61,20 @@ def run_dill_encoded(payload):
     """
     import dill
 
-    fun, args = dill.loads(payload)
-    return fun(*args)
+    fun, args, kwargs = dill.loads(payload)
+    return fun(*args, **kwargs)
 
 
-def apply_async(pool, func, args, callback=None, error_callback=None):
+def apply_async(pool, func, args=None, kwargs=None, callback=None, error_callback=None):
     import dill
 
-    payload = dill.dumps((func, args))
+    if args is None:
+        args = ()
+
+    if kwargs is None:
+        kwargs = {}
+
+    payload = dill.dumps((func, args, kwargs))
     return pool.apply_async(run_dill_encoded, (payload,), callback=callback, error_callback=error_callback)
 
 
@@ -74,6 +84,15 @@ def clean_up_the_pool(*args, **kwargs):
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+def get_position():
+    try:
+        position = child_num_format.parse(current_process().name)["number"]
+    except:
+        position = 2
+
+    return position
 
 
 class TqdmLoggingHandler(logging.Handler):

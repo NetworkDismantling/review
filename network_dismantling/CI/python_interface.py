@@ -7,6 +7,7 @@ from subprocess import check_output, STDOUT
 import numpy as np
 from graph_tool import Graph
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
 local_dir = os.path.dirname(__file__) + os.sep
@@ -14,6 +15,7 @@ local_dir = os.path.dirname(__file__) + os.sep
 sys.path.append(local_dir)
 
 
+# @dismantler_wrapper
 def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
     """
     Implements interface to Collective Influence.
@@ -104,6 +106,7 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
 
     return output
 
+
 method_info = {
     # "name": "Collective Influence",
     # "short_name": "CI",
@@ -111,18 +114,33 @@ method_info = {
     # "authors": "",
     # "citation": "",
     "includes_reinsertion": True,
+    "plot_color": "#d62728",
 }
 
-@dismantling_method(**method_info)
+
+@dismantling_method(name="Collective Influence $\ell-1$",
+                    # display_name="GND",
+                    short_name="CI $\ell-1$",
+
+                    **method_info)
+@dismantler_wrapper
 def CollectiveInfluenceL1(network, stop_condition, **kwargs):
     return _collective_influence_l(network, l=1, stop_condition=stop_condition, **kwargs)
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Collective Influence $\ell-2$",
+                    # display_name="GND",
+                    short_name="CI $\ell-2$",
+                    **method_info)
+@dismantler_wrapper
 def CollectiveInfluenceL2(network, stop_condition, **kwargs):
     return _collective_influence_l(network, l=2, stop_condition=stop_condition, **kwargs)
 
 
-@dismantling_method(**method_info)
+@dismantling_method(name="Collective Influence $\ell-3$",
+                    # display_name="GND",
+                    short_name="CI $\ell-3$",
+                    **method_info)
+@dismantler_wrapper
 def CollectiveInfluenceL3(network, stop_condition, **kwargs):
     return _collective_influence_l(network, l=3, stop_condition=stop_condition, **kwargs)

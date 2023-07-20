@@ -1,13 +1,17 @@
 # import faulthandler
+import logging
 import os
 import sys
 import time
+from pathlib import Path
+from typing import Union
 
 import networkx as nx
 import numpy as np
 from graph_tool import Graph
-from network_dismantling.FINDER_ND.FINDER import FINDER
 
+from network_dismantling import dismantler_wrapper
+from network_dismantling.FINDER_ND.FINDER import FINDER
 from network_dismantling._sorters import dismantling_method
 
 local_dir = os.path.dirname(__file__) + os.sep
@@ -15,6 +19,13 @@ local_dir = os.path.dirname(__file__) + os.sep
 sys.path.append(local_dir)
 
 model_file_path = local_dir + 'models/'
+model_file_path = Path(model_file_path)
+model_file_path = model_file_path.resolve()
+
+if not model_file_path.exists():
+    raise FileNotFoundError(f"Model file path {model_file_path} does not exist")
+elif not model_file_path.is_dir():
+    raise NotADirectoryError(f"Model file path {model_file_path} is not a directory")
 
 dqn = FINDER()
 
@@ -42,8 +53,12 @@ def to_networkx(g):
     return gn
 
 
-def _finder_nd(network: Graph, reinsertion=True, model_file_ckpt='nrange_30_50_iter_78000.ckpt', strategy_id=0,
-               step_ratio=0.01, reinsert_step=0.001, **kwargs):
+@dismantler_wrapper
+def _finder_nd(network: Graph, reinsertion=True, strategy_id=0,
+               model_file_ckpt: Union[str, Path] = 'nrange_30_50_iter_78000.ckpt',
+               step_ratio=0.01, reinsert_step=0.001,
+               logger=logging.getLogger("dummy"), **kwargs
+               ):
     """
     Implements interface to FINDER ND (no cost).
     This function merges the GetSolution and EvaluateSolution functions.
@@ -71,7 +86,7 @@ def _finder_nd(network: Graph, reinsertion=True, model_file_ckpt='nrange_30_50_i
     static_id = nx.get_node_attributes(nx_graph, "static_id")
 
     # GetSolution BEGIN
-    model_file = model_file_path + model_file_ckpt
+    model_file = model_file_path / model_file_ckpt
 
     print("Loading model")
     print('The best model is :%s' % (model_file))
@@ -121,6 +136,16 @@ def _finder_nd(network: Graph, reinsertion=True, model_file_ckpt='nrange_30_50_i
     return output
 
 
-@dismantling_method()
+method_info = {
+    "source": "https://github.com/FFrankyy/FINDER/tree/master/code/FINDER_ND",
+}
+
+
+@dismantling_method(name="FINDER ND",
+                    short_name="FINDER",
+
+                    includes_reinsertion=False,
+                    plot_color="#9467bd",
+                    **method_info)
 def FINDER_ND(network, **kwargs):
     return _finder_nd(network, reinsertion=True, **kwargs)

@@ -1,9 +1,9 @@
 #include<stdio.h>
 #include<stdlib.h>
-#include<math.h>
+//#include<math.h>
 
 #define MAX_DEGREE 1000000
-#define FILENAME_LENGHT 10000
+//#define FILENAME_LENGHT 10000
 
 //Instructions to run the CI code are as follows:
 //
@@ -20,9 +20,15 @@
 //  - values of (q,G) are printed on the screen for fraction of removed nodes q, and an output file “Influencers.txt” is created listing the influencers in the network by decreasing influence
 
 
-typedef enum{OFF, ON} off_on;
-typedef enum{OUT, IN} out_in;
-typedef enum{NO, YES} no_yes;
+typedef enum {
+    OFF, ON
+} off_on;
+typedef enum {
+    OUT, IN
+} out_in;
+typedef enum {
+    NO, YES
+} no_yes;
 typedef long int int_t;
 typedef double dbl_t;
 
@@ -43,10 +49,10 @@ typedef struct {
 } Heap;
 
 //FIT struct
-typedef struct{
-	double fit;
-	int_t id;
-}FIT;
+typedef struct {
+    double fit;
+    int_t id;
+} FIT;
 
 //mergesort
 void merge(FIT *a, FIT *b, FIT *c, int_t m, int_t n) {
@@ -263,7 +269,7 @@ int_t get_CI(int_t i, varNode *Node, int_t N, int_t **Graph, int L, int_t *queue
 
         CI = 0;
         for (k = index; k < (index + lenght[L]); k++) {
-			CI += (Node[queue[k]].deg - 1);
+            CI += (Node[queue[k]].deg - 1);
         }
         CI *= (Node[i].deg - 1);
         for (k = 0; k < temp; k++)
@@ -386,7 +392,7 @@ int_t how_many_comp_would_join(int_t i, varNode *Node, int_t N, int_t **Graph) {
 
 //compute G
 int_t bigCompNodes(varNode *Node, int_t **Graph, int_t N, int_t *queue) {
-    int_t i, k, compNumber, size_largest_comp, *Size_comp, temp, delta, neigh, *r, *w;;
+    int_t i, k, compNumber, size_largest_comp, *Size_comp, temp, delta, neigh, *r, *w;
 
     for (i = 1; i <= N; i++) {
         Node[i].compNum = 0;

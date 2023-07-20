@@ -6,18 +6,18 @@ import numpy as np
 from graph_tool.all import remove_parallel_edges, remove_self_loops
 from parse import compile
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
 targets_num_expression = compile("Targets  {targets:d}")
 
+folder = 'network_dismantling/CoreHD/'
+cd_cmd = f'cd {folder} && '
+executable = 'coreHD'
 
+
+@dismantler_wrapper
 def _coreHD(network, **kwargs):
-    folder = 'network_dismantling/CoreHD/'
-    cd_cmd = f'cd {folder} && '
-    executable = 'coreHD'
-
-    nodes = []
-
     # CoreHD does not support parallel edges or self loops.
     # Remove them.
     remove_parallel_edges(network)
@@ -29,6 +29,8 @@ def _coreHD(network, **kwargs):
     output_fd, output_path = tempfile.mkstemp()
     feedback_fd, feedback_path = tempfile.mkstemp()
     time_fd, time_path = tempfile.mkstemp()
+
+    nodes = []
 
     try:
 
@@ -104,6 +106,10 @@ def _coreHD(network, **kwargs):
     return output
 
 
-@dismantling_method()
-def CoreHD(network, **kwargs):
-    return _coreHD(network, **kwargs)
+@dismantling_method(name="CoreHD$",
+                    short_name="CoreHD",
+                    plot_color="#3080bd",
+                    includes_reinsertion=True,
+                    )
+def CoreHD(*args, **kwargs):
+    return _coreHD(*args, **kwargs)

@@ -5,17 +5,20 @@ from subprocess import check_output, STDOUT
 
 import numpy as np
 
+from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
+folder = 'network_dismantling/EGND/'
+cd_cmd = 'cd {} && '.format(folder)
+config_file = "config.h"
 
+config_r_file = "config_r.h"
+reinsertion_strategy = 2
+
+
+@dismantler_wrapper
 def _ensemble_generalized_network_dismantling(network, reinsertion=False, remove_strategy=3, runs=1000, **kwargs):
-    folder = 'network_dismantling/EGND/'
-    cd_cmd = 'cd {} && '.format(folder)
-    config_file = "config.h"
-
-    config_r_file = "config_r.h"
-    reinsertion_strategy = 2
-
+    
     static_id = network.vertex_properties["static_id"]
 
     network_fd, network_path = tempfile.mkstemp()
@@ -111,8 +114,15 @@ def _ensemble_generalized_network_dismantling(network, reinsertion=False, remove
 
 
 @dismantling_method(
-    source="https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling",
+    name="Ensemble Generalized Network Dismantling",
+    # display_name="EGND",
+    short_name="EGND",
 
+    plot_color="#ffbb78",
+
+    includes_reinsertion=False,
+
+    source="https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling",
 )
 def EGND(network, **kwargs):
     return _ensemble_generalized_network_dismantling(network, reinsertion=False, **kwargs)

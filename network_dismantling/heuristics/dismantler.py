@@ -11,13 +11,12 @@ import pandas as pd
 from scipy.integrate import simps
 from tqdm.auto import tqdm
 
+from network_dismantling.common.dataset_providers import list_files, init_network_provider
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.dismantlers import threshold_dismantler
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
     threshold_dismantler as external_threshold_dismantler
-from network_dismantling.common.loaders import init_network_provider
 from network_dismantling.heuristics import sorters
-from network_dismantling.machine_learning.pytorch.dataset_providers import list_files
 
 
 def incremental_dynamic_generator(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
@@ -225,10 +224,11 @@ def main(args):
                                                                                               "STATIC" if mode is True else "DYNAMIC") + " " + display_name,
                                                                                           stop_condition,
                                                                                           stop_condition / network_size))
-                removals, prediction_time, dismantle_time = dismantler(network.copy(),
-                                                                       generator,
-                                                                       generator_args,
-                                                                       stop_condition)
+                removals, prediction_time, dismantle_time = dismantler(network=network.copy(),
+                                                                       predictor=generator,
+                                                                       generator_args=generator_args,
+                                                                       stop_condition=stop_condition,
+                                                                       )
 
                 peak_slcc = max(removals, key=itemgetter(4))
 

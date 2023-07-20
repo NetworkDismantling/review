@@ -16,9 +16,13 @@ def extend_filename(file: Path, filename_extension: str, postfixes=None) -> Path
 
         suffixes.extend(postfixes)
 
-    suffixes.append(file.suffix.replace(".", ""))
-    suffix = '.' + '.'.join(suffixes)
+    if len(file.suffix) > 0:
+        suffixes.append(file.suffix.replace(".", ""))
 
-    extended_file = file.with_name(file_name + filename_extension).with_suffix(suffix)
+    extended_file = file.with_name(file_name + filename_extension)
+
+    if len(suffixes) > 0:
+        suffix = '.' + '.'.join(suffixes)
+        extended_file = extended_file.with_suffix(suffix)
 
     return extended_file

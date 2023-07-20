@@ -1,6 +1,7 @@
+import logging
 from datetime import timedelta
 from time import time, perf_counter_ns
-from traceback import print_tb
+# from traceback import print_tb
 
 import numpy as np
 from network_dismantling.common.external_dismantlers.dismantler import Graph, lccThresholdDismantler, thresholdDismantler
@@ -37,14 +38,14 @@ def add_dismantling_edges(filename, network):
 
 
 # def _threshold_dismantler(network, predictions, generator_args, stop_condition, dismantler):
-def _threshold_dismantler(network, predictor, generator_args, stop_condition, dismantler):
+def _threshold_dismantler(network, predictor, generator_args, stop_condition, dismantler, **kwargs):
+    logger = generator_args.get("logger", logging.getLogger('dummy'))
 
-    logger = generator_args["logger"]
     network_name = generator_args["network_name"]
 
     predictions, prediction_time = predictor(network, **generator_args)
 
-    # Get highest predicted value
+    # Get the highest predicted value
     logger.info(f"{network_name}: Sorting the predictions...")
     start_time = time()
     removal_indices = np.argsort(-predictions, kind="stable")
@@ -81,8 +82,9 @@ def _threshold_dismantler(network, predictor, generator_args, stop_condition, di
             logger.info(f"{network_name}: ERROR when deleting external_network: {e}")
             logger.exception(e)
 
-    dismantle_time = perf_counter_ns() - start_time # in ns
+    dismantle_time = perf_counter_ns() - start_time  # in ns
     dismantle_time /= 1e9 # in s
+
     logger.info(f"{network_name}: External dismantler returned in {dismantle_time}s")
 
     # predictions_dict = dict(predictions)
@@ -99,12 +101,18 @@ def _threshold_dismantler(network, predictor, generator_args, stop_condition, di
     return removals, prediction_time, dismantle_time
 
 
-def lcc_threshold_dismantler(network, predictor, generator_args, stop_condition):
-    return _threshold_dismantler(network, predictor, generator_args, stop_condition, lccThresholdDismantler)
+def lcc_threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs):
+    kwargs["dismantler"] = lccThresholdDismantler
+
+    return _threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs)
 
 
-def threshold_dismantler(network, predictor, generator_args, stop_condition):
-    return _threshold_dismantler(network, predictor, generator_args, stop_condition, thresholdDismantler)
+def threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs):
+    kwargs["dismantler"] = thresholdDismantler
+
+    # assert "generator_args" in kwargs, "threshold_dismantler: generator_args must be provided"
+
+    return _threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs)
 
 
 def _iterative_threshold_dismantler(network, predictor, generator_args, stop_condition):
@@ -128,13 +136,7 @@ def _iterative_threshold_dismantler(network, predictor, generator_args, stop_con
     try:
 
         for i, (removal_static_id, removal_value) in enumerate(predictor(network, **generator_args), start=1):
-            # print("Removing vertex", removal_static_id, "with value", removal_value, "at iteration", i)
-
-            # # Get highest predicted value
-            # removal_index = np.argmax(predictions) # kind="stable")
-            # removal_value = predictions[removal_index]
-            # removal_static_id = network.vertex_properties["static_id"].a[removal_index]
-
+            # Get the highest predicted value
             for s_id, lcc_size, slcc_size in thresholdDismantler(external_network, [removal_static_id], stop_condition):
 
                 assert s_id == removal_static_id
@@ -154,11 +156,12 @@ def _iterative_threshold_dismantler(network, predictor, generator_args, stop_con
 
                 if lcc_size <= stop_condition:
                     raise StopIteration
+
     except StopIteration:
         pass
 
     except Exception as e:
-        logger.info(f"{network_name}: ERROR: {e}")
+        logger.error(f"{network_name}: ERROR: {e}")
         logger.exception(e)
 
         raise e
@@ -171,6 +174,7 @@ def _iterative_threshold_dismantler(network, predictor, generator_args, stop_con
 
     dismantle_time = perf_counter_ns() - start_time  # in ns
     dismantle_time /= 1e9  # in s
+
     logger.info(f"{network_name}: iterative external dismantler returned in {dismantle_time}s")
 
     return removals, None, None

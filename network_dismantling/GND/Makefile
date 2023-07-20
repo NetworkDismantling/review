@@ -23,9 +23,7 @@ all: $(BIN)
 GND: GND.cpp
 	${CXX} ${FLAGS} ${CInc} ${CLinkFlags} ${LIBS} GND.cpp -o $@
 
-reinsertion: reinsertion.cpp 
+reinsertion: reinsertion.cpp
 	${CXX} ${FLAGS} ${CInc} ${CLinkFlags} ${LIBS} reinsertion.cpp -o $@
 clean:
 	rm -f $(BIN) *.o
-
-

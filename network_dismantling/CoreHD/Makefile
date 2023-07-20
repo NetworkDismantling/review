@@ -28,4 +28,3 @@ coreHD: TAbyTwoCoreV01.cpp
 
 clean:
 	rm -f $(BIN) *.o *.so
-

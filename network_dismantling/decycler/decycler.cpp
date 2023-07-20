@@ -104,7 +104,7 @@ struct ConvexCavity {
         return SH + max(real_t(0.), m1);
     }
 
-    std::vector <real_t> H;
+    std::vector<real_t> H;
     real_t m1, m2, SH;
     int idxm1;
 };
@@ -150,17 +150,17 @@ struct Buffers {
             C[t].reset();
     }
 
-    vector <Mes> Hin;
-    vector <real_t> maxh;
-    vector <real_t> maxh2;
+    vector<Mes> Hin;
+    vector<real_t> maxh;
+    vector<real_t> maxh2;
     Proba Ui;
     Mes out;
-    vector <ConvexCavity> C;
-    vector <real_t> L0, G1;
+    vector<ConvexCavity> C;
+    vector<real_t> L0, G1;
     check_type ck;
 };
 
-vector <Buffers> Mem;
+vector<Buffers> Mem;
 
 
 real_t mincost = inf;
@@ -204,15 +204,15 @@ struct VertexProperties {
 };
 
 
-typedef adjacency_list <vecS, vecS, undirectedS,
-VertexProperties, EdgeProperties> Graph;
+typedef adjacency_list<vecS, vecS, undirectedS,
+        VertexProperties, EdgeProperties> Graph;
 typedef graph_traits<Graph>::vertex_iterator vertex_iterator;
 typedef graph_traits<Graph>::out_edge_iterator edge_iterator;
 typedef graph_traits<Graph>::edge_iterator graph_edge_iterator;
 typedef graph_traits<Graph>::edge_descriptor Edge;
 typedef graph_traits<Graph>::vertex_descriptor Vertex;
 
-typedef adjacency_list <vecS, vecS, undirectedS> SGraph;
+typedef adjacency_list<vecS, vecS, undirectedS> SGraph;
 typedef graph_traits<SGraph>::edge_descriptor SEdge;
 typedef graph_traits<SGraph>::vertex_descriptor SVertex;
 typedef graph_traits<SGraph>::out_edge_iterator sedge_iterator;
@@ -338,9 +338,9 @@ check_type check_v(bool output = false) {
 
 
 template<class T>
-ostream &operator<<(ostream &o, vector <T> const &v) {
+ostream &operator<<(ostream &o, vector<T> const &v) {
     o << "( ";
-    std::copy(v.begin(), v.end(), ostream_iterator < T const & > (o, " "));
+    std::copy(v.begin(), v.end(), ostream_iterator<T const &>(o, " "));
     o << " )";
     return o;
 }
@@ -356,10 +356,10 @@ real_t update(Vertex i) {
 
     Buffers &buffers = Mem[omp_get_thread_num()];
     buffers.init(n);
-    vector <ConvexCavity> &C = buffers.C;;
-    vector <Mes> &Hin = buffers.Hin;
-    vector <real_t> &maxh = buffers.maxh;
-    vector <real_t> &maxh2 = buffers.maxh2;
+    vector<ConvexCavity> &C = buffers.C;;
+    vector<Mes> &Hin = buffers.Hin;
+    vector<real_t> &maxh = buffers.maxh;
+    vector<real_t> &maxh2 = buffers.maxh2;
     Mes &out = buffers.out;
     Proba &Ui = buffers.Ui;
 
@@ -372,8 +372,8 @@ real_t update(Vertex i) {
     for (tie(eit, eend) = out_edges(i, g); eit != eend; ++eit, ++j) {
         getMes(*eit, Hin[j]);
         Proba const *h = Hin[j].H;
-        vector <real_t> &L0 = buffers.L0;
-        vector <real_t> &G1 = buffers.G1;
+        vector<real_t> &L0 = buffers.L0;
+        vector<real_t> &G1 = buffers.G1;
         L0[0] = h[0][0];
         for (int ti = 1; ti <= depth; ++ti)
             L0[ti] = max(L0[ti - 1], h[0][ti]);
@@ -595,7 +595,7 @@ po::variables_map parse_command_line(int ac, char **av) {
             ("times,T", "output times on convergence")
             ("plotting,P", "output times while converging")
 #ifdef OMP
-        ("cpu,j", po::value(&numthreads)->default_value(numthreads), "number of cpu")
+            ("cpu,j", po::value(&numthreads)->default_value(numthreads), "number of cpu")
 #endif
             ;
 

@@ -8,13 +8,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.ticker import MaxNLocator
 
+from network_dismantling import dismantling_methods
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(TqdmLoggingHandler())
-
+column_duplicates = [
+    "network",
+    "heuristic",
+    # "removals",
+]
 
 replace_labels = {
     "Machine Learning": "GDM",
@@ -149,9 +151,8 @@ def prepare_df(df, args):
 
     df["idx"] = df.index
 
-    df.drop_duplicates(subset=["network",
-                               "heuristic",
-                               ],
+    # Remove duplicates
+    df.drop_duplicates(subset=column_duplicates,
                        keep="first",
                        inplace=True,
                        )
@@ -168,23 +169,57 @@ def display_df(df, args):
 
     groups = df.groupby("network")
     for network_name, group_df in groups:
+
         group_df_filtered = group_df.loc[:, [x for x in group_df.columns if
                                              x not in filtered_columns]
                             ]
-
+        group_df_filtered["heuristic"] = group_df_filtered["heuristic"].apply(
+            lambda x: dismantling_methods[x].short_name or x
+        )
         logger.info("Network {}, showing first {}/{} runs:\n{}\n".format(network_name,
-                                                                   min(args.show_first, group_df.shape[0]),
-                                                                   group_df.shape[0],
-                                                                   group_df_filtered.set_index("idx")
-                                                                   )
-              )
+                                                                         min(args.show_first, group_df.shape[0]),
+                                                                         group_df.shape[0],
+                                                                         group_df_filtered.set_index("idx")
+                                                                         )
+                    )
 
         if args.plot:
-            removals_list = []
+            sns.set_theme(context=f"{args.context}",
+                          style="ticks",
+                          palette="deep",
+                          font="sans-serif",
+                          font_scale=1,
+                          color_codes=True,
+                          # rc={'figure.figsize': (15.21, 10.75)},
+                          # rc={
+                          #     'figure.figsize': (11.7, 8.27),
+                          #     'text.usetex': True,
+                          #     'text.latex.preamble': r'\usepackage{icomma}',
+                          #     "font.family": "serif",
+                          #     "font.serif": [],  # use latex default serif font
+                          #     "font.sans-serif": ["DejaVu Sans"],  # use a specific sans-serif font
+                          # },
+                          )
+
             max_num_removals = 0
-            for heuristic_name, heuristic_df in group_df.groupby("heuristic"):
-                assert heuristic_df.shape[0] == 1, \
-                    f"There should be only one row per heuristic. Found {heuristic_df.shape[0]} for {heuristic_name} in network {network_name}"
+
+            groups = group_df.groupby("heuristic", sort=True)
+
+            # Create new figure
+            fig, ax = plt.subplots()
+
+            # zindex = len(groups)
+            for function_name, heuristic_df in groups:
+                dismantling_method = dismantling_methods[function_name]
+
+                heuristic_name = dismantling_method.short_name
+                if heuristic_name is None:
+                    heuristic_name = function_name
+
+                if heuristic_df.shape[0] > 1:
+                    raise RuntimeError(f"There should be only one row per heuristic. "
+                                       f"Found {heuristic_df.shape[0]} for {heuristic_name} in network {network_name}"
+                                       )
 
                 heuristic_df.reset_index(drop=True, inplace=True)
 
@@ -194,76 +229,73 @@ def display_df(df, args):
                 num_removals = len(removals)
                 max_num_removals = max(max_num_removals, num_removals)
 
-                removals_list = [(heuristic_name, removals)]
+                color = dismantling_method.plot_color or color_mapping.get(heuristic_name, None)
+                # marker = dismantling_method.plot_marker or marker_mapping[heuristic_name]
+                marker = "o" if dismantling_method.includes_reinsertion else "s"
 
-            # Create new figure
-            fig, ax = plt.subplots()
-            plt.xticks(rotation=45)
-
-            fig.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-
-            zindex = len(removals_list)
-            for heuristic_name, removals in removals_list:
-                heuristic_name = str(heuristic_name.strip().title())
-                heuristic_name = replace_labels.get(heuristic_name, heuristic_name)
-
-                color = color_mapping[heuristic_name]
-
+                # TODO Improve this
                 x = list(map(itemgetter(0), removals))
                 y = list(map(itemgetter(3), removals))
 
-                plt.plot(x, y, ('-o' if "+R" not in heuristic_name else '-s'),
+                plt.plot(x, y,
+                         # marker=
+                         f'-{marker}',
                          markersize=4,
                          linewidth=2,
                          color=color,
-                         zorder=zindex,
+                         # zorder=zindex,
                          label=str(heuristic_name)
                          )
-                zindex -= 1
+                # zindex -= 1
 
-                fig.gca().set_xbound(lower=1)
+            fig.gca().set_xbound(lower=1)
 
-                # Add labels
-                plt.xlabel('Number of removed nodes')
-                plt.ylabel('LCC Size')
+            fig.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 
-                # Despine the plot
-                sns.despine()
+            # Add labels
+            plt.xlabel('Number of removed nodes')
+            plt.ylabel('LCC Size')
 
-                plt.legend(title="Method",
-                           bbox_to_anchor=(1.05, 0.5),
-                           loc="center left",
-                           borderaxespad=0.,
-                           frameon=False,
-                           )
+            # Rotate xticks
+            plt.xticks(rotation=30)
 
+            # Despine the plot
+            sns.despine()
+
+            plt.legend(title="Method",
+                       bbox_to_anchor=(1.05, 0.5),
+                       loc="center left",
+                       borderaxespad=0.,
+                       frameon=False,
+                       )
+
+            if args.output is None:
+                # plt.xlim(right=num_removals * (1.10))
                 plt.tight_layout()
 
-                if args.output is None:
-                    # plt.xlim(right=num_removals * (1.10))
-                    plt.show()
-                else:
-                    plt.xlim(right=max_num_removals * (1.05))
+                plt.show()
+            else:
+                plt.xlim(right=max_num_removals * (1.05))
 
-                    file = args.output / f"{network_name}.pdf"
+                file = args.output / f"{network_name}.pdf"
 
-                    if not file.parent.exists():
-                        file.parent.mkdir(parents=True)
+                if not file.parent.exists():
+                    file.parent.mkdir(parents=True)
 
-                    plt.savefig(str(file), bbox_inches='tight')
+                plt.savefig(str(file), bbox_inches='tight')
 
-                    # figLegend = pylab.figure()
-                    #
-                    # file = args.output / "legend.pdf"
-                    # # produce a legend for the objects in the other figure
-                    # pylab.figlegend(*ax.get_legend_handles_labels(),
-                    #                 ncol=len(removals_list),
-                    #                 loc='upper left',
-                    #                 )
-                    #
-                    # figLegend.savefig(str(file), bbox_inches='tight')
+                # figLegend = pylab.figure()
+                #
+                # file = args.output / "legend.pdf"
+                # # produce a legend for the objects in the other figure
+                # pylab.figlegend(*ax.get_legend_handles_labels(),
+                #                 ncol=len(removals_list),
+                #                 loc='upper left',
+                #                 )
+                #
+                # figLegend.savefig(str(file), bbox_inches='tight')
 
-                plt.close('all')
+            plt.close('all')
 
 
 FUNCTION_MAP = {
@@ -271,22 +303,9 @@ FUNCTION_MAP = {
 }
 
 if __name__ == "__main__":
-    sns.set_theme(context="talk",
-                  style="whitegrid",
-                  palette="deep",
-                  font="sans-serif",
-                  font_scale=1,
-                  color_codes=True,
-                  # rc={'figure.figsize': (15.21, 10.75)},
-                  # rc={
-                  #     'figure.figsize': (11.7, 8.27),
-                  #     'text.usetex': True,
-                  #     'text.latex.preamble': r'\usepackage{icomma}',
-                  #     "font.family": "serif",
-                  #     "font.serif": [],  # use latex default serif font
-                  #     "font.sans-serif": ["DejaVu Sans"],  # use a specific sans-serif font
-                  # },
-                  )
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(TqdmLoggingHandler())
 
     parser = ArgumentParser(
         description=""
@@ -361,6 +380,15 @@ if __name__ == "__main__":
         required=False,
         action="store_true",
         help="Plot the dismantling curves",
+    )
+
+    parser.add_argument(
+        "-C",
+        "--context",
+        default="paper",
+        required=False,
+        help="Scaling of the plot",
+        choices=["paper", "talk", "poster"],
     )
     args, cmdline_args = parser.parse_known_args()
 

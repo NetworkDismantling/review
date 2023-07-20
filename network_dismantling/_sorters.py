@@ -1,22 +1,32 @@
 import inspect
+from functools import wraps
 from pathlib import Path
 
 from network_dismantling import DismantlingMethod, dismantling_methods
 
 
 def dismantling_method(name=None,
+                       short_name=None,
                        includes_reinsertion=False,
                        description=None,
                        citation=None,
                        authors=None,
                        source=None,
+                       # plot_color: str = None,
+                       # plot_marker: str = None,
+                       **kwargs,
                        ):
+    @wraps(dismantling_method)
     def wrapper(funct):
+        key = funct.__name__
+        key = key.replace("get_", "")
+
         if name is None:
-            key = funct.__name__
-            key = key.replace("get_", "")
+            method_name = key
+        elif short_name is None:
+            method_name = name
         else:
-            key = name
+            method_name = name
 
         frame = inspect.stack()[1]
         p = frame[0].f_code.co_filename
@@ -49,7 +59,8 @@ def dismantling_method(name=None,
         else:
             citation_text = citation
 
-        method = DismantlingMethod(name=key,
+        method = DismantlingMethod(name=method_name,
+                                   short_name=short_name,
                                    description=description,
                                    citation=citation_text,
                                    authors=authors,
@@ -58,6 +69,7 @@ def dismantling_method(name=None,
                                    source=source,
                                    license_file=license_file,
                                    citation_file=citation_file,
+                                   **kwargs,
                                    )
 
         dismantling_methods[key] = method

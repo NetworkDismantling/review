@@ -3,40 +3,25 @@ import logging
 import multiprocessing
 import threading
 from datetime import timedelta
-from operator import itemgetter
 from pathlib import Path
 from time import time
+from typing import Callable
 
 import numpy as np
 import pandas as pd
-from scipy.integrate import simps
-from tqdm.auto import tqdm
-
+from graph_tool import Graph
 from network_dismantling.common.dataset_providers import list_files, init_network_provider
 from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
-    threshold_dismantler as external_threshold_dismantler
-from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler, dataset_writer
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(TqdmLoggingHandler())
 
 
-def static_generator(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
-    values, _ = get_predictions(network, sorting_function, logger)
-    pairs = list(zip([network.vertex_properties["static_id"][v] for v in network.vertices()], values))
-
-    # Get the highest predicted value
-    sorted_predictions = sorted(pairs, key=itemgetter(1), reverse=True)
-
-    for node, value in sorted_predictions:
-        yield node, value
-
-
-def get_predictions(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
-    logger.info("Sorting the predictions...")
+def get_predictions(network: Graph, sorting_function: Callable, logger=logging.getLogger('dummy'), **kwargs):
+    logger.info(f"Sorting the predictions...")
     start_time = time()
 
     values = sorting_function(network, **kwargs)
@@ -56,9 +41,9 @@ def main(args):
     dp = threading.Thread(target=dataset_writer, args=(df_queue, args.output_file), daemon=True)
     dp.start()
 
-    time_queue = mp_manager.Queue()
-    tp = threading.Thread(target=dataset_writer, args=(time_queue, args.time_output_file), daemon=True)
-    tp.start()
+    # time_queue = mp_manager.Queue()
+    # tp = threading.Thread(target=dataset_writer, args=(time_queue, args.time_output_file), daemon=True)
+    # tp.start()
 
     test_networks_list = []
 
@@ -77,10 +62,18 @@ def main(args):
             pass
 
     if len(test_networks_list) == 0:
-        logging.info(f"No networks found in {str(args.location)} with filter {args.filter} .")
+        logger.info(f"No networks found in {str(args.location)} with filter {args.filter} .")
 
     if args.input is not None:
         df = df_reader(args.input, include_removals=False)
+
+        expected_columns = args.output_df_columns.copy()
+        expected_columns.remove("removals")
+
+        if (df.columns != expected_columns).all():
+            raise ValueError(
+                f"Input file columns {df.columns} do not match the expected columns {args.output_df_columns}.")
+
     elif args.output_file.exists():
         df = df_reader(args.output_file, include_removals=False)
     else:
@@ -94,17 +87,16 @@ def main(args):
         logger.info(f"Loading network: {name}")
 
         networks_provider = init_network_provider(args.location,
-                                                  # max_num_vertices=args.max_num_vertices,
                                                   filter=f"{name}",
-                                                  # manager=mp_manager,
+                                                  logger=logger,
                                                   )
 
         if len(networks_provider) == 0:
-            tqdm.write(f"Network {name} not found!")
+            logger.info(f"Network {name} not found!")
             continue
 
         elif len(networks_provider) > 1:
-            tqdm.write(f"More than one network found for {name}!")
+            logger.info(f"More than one network found for {name}!")
             continue
 
         network_name, network = networks_provider[0]
@@ -119,10 +111,10 @@ def main(args):
         stop_condition = np.ceil(network_size * args.threshold)
 
         generator_args = {
-            "logger": logger,
             "network_name": name,
             "stop_condition": int(stop_condition),
             "threshold": args.threshold,
+            "logger": logger,
         }
 
         # noinspection PyTypeChecker
@@ -131,15 +123,15 @@ def main(args):
                 position=1,
                 desc="Heuristics",
         ):
-            heuristic_info = dismantling_methods[heuristic]
-            display_name = heuristic_info.name
+            dismantling_method = dismantling_methods[heuristic]
+            display_name = dismantling_method.name
 
-            generator_args["sorting_function"] = heuristic_info.function
+            # generator_args["sorting_function"] = dismantling_method.function
 
             logger.info(f"\n"
                         f"==================================\n"
                         f"Running {display_name} heuristic. Cite as:\n"
-                        f"{heuristic_info.citation}\n"
+                        f"{dismantling_method.citation}\n"
                         f"==================================\n"
                         )
 
@@ -158,86 +150,60 @@ def main(args):
                 # Nothing to do. Network was already tested
                 continue
 
-            logger.info("Dismantling {} according to {}. Aiming to LCC size {} ({})".format(name,
-                                                                                            display_name,
-                                                                                            stop_condition,
-                                                                                            stop_condition / network_size)
+            logger.info(f"Dismantling {name} according to {display_name}. "
+                        f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
                         )
+
             try:
-                # external_generator
-                removals, prediction_time, dismantle_time = external_threshold_dismantler(network.copy(),
-                                                                                          get_predictions,
-                                                                                          generator_args,
-                                                                                          stop_condition,
-                                                                                          )
+                # runs, time_runs = dismantler_wrapper(network,
+                # runs = dismantler_wrapper(network,
+                #                           # name,
+                #                           # heuristic,
+                #                           stop_condition,
+                #                           generator_args,
+                #                           )
 
-                peak_slcc = max(removals, key=itemgetter(4))
-
-                rem_num = len(removals)
-
-                if rem_num > 0:
-                    assert removals[0][0] > -1, "First removal is just the LCC size!"
-
-                run = {
-                    "network": name,
-                    "removals": removals,
-                    "slcc_peak_at": peak_slcc[0],
-                    "lcc_size_at_peak": peak_slcc[3],
-                    "slcc_size_at_peak": peak_slcc[4],
-                    "heuristic": heuristic,
-                    "static": None,
-                    "r_auc": simps(list(r[3] for r in removals), dx=1),
-                    "rem_num": rem_num,
-                }
-
-                if args.verbose == 2:
-                    for removal in run["removals"]:
-                        logger.info("\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(removal[0],
-                                                                                                        removal[1],
-                                                                                                        removal[2],
-                                                                                                        removal[3],
-                                                                                                        removal[4]
-                                                                                                        )
-                                    )
-                if removals[-1][2] == 0:
-                    raise RuntimeError("ERROR: removed more nodes than predicted!")
-
-            except Exception as e:
-                # print("ERROR: {}".format(e))
-                # print_tb(e.__traceback__)
-                logger.exception(e)
-
-                continue
-                # raise e
-
-            runs_dataframe = pd.DataFrame(data=[run], columns=args.output_df_columns)
-
-            df_queue.put(runs_dataframe)
-
-            time_run = {
-                "network": name,
-                "heuristic": heuristic,
-                "static": None,
-                "prediction_time": prediction_time,
-                "dismantle_time": dismantle_time
-            }
-            time_dataframe = pd.DataFrame(data=[time_run],
-                                          columns=["network", "heuristic", "static", "prediction_time",
-                                                   "dismantle_time"]
+                # TODO REMOVE THE COPY OF THE NETWORK, and move where its actually needed
+                runs = dismantling_method(network=network.copy(),
+                                          stop_condition=stop_condition,
+                                          generator_args=generator_args,
+                                          logger=logger,
                                           )
 
-            time_queue.put(time_dataframe)
+                runs["network"] = name
+
+                if not isinstance(runs, pd.DataFrame):
+                    runs_dataframe = pd.DataFrame(data=[runs],
+                                        columns=args.output_df_columns,
+                                        )
+                else: # isinstance(runs, pd.DataFrame):
+                    runs_dataframe = runs[args.output_df_columns]
+                # time_dataframe = pd.DataFrame(data=[time_runs], columns=args.output_time_df_columns)
+
+                df_queue.put(runs_dataframe)
+                # time_queue.put(time_dataframe)
+
+            except Exception as e:
+                logger.exception(e, exc_info=True)
+
+                continue
 
     df_queue.put(None)
-    time_queue.put(None)
+    # time_queue.put(None)
 
     dp.join()
-    tp.join()
+    # tp.join()
 
 
 def get_df_columns():
     return ["network", "heuristic", "slcc_peak_at", "lcc_size_at_peak",
-            "slcc_size_at_peak", "removals", "static", "r_auc"]
+            "slcc_size_at_peak", "removals", "static", "r_auc", "rem_num",
+            "prediction_time", "dismantle_time",
+            ]
+
+
+# def get_time_df_columns():
+#     return ["network", "heuristic", "static", "prediction_time", "dismantle_time"]
 
 
 if __name__ == "__main__":
@@ -347,14 +313,15 @@ if __name__ == "__main__":
         args.output_file.parent.mkdir(parents=True)
 
     args.output_df_columns = get_df_columns()
+    # args.output_time_df_columns = get_time_df_columns()
 
-    args.time_output_file = extend_filename(args.output_file,
-                                            "_reinserted",
-                                            postfixes=["time"],
-                                            )
+    # args.time_output_file = extend_filename(args.output_file,
+    #                                         "_reinserted",
+    #                                         postfixes=["time"],
+    #                                         )
 
     logger.info(f"Output file {args.output_file}")
-    logger.info(f"Time output file {args.time_output_file}")
+    # logger.info(f"Time output file {args.time_output_file}")
 
     if "all" in args.heuristics:
         args.heuristics = list(dismantling_methods.keys())

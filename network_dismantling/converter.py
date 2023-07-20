@@ -1,10 +1,15 @@
 import argparse
+import logging
 from glob import glob
+from pathlib import Path
 
 import networkx as nx
 
-from pathlib import Path
+from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(TqdmLoggingHandler())
 
 _format_mapping = {
     # "ncol":       ("Read_Ncol", "write_ncol"),
@@ -92,7 +97,7 @@ def main(args):
     create_using = nx.Graph
 
     for file in files:
-        print("----------\nfile {}".format(file))
+        logger.info("----------\nfile {}".format(file))
 
         network = None
 
@@ -113,24 +118,30 @@ def main(args):
                     try:
                         network = reader(str(file))
                     except TypeError as e:
-                        print(e)
+                        logger.exception(e)
         except Exception as e:
-            print(e)
-            exit("Error reading file {}".format(e))
+            logger.exception(e)
+            continue
+            # exit("Error reading file {}".format(e))
 
         output_file = Path(args.output) / file.with_suffix("." + args.output_ext)
-        try:
-            _, writer = get_io_helpers(ext=args.output_ext)
 
-            writer(network, str(output_file), data=(args.no_weights is False))
-        except ValueError as e:
-            if args.output_ext == "gt":
-                gt = to_graphtool(network)
+        if args.output_ext == "gt":
+            gt = to_graphtool(network)
 
-                assert gt.num_vertices() == network.number_of_nodes(), "Number of nodes does not match after graph-tool conversion"
-                assert gt.num_edges() == network.number_of_edges(), "Number of edges does not match after graph-tool conversion"
+            assert gt.num_vertices() == network.number_of_nodes(), "Number of nodes does not match after graph-tool conversion"
+            assert gt.num_edges() == network.number_of_edges(), "Number of edges does not match after graph-tool conversion"
 
-                gt.save(str(output_file))
+            gt.save(str(output_file))
+
+        else:
+            try:
+                _, writer = get_io_helpers(ext=args.output_ext)
+
+                writer(network, str(output_file), data=(args.no_weights is False))
+            except ValueError as e:
+                logger.exception(e)
+                continue
 
 
 if __name__ == "__main__":

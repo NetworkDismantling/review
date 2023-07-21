@@ -156,9 +156,7 @@ To set up the provided environments:
       ```bash
       cd review
       
-      conda install conda-pack
-      
-      conda-unpack -n gdm -f environment_full.tar.gz  
+      conda-unpack -n finder -f environments/finder.tar.gz  
       ```
 
 3. Follow the instructions in section [Common](#common)

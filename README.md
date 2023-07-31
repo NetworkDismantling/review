@@ -65,13 +65,13 @@ This library integrates and provides a common interface to the following algorit
 
 - Brute Force
 - [Collective Influence (CI)](https://github.com/makselab/Collective-Influence):  [reference](CITATIONS.md#collective-influence-ci)
-- CoreGDM (almost ready, needs some fixes): [reference](CITATIONS.md#coregdm)
+- [CoreGDM](https://github.com/NetworkScienceLab/CoreGDM): [reference](CITATIONS.md#coregdm)
 - CoreHD: [reference](CITATIONS.md#corehd)
 - [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling): [reference](CITATIONS.md#ensemble-gnd-egnd)
 - [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization): [reference](CITATIONS.md#explosive-immunization-ei)
 - [FINDER](https://github.com/FFrankyy/FINDER): [reference](CITATIONS.md#finder)
-- Generalized Network Dismantling (GND): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
-- [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
+- [Generalized Network Dismantling (GND)](https://github.com/renxiaolong/Generalized-Network-Dismantling): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
+- [Graph Dismantling Machine (GDM)](https://github.com/NetworkScienceLab/GDM/): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
 - [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
 - Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)
     - Degree

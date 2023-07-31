@@ -45,6 +45,7 @@ cmake-build-*/
 
 # IntelliJ
 out/
+.idea
 
 # mpeltonen/sbt-idea plugin
 .idea_modules/
@@ -187,28 +188,11 @@ dataset/*
 *.el
 *.mtx
 out*/
-network_dismantling/GND/GND
-network_dismantling/GND/config.h
-network_dismantling/decycler/decycler
-network_dismantling/decycler/gnp.py
-network_dismantling/GND/config_r.h
-network_dismantling/GND/reinsertion
-network_dismantling/decycler/reverse-greedy
-network_dismantling/machine_learning/pytorch/reinsertion/reinsertion
-network_dismantling/machine_learning/pytorch/reinsertion/config_r.h
-network_dismantling/CoreHD/coreHD
-network_dismantling/CoreHD/config.h
-network_dismantling/EGND/EnsembleGND
-network_dismantling/EGND/config.h
-network_dismantling/CI/CI
+dataset.tar.gz
 
+
+# Build files
 *.o
 *.out
-network_dismantling/EI/exploimmun
-network_dismantling/heuristics/reinsertion/config_r.h
-network_dismantling/heuristics/reinsertion/reinsertion
-dataset.tar.gz
-/network_dismantling/decycler/.idea/
 
 
-*.idea/*

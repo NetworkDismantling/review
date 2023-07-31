@@ -1,0 +1,7 @@
+.idea/
+
+CMakeFiles/
+CMakeCache.txt
+cmake-build-debug/
+
+coreHD

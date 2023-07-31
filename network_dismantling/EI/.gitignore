@@ -1,0 +1,9 @@
+.idea/
+
+CMakeFiles/
+CMakeCache.txt
+cmake-build-debug/
+
+exploimmun
+gmon.out
+

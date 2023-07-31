@@ -1,0 +1,12 @@
+.idea/
+
+CMakeFiles/
+CMakeCache.txt
+cmake-build-debug/
+
+decycler
+reverse-greedy
+gnp.py
+
+# Ignore duplicate license
+COPYING

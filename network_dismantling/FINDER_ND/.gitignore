@@ -1,0 +1,16 @@
+.idea/
+
+CMakeFiles/
+CMakeCache.txt
+cmake-build-debug/
+build
+FIDER_ND.egg-info/
+
+
+exploimmun
+gmon.out
+
+Library/.idea/
+Library/CMakeFiles/
+Library/*.o
+

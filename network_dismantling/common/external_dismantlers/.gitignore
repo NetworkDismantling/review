@@ -1,0 +1,8 @@
+.idea/
+
+CMakeFiles/
+CMakeCache.txt
+cmake-build-debug/
+
+dismantler.o
+dismantler.so

@@ -38,6 +38,10 @@ from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler im
 from network_dismantling.common.multiprocessing import clean_up_the_pool
 
 
+class ModelWeightsNotFoundError(FileNotFoundError):
+    pass
+
+
 def train(args, model, networks_provider=None, logger=logging.getLogger('dummy')):
     logger.info(model)
 
@@ -187,9 +191,10 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
 
             # Compute stop condition
             stop_condition = int(np.ceil(network_size * float(args.threshold)))
-            logger.info("Dismantling {} according to the predictions. Aiming to LCC size {} ({})".format(filename,
-                                                                                                         stop_condition,
-                                                                                                         stop_condition / network_size))
+
+            logger.info(f"Dismantling {filename} according to the predictions. "
+                        f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
+                        )
 
             removals, prediction_time, dismantle_time = dismantler(network, predictor, generator_args, stop_condition)
 
@@ -197,12 +202,16 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
 
             run = {
                 "network": filename,
+
                 "removals": removals,
+
                 "slcc_peak_at": peak_slcc[0],
                 "lcc_size_at_peak": peak_slcc[3],
                 "slcc_size_at_peak": peak_slcc[4],
+
                 "r_auc": simps(list(r[3] for r in removals), dx=1),
                 "rem_num": len(removals),
+
                 "prediction_time": prediction_time,
                 "dismantle_time": dismantle_time,
             }
@@ -454,7 +463,7 @@ def train_wrapper(args, nn_model, train_ne=True, networks_provider=None, logger=
         train(args, model, networks_provider, logger=logger)
         torch.save(model.state_dict(), str(model_weights_file))
     else:
-        raise FileNotFoundError(f"Model {model_weights_file} not found!")
+        raise ModelWeightsNotFoundError(f"Model {model_weights_file} not found!")
 
     return model
 

@@ -106,7 +106,7 @@ def _coreHD(network, **kwargs):
     return output
 
 
-@dismantling_method(name="CoreHD$",
+@dismantling_method(name="CoreHD",
                     short_name="CoreHD",
                     plot_color="#3080bd",
                     includes_reinsertion=True,

@@ -46,11 +46,11 @@ def _threshold_dismantler(network, predictor, generator_args, stop_condition, di
     predictions, prediction_time = predictor(network, **generator_args)
 
     # Get the highest predicted value
-    logger.info(f"{network_name}: Sorting the predictions...")
+    logger.debug(f"{network_name}: Sorting the predictions...")
     start_time = time()
     removal_indices = np.argsort(-predictions, kind="stable")
 
-    logger.info(f"{network_name}: Done sorting. Took {timedelta(seconds=(time() - start_time))}")
+    logger.debug(f"{network_name}: Done sorting. Took {timedelta(seconds=(time() - start_time))}")
 
     removal_order = network.vertex_properties["static_id"].a[removal_indices]
     removal_order = removal_order.tolist()

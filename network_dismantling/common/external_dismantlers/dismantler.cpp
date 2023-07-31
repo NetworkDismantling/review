@@ -4,11 +4,13 @@
 #include <list>
 #include <utility>
 
-#include "tsl/robin_map.h"
+#include <Python.h>
 
 #ifdef BOOST
 #include <boost/python.hpp>
 #endif
+
+#include "tsl/robin_map.h"
 
 using namespace std;
 using namespace tsl;

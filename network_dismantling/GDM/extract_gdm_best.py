@@ -1,3 +1,21 @@
+#   This file is part of GDM (Graph Dismantling with Machine learning),
+#   proposed in the paper "Machine learning dismantling and
+#   early-warning signals of disintegration in complex systems"
+#   by M. Grassia, M. De Domenico and G. Mangioni.
+#
+#   GDM is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   GDM is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
+
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -36,7 +54,9 @@ def load_and_clean_df(args):
 
         # current_df = pd.read_csv(args.output_file)
 
-    extracted_df = extract_best_runs(df)
+    extracted_df = extract_best_runs(args=args,
+                                     df=df,
+                                     )
 
     if current_df_columns is not None:
         extracted_df = extracted_df[:, current_df_columns]
@@ -85,11 +105,6 @@ def extract_best_runs(args, df, heuristic_name=None):
     # print("Output DF", extracted_df)
 
     return extracted_df
-
-
-# FUNCTION_MAP = {
-#     'cleanup_df': load_and_clean_df,
-# }
 
 
 def parse_parameters(parse_string=None):
@@ -153,5 +168,4 @@ def parse_parameters(parse_string=None):
 if __name__ == "__main__":
     args = parse_parameters()
 
-    # FUNCTION_MAP[args.command](args)
-    extract_best_runs(args)
+    load_and_clean_df(args)

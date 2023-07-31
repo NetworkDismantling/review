@@ -15,7 +15,7 @@ from network_dismantling.dismantler import get_predictions
 
 
 def get_lcc_slcc(network):
-    # Networks are undirected and this is checked after load phase
+    # Networks are undirected, and this is checked after load phase
     # Forcing directed = False triggers a GraphView call which is expensive
     belongings, counts = label_components(network)  # , directed=False)
     counts = counts.astype(int, copy=False)
@@ -41,17 +41,7 @@ def threshold_dismantler(network: Graph, node_generator: Callable, generator_arg
 
     network_size = network.num_vertices()
 
-    # Get static and dynamic vertex IDs
-    # static_id = network.vertex_properties["static_id"].get_array()
-    # dynamic_id = np.arange(start=0, stop=network_size, dtype=np.int64)[static_id]
-
-    # dynamic_id = np.empty(shape=network_size, dtype=np.int64)
-    # for v in network.get_vertices():
-    #     dynamic_id[static_id[v]] = network.vertex_index[v]
-    #     assert dynamic_id[static_id[v]] == v
-
-    # Init last valid vertex
-    # last_vertex = network_size - 1
+    generator_args.setdefault("logger", logger)
 
     for i, (v_i_static, p) in enumerate(
             node_generator(network, **generator_args),
@@ -164,7 +154,7 @@ def kcore_lcc_threshold_dismantler(network: Graph, node_generator: Callable, gen
     return removals, None, None
 
 
-def lcc_threshold_dismantle(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int, logger=logging.getLogger("dummy")):
+def lcc_threshold_dismantler(network: Graph, node_generator: Callable, generator_args: Dict, stop_condition: int, logger=logging.getLogger("dummy"), **kwargs):
     removals = []
 
     network.set_fast_edge_removal(fast=True)
@@ -345,8 +335,6 @@ def dismantler_wrapper(function: Callable):
 
         generator_args["sorting_function"] = function
 
-        print("WRAPPING FUNCTION", function.__name__)
-
         removals, prediction_time, dismantle_time = dismantler(network=network,
                                                                predictor=predictor,
                                                                generator_args=generator_args,
@@ -368,6 +356,7 @@ def dismantler_wrapper(function: Callable):
         run = {
             # "network": name,
             "removals": removals,
+
             "slcc_peak_at": peak_slcc[0],
             "lcc_size_at_peak": peak_slcc[3],
             "slcc_size_at_peak": peak_slcc[4],
@@ -380,6 +369,6 @@ def dismantler_wrapper(function: Callable):
             "dismantle_time": dismantle_time
         }
 
-        return run  # , time_run
+        return run
 
     return wrapper

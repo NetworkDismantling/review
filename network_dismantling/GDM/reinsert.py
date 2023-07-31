@@ -38,7 +38,7 @@ from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler im
 from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 
-folder = 'network_dismantling/machine_learning/pytorch/reinsertion/'
+folder = 'network_dismantling/GDM/reinsertion/'
 cd_cmd = 'cd {} && '.format(folder)
 reinsertion_strategy = 2
 reinsertion_executable = 'reinsertion'
@@ -63,56 +63,19 @@ cached_networks = {}
 def get_predictions(network, removals, stop_condition, logger=logging.getLogger('dummy'), **kwargs):
     start_time = time()
 
-    predictions = reinsert(network, removals, stop_condition)
+    predictions = reinsert(network=network,
+                           removals=removals,
+                           stop_condition=stop_condition,
+                           logger=logger,
+                           )
 
     time_spent = time() - start_time
 
-    # predictions = list(zip([network.vertex_properties["static_id"][v] for v in network.vertices()], predictions))
     return predictions, time_spent
 
 
-# def static_predictor(network, removals, stop_condition, logger=logging.getLogger('dummy')):
-#     predictions, time_spent = get_predictions(network=network,
-#                                               removals=removals,
-#                                               stop_condition=stop_condition,
-#                                               logger=logger,
-#                                               )
-#     # predictions = list(zip(network.vertex_properties["static_id"].a, predictions))
-#
-#     # Sort by highest prediction value
-#     removal_indices = np.argsort(-predictions, kind="stable")
-#     static_id = network.vertex_properties["static_id"].a
-#
-#     for i in removal_indices:
-#         yield static_id[i], predictions[i]
-#
-#
-# def lcc_static_predictor(network, removals, stop_condition):
-#     predictions = get_predictions(network, removals, stop_condition)
-#
-#     # Get highest predicted value
-#     sorted_predictions = sorted(predictions, key=itemgetter(1), reverse=True)
-#
-#     i = 0
-#     while True:
-#         if i >= len(sorted_predictions):
-#             break
-#
-#         removed = yield sorted_predictions[i]
-#         if removed is not False:
-#             # Vertex was removed, remove it from predictions
-#             del sorted_predictions[i]
-#
-#             # ... and start over
-#             i = 0
-#
-#         else:
-#             i += 1
-#
-#     raise RuntimeError("No more vertices to remove!")
-
-
 def reinsert(network, removals, stop_condition,
+             logger=logging.getLogger('dummy'),
              ):
     network_path = get_network_file(network)
 
@@ -127,7 +90,8 @@ def reinsert(network, removals, stop_condition,
                 tmp.write(f"{removal}\n")
 
         cmds = [
-            'make clean && make',
+            # 'make clean && make',
+            'make',
 
             f'./{reinsertion_executable} '
             f'--NetworkFile {network_path} '
@@ -239,6 +203,7 @@ def main(args,
     # Sort dataframe
     df.sort_values(by=[args.sort_column], ascending=(not args.sort_descending), inplace=True)
 
+    all_runs = []
     groups = df.groupby("network")
     for network_name, network_df in groups:
         network_df = network_df.head(args.reinsert_first)
@@ -286,9 +251,11 @@ def main(args,
             _run = {
                 "network": network_name,
                 "removals": removals,
+
                 "slcc_peak_at": peak_slcc[0],
                 "lcc_size_at_peak": peak_slcc[3],
                 "slcc_size_at_peak": peak_slcc[4],
+
                 "r_auc": simps(list(r[3] for r in removals), dx=1),
                 "rem_num": len(removals),
             }
@@ -304,6 +271,8 @@ def main(args,
                 raise RuntimeError
 
             # runs.append(run)
+
+            all_runs.append(run)
 
             run_df = pd.DataFrame(data=[run], columns=network_df.columns)
 
@@ -323,6 +292,8 @@ def main(args,
                 run_df.to_csv(**kwargs)
 
         cleanup()
+
+    return all_runs
 
 
 def parse_parameters(parse_string=None, logger=logging.getLogger('dummy')):

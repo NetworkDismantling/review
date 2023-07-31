@@ -17,7 +17,7 @@
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
-import multiprocessing
+import torch.multiprocessing as multiprocessing
 from decimal import Decimal
 from glob import glob
 from pathlib import Path

@@ -1,3 +1,21 @@
+#   This file is part of GDM (Graph Dismantling with Machine learning),
+#   proposed in the paper "Machine learning dismantling and
+#   early-warning signals of disintegration in complex systems"
+#   by M. Grassia, M. De Domenico and G. Mangioni.
+#
+#   GDM is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   GDM is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
+
 import logging
 from argparse import ArgumentParser
 from pathlib import Path
@@ -6,12 +24,7 @@ import torch
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from network_dismantling.GDM.models.GAT import GAT_Model
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(TqdmLoggingHandler())
 
 
 def main(args):
@@ -27,6 +40,7 @@ def main(args):
     files = args.input.glob(f"*.{args.extension}")
     files = sorted(files)
 
+    # noinspection PyTypeChecker
     for model_path in tqdm(files,
                            desc="Converting models",
                            leave=False,
@@ -131,6 +145,10 @@ def main(args):
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(TqdmLoggingHandler())
+
     parser = ArgumentParser(
         description="Converts a GDM model file into a the new PyG model format"
     )

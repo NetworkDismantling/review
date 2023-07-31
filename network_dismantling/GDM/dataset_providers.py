@@ -25,19 +25,10 @@ import torch
 from torch_geometric.data import Data
 
 from network_dismantling.GDM.config import all_features
-from network_dismantling.common.loaders import load_graph
+from network_dismantling.common.dataset_providers import storage_provider
 
 
-def storage_provider(location, max_num_vertices=None, filter="*", extensions: Union[list, str] = ("graphml", "gt"),
-                     callback=None):
-    if not location.is_absolute():
-        location = location.resolve()
-
-    if not location.exists():
-        raise FileNotFoundError(f"Location {location} does not exist.")
-    elif not location.is_dir():
-        raise FileNotFoundError(f"Location {location} is not a directory.")
-
+def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", "gt"), **kwargs):
     if not isinstance(filter, list):
         filter = [filter]
 
@@ -51,31 +42,12 @@ def storage_provider(location, max_num_vertices=None, filter="*", extensions: Un
             loc = location / f"{f}.{extension}"
             files += glob(str(loc))
 
-    files = sorted(files)
+    files = sorted([Path(file).stem for file in files])
 
     if len(files) == 0:
         raise FileNotFoundError
 
-    networks = list()
-    for file in files:
-        filename = Path(file).stem
-
-        network = load_graph(file)
-
-        if (max_num_vertices is not None) and (network.num_vertices() > max_num_vertices):
-            continue
-
-        assert not network.is_directed()
-
-        network.graph_properties["filename"] = network.new_graph_property("string", filename)
-        network.graph_properties["filepath"] = network.new_graph_property("string", str(file))
-
-        if callback:
-            callback(filename, network)
-
-        networks.append((filename, network))
-
-    return networks
+    return files
 
 
 def prepare_graph(network, features=None, targets=None):
@@ -118,3 +90,42 @@ def prepare_graph(network, features=None, targets=None):
     data = Data(x=x, y=y, edge_index=edge_index)
 
     return data
+
+
+def init_network_provider(location, targets, features_list, max_num_vertices=None, filter="*", callback=None,
+                          manager=None):
+    # if isinstance(location, (str, Path)):
+    networks = storage_provider(location,
+                                max_num_vertices=max_num_vertices,
+                                filter=filter,
+                                extensions=["graphml", "gt"],
+                                callback=callback,
+                                )
+    # else:
+    #     networks = location
+
+    networks_names, networks = zip(*networks)
+
+    if manager is not None:
+        pp_networks = manager.dict()
+    else:
+        pp_networks = {}
+
+    list_class = list if manager is None else manager.list
+
+    for features in features_list:
+        key = '_'.join(features)
+
+        # TODO REMOVE THIS LIST
+        pp_networks[key] = list_class(list(zip(networks_names, networks,
+                                               map(lambda n: prepare_graph(n,
+                                                                           features=features,
+                                                                           targets=targets,
+                                                                           ),
+                                                   networks
+                                                   )
+                                               )
+                                           )
+                                      )
+
+    return pp_networks

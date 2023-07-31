@@ -1,6 +1,6 @@
 import argparse
 import logging
-import multiprocessing
+import torch.multiprocessing as multiprocessing
 import threading
 from datetime import timedelta
 from pathlib import Path
@@ -21,13 +21,13 @@ logger.addHandler(TqdmLoggingHandler())
 
 
 def get_predictions(network: Graph, sorting_function: Callable, logger=logging.getLogger('dummy'), **kwargs):
-    logger.info(f"Sorting the predictions...")
+    logger.debug(f"Sorting the predictions...")
     start_time = time()
 
     values = sorting_function(network, **kwargs)
 
     time_spent = time() - start_time
-    logger.info("Heuristics returned. Took {}".format(timedelta(seconds=(time_spent))))
+    logger.debug("Heuristics returned. Took {}".format(timedelta(seconds=(time_spent))))
 
     return values, time_spent
 
@@ -125,13 +125,14 @@ def main(args):
         ):
             dismantling_method = dismantling_methods[heuristic]
             display_name = dismantling_method.name
+            display_name_short = dismantling_method.short_name
 
             # generator_args["sorting_function"] = dismantling_method.function
 
             logger.info(f"\n"
                         f"==================================\n"
-                        f"Running {display_name} heuristic. Cite as:\n"
-                        f"{dismantling_method.citation}\n"
+                        f"Running {display_name} ({display_name_short}) heuristic. Cite as:\n"
+                        f"{dismantling_method.citation.strip()}\n"
                         f"==================================\n"
                         )
 
@@ -150,9 +151,9 @@ def main(args):
                 # Nothing to do. Network was already tested
                 continue
 
-            logger.info(f"Dismantling {name} according to {display_name}. "
-                        f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
-                        )
+            # logger.info(f"Dismantling {name} according to {display_name}. "
+            #             f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
+            #             )
 
             try:
                 # runs, time_runs = dismantler_wrapper(network,

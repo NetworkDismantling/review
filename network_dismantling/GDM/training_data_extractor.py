@@ -33,7 +33,6 @@ def chi(o, e):
 
 
 def training_data_extractor(g, threshold=None,
-                            output_file=None,
                             target_property_name="target",
                             vertices=None,
                             compute_targets=True, features=None,

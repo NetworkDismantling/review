@@ -21,7 +21,8 @@ import threading
 from collections import defaultdict
 from functools import partial
 from itertools import combinations
-from multiprocessing import Queue
+from queue import Queue
+
 from pathlib import Path
 
 import numpy as np
@@ -58,9 +59,9 @@ def process_parameters_wrapper(args,
                                ):
     import logging
 
+    from queue import Empty
     from torch import device
     from tqdm.auto import tqdm
-    from _queue import Empty
 
     from network_dismantling.common.multiprocessing import clean_up_the_pool
     from network_dismantling.common.multiprocessing import get_position
@@ -211,12 +212,6 @@ def process_parameters_wrapper(args,
 
 
 def main(args, nn_model):
-    try:
-        if cuda.is_available():
-            multiprocessing.set_start_method('spawn')
-    except RuntimeError:
-        pass
-
 
     parameters_to_try = args.parameters + nn_model.get_parameters() + ["seed_train"]
 

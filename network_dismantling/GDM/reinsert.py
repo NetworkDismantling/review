@@ -32,7 +32,7 @@ from graph_tool import Graph
 from scipy.integrate import simps
 from tqdm import tqdm
 
-from network_dismantling.GDM.dataset_providers import storage_provider
+from network_dismantling.GDM.dataset_providers import storage_provider, list_files
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
@@ -171,6 +171,7 @@ def main(args,
          dismantler=lcc_threshold_dismantler,
          logger=logging.getLogger('dummy'),
          ):
+
     if df is None:
         # Load the runs dataframe...
         df = df_reader(args.file, include_removals=True)
@@ -187,12 +188,24 @@ def main(args,
         output_df = pd.DataFrame(columns=df.columns)
 
     if test_networks is None:
-        # Load the networks
-        test_networks = dict(
-            storage_provider(args.location_test,
-                             filter=args.test_filter,
-                             )
-        )
+        # TODO defer the loading of the networks
+        # Get the list of networks in the folder
+        test_networks_list = list_files(args.location_test,
+                                        filter=args.test_filter,
+                                        )
+        test_networks_list = np.intersect1d([file.stem for file in test_networks_list],
+                                            df["network"].unique(),
+                                            )
+
+        # TODO create the mapping preserving the file location
+        # that was lost in the previous step
+
+        # # Load the networks
+        # test_networks = dict(
+        #     storage_provider(args.location_test,
+        #                      filter=args.test_filter,
+        #                      )
+        # )
 
     # Filter the networks in the folder
     df = df.loc[(df["network"].isin(test_networks.keys()))]
@@ -201,95 +214,100 @@ def main(args,
         df["average_dmg"] = (1 - df["lcc_size_at_peak"]) / df["slcc_peak_at"]
 
     # Sort dataframe
-    df.sort_values(by=[args.sort_column], ascending=(not args.sort_descending), inplace=True)
+    df.sort_values(by=[args.sort_column],
+                   ascending=(not args.sort_descending),
+                   inplace=True,
+                   )
 
     all_runs = []
     groups = df.groupby("network")
     for network_name, network_df in groups:
         network_df = network_df.head(args.reinsert_first)
 
-        runs_iterable = tqdm(network_df.iterrows(), ascii=True)
-        runs_iterable.set_description(network_name)
+        with tqdm(network_df.iterrows(),
+                  ascii=True,
+                  desc="Reinserting",
+                  leave=False,
+                  ) as runs_iterable:
 
-        # runs = []
-        for _, run in runs_iterable:
-            network = test_networks[network_name]
+            runs_iterable.set_description(network_name)
 
-            removals = literal_eval(run.pop("removals"))
+            for _, run in runs_iterable:
+                network = test_networks[network_name]
 
-            run.drop(run_columns, inplace=True, errors="ignore")
+                removals = literal_eval(run.pop("removals"))
 
-            run = run.to_dict()
+                run.drop(run_columns, inplace=True, errors="ignore")
 
-            reinserted_run_df = output_df.loc[
-                (output_df[list(run.keys())] == list(run.values())).all(axis='columns'),
-                ["network", "seed"]
-            ]
+                run = run.to_dict()
 
-            if len(reinserted_run_df) != 0:
-                # Nothing to do. Network was already tested
-                continue
+                reinserted_run_df = output_df.loc[
+                    (output_df[list(run.keys())] == list(run.values())).all(axis='columns'),
+                    ["network", "seed"]
+                ]
 
-            stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
-            generator_args = {
-                "removals": list(map(itemgetter(1), removals)),
-                "stop_condition": stop_condition,
-                "logger": logger,
-                "network_name": network_name,
-            }
+                if len(reinserted_run_df) != 0:
+                    # Nothing to do. The network was already tested
+                    continue
 
-            removals, _, _ = dismantler(network=network.copy(),
-                                        predictor=predictor,
-                                        generator_args=generator_args,
-                                        stop_condition=stop_condition,
-                                        dismantler=dismantler,
-                                        logger=logger,
-                                        )
-
-            peak_slcc = max(removals, key=itemgetter(4))
-
-            _run = {
-                "network": network_name,
-                "removals": removals,
-
-                "slcc_peak_at": peak_slcc[0],
-                "lcc_size_at_peak": peak_slcc[3],
-                "slcc_size_at_peak": peak_slcc[4],
-
-                "r_auc": simps(list(r[3] for r in removals), dx=1),
-                "rem_num": len(removals),
-            }
-
-            for key, value in _run.items():
-                run[key] = value
-
-            # Check if something is wrong with the removals
-            if removals[-1][2] == 0:
-                for removal in removals:
-                    logger.info("\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(*removal))
-
-                raise RuntimeError
-
-            # runs.append(run)
-
-            all_runs.append(run)
-
-            run_df = pd.DataFrame(data=[run], columns=network_df.columns)
-
-            if args.output_file is not None:
-                kwargs = {
-                    "path_or_buf": Path(args.output_file),
-                    "index": False,
-                    # header='column_names',
-                    "columns": df_columns
+                stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
+                generator_args = {
+                    "removals": list(map(itemgetter(1), removals)),
+                    "stop_condition": stop_condition,
+                    "logger": logger,
+                    "network_name": network_name,
                 }
 
-                # If dataframe exists append without writing the header
-                if kwargs["path_or_buf"].exists():
-                    kwargs["mode"] = "a"
-                    kwargs["header"] = False
+                removals, _, _ = dismantler(network=network.copy(),
+                                            predictor=predictor,
+                                            generator_args=generator_args,
+                                            stop_condition=stop_condition,
+                                            dismantler=dismantler,
+                                            logger=logger,
+                                            )
 
-                run_df.to_csv(**kwargs)
+                peak_slcc = max(removals, key=itemgetter(4))
+
+                _run = {
+                    "network": network_name,
+                    "removals": removals,
+
+                    "slcc_peak_at": peak_slcc[0],
+                    "lcc_size_at_peak": peak_slcc[3],
+                    "slcc_size_at_peak": peak_slcc[4],
+
+                    "r_auc": simps(list(r[3] for r in removals), dx=1),
+                    "rem_num": len(removals),
+                }
+
+                for key, value in _run.items():
+                    run[key] = value
+
+                # Check if something is wrong with the removals
+                if removals[-1][2] == 0:
+                    for removal in removals:
+                        logger.info("\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(*removal))
+
+                    raise RuntimeError
+
+                all_runs.append(run)
+
+                run_df = pd.DataFrame(data=[run], columns=network_df.columns)
+
+                if args.output_file is not None:
+                    kwargs = {
+                        "path_or_buf": Path(args.output_file),
+                        "index": False,
+                        # header='column_names',
+                        "columns": df_columns
+                    }
+
+                    # If dataframe exists append without writing the header
+                    if kwargs["path_or_buf"].exists():
+                        kwargs["mode"] = "a"
+                        kwargs["header"] = False
+
+                    run_df.to_csv(**kwargs)
 
         cleanup()
 

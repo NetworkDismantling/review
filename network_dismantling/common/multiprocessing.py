@@ -65,6 +65,13 @@ def run_dill_encoded(payload):
     return fun(*args, **kwargs)
 
 
+def submit(executor, func, *args, **kwargs):
+    import dill
+
+    payload = dill.dumps((func, args, kwargs))
+    return executor.submit(run_dill_encoded, payload)
+
+
 def apply_async(pool, func, args=None, kwargs=None, callback=None, error_callback=None):
     import dill
 

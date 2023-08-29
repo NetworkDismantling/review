@@ -1,3 +1,21 @@
+#   This file is part of the Network Dismantling review,
+#   proposed in the paper "Robustness and resilience of complex networks"
+#   by Oriol Artime, Marco Grassia, Manlio De Domenico, James P. Gleeson,
+#   Hernán A. Makse, Giuseppe Mangioni, Matjaž Perc and Filippo Radicchi.
+#
+#   This is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   The project is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with the code.  If not, see <http://www.gnu.org/licenses/>.
+
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -5,10 +23,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from network_dismantling.common.humanize_helper import intword
 from parse import compile
 
 from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.humanize_helper import intword
 from network_dismantling.machine_learning.pytorch.grid_output import replace_labels
 from network_dismantling.table_output import reorder_heuristics
 

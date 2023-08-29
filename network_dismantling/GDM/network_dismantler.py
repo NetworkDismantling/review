@@ -440,9 +440,16 @@ def train_wrapper(args, nn_model, train_ne=True, networks_provider=None, logger=
     model_weights_file = models_path / (model_name + ".h5")
 
     if model_weights_file.is_file():
-        weights = torch.load(str(model_weights_file),
-                             map_location=args.device,
-                             )
+        try:
+            weights = torch.load(str(model_weights_file),
+                                 map_location=args.device,
+                                 )
+        except RuntimeError as e:
+            logger.error(f"Error loading model weights from file: {model_weights_file}\n"
+                         f"{model}",
+                         exc_info=True,
+                         )
+            raise e
 
         try:
             model.load_state_dict(weights,

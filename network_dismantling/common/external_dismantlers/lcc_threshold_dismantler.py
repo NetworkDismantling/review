@@ -1,13 +1,16 @@
 import logging
 from datetime import timedelta
 from time import time, perf_counter_ns
-# from traceback import print_tb
 
 import numpy as np
-from network_dismantling.common.external_dismantlers.dismantler import Graph, lccThresholdDismantler, thresholdDismantler
+
+
+# from traceback import print_tb
 
 
 def test_network_callback(network):
+    from network_dismantling.common.external_dismantlers.dismantler import Graph
+
     from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     remove_parallel_edges(network)
@@ -39,6 +42,8 @@ def add_dismantling_edges(filename, network):
 
 # def _threshold_dismantler(network, predictions, generator_args, stop_condition, dismantler):
 def _threshold_dismantler(network, predictor, generator_args, stop_condition, dismantler, **kwargs):
+    from network_dismantling.common.external_dismantlers.dismantler import Graph
+
     logger = generator_args.get("logger", logging.getLogger('dummy'))
 
     network_name = generator_args["network_name"]
@@ -65,27 +70,25 @@ def _threshold_dismantler(network, predictor, generator_args, stop_condition, di
 
     external_network = Graph(external_network)
 
-    logger.info(f"{network_name}: Invoking the external dismantler.")
+    logger.debug(f"{network_name}: Invoking the external dismantler.")
     start_time = perf_counter_ns()
 
     try:
         raw_removals = dismantler(external_network, removal_order, stop_condition)
     except Exception as e:
-        logger.info(f"{network_name}: ERROR: {e}")
-        logger.exception(e)
+        logger.exception(f"{network_name}: ERROR {e}", exc_info=True)
 
         raise e
     finally:
         try:
             del external_network
         except Exception as e:
-            logger.info(f"{network_name}: ERROR when deleting external_network: {e}")
-            logger.exception(e)
+            logger.exception(f"{network_name}: ERROR when deleting external_network {e}", exc_info=True)
 
     dismantle_time = perf_counter_ns() - start_time  # in ns
-    dismantle_time /= 1e9 # in s
+    dismantle_time /= 1e9  # in s
 
-    logger.info(f"{network_name}: External dismantler returned in {dismantle_time}s")
+    logger.debug(f"{network_name}: External dismantler returned in {dismantle_time}s")
 
     # predictions_dict = dict(predictions)
     predictions_dict = dict(zip(network.vertex_properties["static_id"].a.tolist(), predictions.tolist()))
@@ -102,12 +105,16 @@ def _threshold_dismantler(network, predictor, generator_args, stop_condition, di
 
 
 def lcc_threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs):
+    from network_dismantling.common.external_dismantlers.dismantler import lccThresholdDismantler
+
     kwargs["dismantler"] = lccThresholdDismantler
 
     return _threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs)
 
 
 def threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs):
+    from network_dismantling.common.external_dismantlers.dismantler import thresholdDismantler
+
     kwargs["dismantler"] = thresholdDismantler
 
     # assert "generator_args" in kwargs, "threshold_dismantler: generator_args must be provided"
@@ -116,6 +123,8 @@ def threshold_dismantler(network, predictor, generator_args, stop_condition, **k
 
 
 def _iterative_threshold_dismantler(network, predictor, generator_args, stop_condition):
+    from network_dismantling.common.external_dismantlers.dismantler import Graph, thresholdDismantler
+
     # network = network.copy()
     network.set_fast_edge_removal(fast=True)
 

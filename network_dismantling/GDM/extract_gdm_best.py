@@ -20,6 +20,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import pandas as pd
+
 from network_dismantling.common.df_helpers import df_reader, get_df_columns
 from network_dismantling.common.helpers import extend_filename
 
@@ -104,6 +105,8 @@ def extract_best_runs(args, df, heuristic_name=None):
     extracted_df["heuristic"] = heuristic_name
     # print("Output DF", extracted_df)
 
+    # Remove duplicates in case of multiple sorting columns
+    extracted_df.drop_duplicates(inplace=True)
     return extracted_df
 
 
@@ -112,13 +115,6 @@ def parse_parameters(parse_string=None):
         description=""
     )
 
-    # parser.add_argument(
-    #     '--command',
-    #     type=str,
-    #     choices=FUNCTION_MAP.keys(),
-    #     default="cleanup_df",
-    #     required=False
-    # )
     parser.add_argument(
         "-f",
         "--file",

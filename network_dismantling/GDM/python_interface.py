@@ -7,16 +7,13 @@
 # 5. Run the reinsertion script
 # 6. Extract the best runs from the CSV file and store them in the heuristics.csv file
 import logging
-# import torch.multiprocessing as multiprocessing
 import threading
-from functools import partial
 from pathlib import Path
+from queue import Queue
 
 import pandas as pd
-import torch.multiprocessing as multiprocessing
 from graph_tool import Graph
-from torch import cuda
-from torch.multiprocessing import Queue
+from torch import cuda, multiprocessing
 from tqdm.auto import tqdm
 
 import network_dismantling
@@ -28,7 +25,13 @@ from network_dismantling.GDM.reinsert import main as reinsert, parse_parameters 
 from network_dismantling._sorters import dismantling_method
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.helpers import extend_filename
-from network_dismantling.common.multiprocessing import progressbar_thread, dataset_writer, apply_async
+from network_dismantling.common.multiprocessing import progressbar_thread, dataset_writer, submit
+
+try:
+    from deadpool import as_completed, Executor
+
+except ImportError:
+    from concurrent.futures import as_completed, Executor
 
 folder = 'network_dismantling/GDM/'
 cd_cmd = f'cd {folder} && '
@@ -59,13 +62,14 @@ default_gdm_params = '--epochs 50 ' \
                      '--location_test NONE ' \
                      '--model GAT_Model ' \
                      f'--models_location {models_folder_path} ' \
-                     '--jobs 1 ' \
                      '--seed 0 ' \
                      '--dont_train ' \
                      '-CL 5 -CL 10 -CL 20 -CL 50 -CL 5 5 -CL 10 10 -CL 20 20 -CL 50 50 -CL 100 100 -CL 5 5 5 -CL 10 10 10 -CL 20 20 20 -CL 20 10 5 ' \
                      '-CL 30 20 -CL 30 20 10 -CL 40 30 -CL 5 5 5 5 -CL 10 10 10 10 -CL 20 20 20 20 -CL 40 30 20 10 ' \
                      '-FCL 100 -FCL 40 40 40 -FCL 50 30 30 -FCL 100 100 -FCL 40 30 20 -FCL 50 30 30 30 ' \
                      '-H 1 -H 5 -H 10 -H 15 -H 20 -H 30 -H 1 1 -H 5 5 -H 10 10 -H 15 15 -H 20 20 -H 30 30 -H 1 1 1 -H 10 10 10 -H 20 20 20 -H 30 30 30 -H 1 1 1 1 -H 5 5 5 5 -H 10 10 10 10 -H 20 20 20 20 '
+# '--jobs 1 ' \
+
 
 default_reinsertion_params = '--file NONE ' \
                              '--location_test NONE ' \
@@ -82,24 +86,19 @@ def grid(df,
          args,
          nn_model,
          test_networks_provider,
-         logger=logging.getLogger("dummy")
+         # pool: multiprocessing.Pool,
+         executor: Executor,
+         pool_size: int,
+         mp_manager: multiprocessing.Manager,
+         logger=logging.getLogger("dummy"),
+         **kwargs
          ):
-    try:
-        if cuda.is_available():
-            multiprocessing.set_start_method('spawn', force=True)
-    except RuntimeError:
-        pass
-
-    logger.info(f"Using package {network_dismantling.__file__}")
+    logger.debug(f"Using package {network_dismantling.__file__}")
 
     parameters_to_try = args.parameters + nn_model.get_parameters() + ["seed_train"]
 
     # Get subset of args dictionary
     parameters_to_try = {k: vars(args)[k] for k in parameters_to_try}
-
-    # Create the Multiprocessing Manager
-    mp_manager = multiprocessing.Manager()
-    # mp_manager = multiprocessing
 
     # List the parameters to try
     params_list = list(product_dict(_callback=nn_model.parameters_combination_validator, **parameters_to_try))
@@ -111,7 +110,10 @@ def grid(df,
     iterations_queue: Queue = mp_manager.Queue()
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(target=dataset_writer, args=(df_queue, args.output_file), daemon=True)
+    dp = threading.Thread(target=dataset_writer,
+                          args=(df_queue, args.output_file),
+                          daemon=True,
+                          )
     dp.start()
 
     devices = []
@@ -145,46 +147,55 @@ def grid(df,
         params_queue.put(params)
 
     new_runs_buffer = []
-    # Create the pool
-    with multiprocessing.Pool(processes=args.jobs, initializer=tqdm.set_lock,
-                              initargs=(multiprocessing.Lock(),)) as p:
 
-        with tqdm(total=len(params_list), ascii=True) as pb:
-            # Create and start the ProgressBar Thread
-            pbt = threading.Thread(target=progressbar_thread,
-                                   args=(iterations_queue, pb,),
-                                   daemon=True,
-                                   )
-            pbt.start()
+    # def callback(future):
+    #     try:
+    #         new_runs_buffer.extend(future.result())
+    #     except Exception as e:
+    #         logger.exception(e, exc_info=True)
 
-            for i in range(args.jobs):
-                # torch.cuda._lazy_init()
+    with tqdm(total=len(params_list),
+              ascii=True,
+              desc="Parameters",
+              leave=False,
+              ) as pb:
 
-                # p.apply_async(
-                apply_async(pool=p,
-                            func=process_parameters_wrapper,
-                            kwargs=dict(args=args,
-                                        df=df,
-                                        nn_model=nn_model,
-                                        params_queue=params_queue,
-                                        train_networks=None,
-                                        test_networks=test_networks_provider,
-                                        df_queue=df_queue,
-                                        iterations_queue=iterations_queue,
-                                        # device_queue=device_queue,
-                                        logger=logger,
-                                        ),
-                            callback=new_runs_buffer.extend,
-                            error_callback=partial(logger.exception, exc_info=True),
-                            )
+        # Create and start the ProgressBar Thread
+        pbt = threading.Thread(target=progressbar_thread,
+                               args=(iterations_queue, pb,),
+                               daemon=True,
+                               )
+        pbt.start()
 
-            # Close the pool
-            p.close()
-            p.join()
+        # TODO improve this
+        futures = []
+        for i in range(pool_size):
+            futures.append(
+                # executor.submit(process_parameters_wrapper,
+                submit(executor=executor,
+                       func=process_parameters_wrapper,
+                       args=args,
+                       df=df,
+                       nn_model=nn_model,
+                       params_queue=params_queue,
+                       train_networks=None,
+                       test_networks=test_networks_provider,
+                       df_queue=df_queue,
+                       iterations_queue=iterations_queue,
+                       # device_queue=device_queue,
+                       logger=logger,
+                       ) #.add_done_callback(callback)
+            )
 
-            # Close the progress bar thread
-            iterations_queue.put(None)
-            pbt.join()
+            for future in as_completed(futures):
+                try:
+                    new_runs_buffer.extend(future.result())
+                except Exception as e:
+                    logger.exception(e, exc_info=True)
+
+        # Close the progress bar thread
+        iterations_queue.put(None)
+        pbt.join()
 
     # Gracefully close the daemons
     df_queue.put(None)
@@ -197,7 +208,8 @@ def grid(df,
     return new_df_runs
 
 
-def _GDM(network: Graph, stop_condition: int, reinsertion: bool, parameters=default_gdm_params,
+def _GDM(network: Graph, stop_condition: int, reinsertion: bool,
+         parameters=default_gdm_params,
          logger=logging.getLogger("dummy"), **kwargs):
     global df
 
@@ -238,6 +250,7 @@ def _GDM(network: Graph, stop_condition: int, reinsertion: bool, parameters=defa
                        nn_model=nn_model,
                        test_networks_provider=networks_provider,
                        logger=logger,
+                       **kwargs
                        )
 
     # TODO: Fix this...

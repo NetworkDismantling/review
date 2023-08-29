@@ -21,11 +21,11 @@ import logging
 import threading
 from functools import partial
 from itertools import combinations
-from multiprocessing import Queue
 from pathlib import Path
 
 import pandas as pd
 from torch import multiprocessing, cuda
+from queue import Queue
 from tqdm import tqdm
 
 import network_dismantling
@@ -44,7 +44,7 @@ def process_parameters_wrapper(args, df, nn_model, params_queue, test_networks, 
                                iterations_queue, logger=logging.getLogger("dummy")):
     import logging
     from torch import device
-    from _queue import Empty
+    from queue import Empty
     from network_dismantling.common.multiprocessing import clean_up_the_pool
     from network_dismantling.common.multiprocessing import get_position
     from network_dismantling.GDM.network_dismantler import add_run_parameters, train_wrapper, test
@@ -92,6 +92,7 @@ def process_parameters_wrapper(args, df, nn_model, params_queue, test_networks, 
                                   nn_model=nn_model,
                                   networks_provider=train_networks_provider,
                                   train_ne=(not args.dont_train),
+                                  print_model=False,
                                   logger=logger,
                                   )
 
@@ -108,7 +109,7 @@ def process_parameters_wrapper(args, df, nn_model, params_queue, test_networks, 
             continue
             # raise e
         except (RuntimeError, FileNotFoundError) as e:
-            logger.error("ERROR: {}".format(e), exc_info=True)
+            logger.exception(f"ERROR: {e}", exc_info=True)
 
             runtime_exceptions += 1
 
@@ -142,7 +143,8 @@ def process_parameters_wrapper(args, df, nn_model, params_queue, test_networks, 
                 if len(network_df) == 0:
                     seeds_to_test = [next(iter(args.seed_test))]
                 else:
-                    # Nothing to do. Network was already tested (and seed doesn't matter)
+                    # Nothing to do.
+                    # The network was already tested (and seed doesn't matter)
                     continue
 
             for seed_test in seeds_to_test:
@@ -182,12 +184,13 @@ def process_parameters_wrapper(args, df, nn_model, params_queue, test_networks, 
 
     if runtime_exceptions > 0:
         logger.warning("\n\n\n"
-                       "WARNING: Some runs did not complete due to some runtime exception (most likely CUDA OOM)."
+                       "WARNING: Some runs did not complete due to some runtime exception (most likely CUDA OOM). "
                        "Try again with lower GPU load."
                        "\n\n\n"
                        )
 
     return all_runs
+
 
 def main(args, nn_model):
     parameters_to_try = args.parameters + nn_model.get_parameters() + ["seed_train"]
@@ -202,10 +205,6 @@ def main(args, nn_model):
 
     del df["removals"]
 
-    try:
-        multiprocessing.set_start_method('spawn')
-    except RuntimeError:
-        pass
 
     # Create the Multiprocessing Manager
     # mp_manager = multiprocessing
@@ -271,6 +270,7 @@ def main(args, nn_model):
 
     for network_name in tqdm(test_networks_list,
                              desc="Networks",
+                             leave=False,
                              ):
 
         logger.info(f"Loading network: {network_name}")

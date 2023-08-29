@@ -25,6 +25,7 @@ import torch
 from torch_geometric.data import Data
 
 from network_dismantling.GDM.config import all_features
+from network_dismantling.GDM.training_data_extractor import training_data_extractor
 from network_dismantling.common.dataset_providers import storage_provider
 
 
@@ -60,11 +61,18 @@ def prepare_graph(network, features=None, targets=None):
     if "None" in features:
         x = np.ones((network.num_vertices(), 1))
     else:
-        x = np.column_stack(
-            tuple(
-                network.vertex_properties[feature].get_array() for feature in features
-            )
-        )
+        features_to_compute = np.setdiff1d(features, network.vertex_properties.keys())
+
+        training_data_extractor(network,
+                                compute_targets=False,
+                                features=features_to_compute,
+                                # logger=print,
+                                )
+
+        x = np.column_stack(tuple(
+            network.vertex_properties[feature].get_array() for feature in features
+        ))
+
     x = torch.from_numpy(x).to(torch.float)
 
     if targets is None:

@@ -18,9 +18,11 @@ def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", 
     for extension in extensions:
         for f in filter:
             l = location / (f"{f}.{extension}")
+
             files += glob(str(l))
 
-    files = sorted([Path(file).stem for file in files])
+    # files = sorted([Path(file).stem for file in files])
+    files = sorted([Path(file) for file in files])
 
     if len(files) == 0:
         raise FileNotFoundError
@@ -67,6 +69,12 @@ def storage_provider(location, max_num_vertices=None, filter="*", extensions: Un
 
         assert not network.is_directed()
 
+        if "static_id" not in network.vertex_properties:
+            # TODO turn into a unsigned int?
+            network.vertex_properties["static_id"] = network.new_vertex_property("int",
+                                                                                 vals=network.vertex_index,
+                                                                                 )
+
         network.graph_properties["filename"] = network.new_graph_property("string", filename)
 
         if callback:
@@ -77,16 +85,23 @@ def storage_provider(location, max_num_vertices=None, filter="*", extensions: Un
     return networks
 
 
-def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*", logger=logging.getLogger("dummy"), **kwargs):
+def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*",
+                          logger=logging.getLogger("dummy"), **kwargs):
     if not isinstance(location, list):
         location = [location]
 
+    # location = [Path(loc).resolve() for loc in location]
+    # logger.debug(f"Loading networks with filter {filter} from: {', '.join([str(l) for l in location])}")
+
     networks = []
     for loc in location:
-        loc = Path(loc)
-        loc = loc.resolve()
+        loc = Path(loc).resolve()
 
-        logger.info(f"Loading networks from: {loc}")
-        networks += storage_provider(loc, max_num_vertices=max_num_vertices, filter=filter)
+        # logger.info(f"Loading networks from: {loc}")
+        try:
+            networks += storage_provider(loc, max_num_vertices=max_num_vertices, filter=filter)
+        except FileNotFoundError:
+            # Assume we can find the file somewhere else
+            pass
 
     return networks

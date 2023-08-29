@@ -1,3 +1,21 @@
+#   This file is part of the Network Dismantling review,
+#   proposed in the paper "Robustness and resilience of complex networks"
+#   by Oriol Artime, Marco Grassia, Manlio De Domenico, James P. Gleeson,
+#   Hernán A. Makse, Giuseppe Mangioni, Matjaž Perc and Filippo Radicchi.
+#
+#   This is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   The project is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with the code.  If not, see <http://www.gnu.org/licenses/>.
+
 import argparse
 import logging
 from glob import glob
@@ -7,30 +25,26 @@ import networkx as nx
 
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(TqdmLoggingHandler())
-
 _format_mapping = {
     # "ncol":       ("Read_Ncol", "write_ncol"),
     # "lgl":        ("Read_Lgl", "write_lgl"),
     # "graphdb":    ("Read_GraphDB", None),
     # "graphmlz":     ("read_graphml", "write_graphmlz"),
-    "graphml":      ("read_graphml", "write_graphml"),
+    "graphml": ("read_graphml", "write_graphml"),
     # "gml":        ("Read_GML", "write_gml"),
     # "dot":          (None, "write_dot"),
     # "graphviz":   (None, "write_dot"),
-    "net":        ("read_pajek", "write_pajek"),
-    "pajek":      ("read_pajek", "write_pajek"),
+    "net": ("read_pajek", "write_pajek"),
+    "pajek": ("read_pajek", "write_pajek"),
     # "dimacs":     ("Read_DIMACS", "write_dimacs"),
-    "adjacency":  ("read_adjlist", "write_adjlist"),
-    "adj":        ("read_adjlist", "write_adjlist"),
-    "edgelist":   ("read_edgelist", "write_edgelist"),
-    "edge":       ("read_edgelist", "write_edgelist"),
-    "edges":      ("read_edgelist", "write_edgelist"),
-    "el":         ("read_edgelist", "write_edgelist"),
-    "pickle":     ("read_gpickle", "write_gpickle"),
-    "picklez":    ("read_gpickle", "write_gpickle"),
+    "adjacency": ("read_adjlist", "write_adjlist"),
+    "adj": ("read_adjlist", "write_adjlist"),
+    "edgelist": ("read_edgelist", "write_edgelist"),
+    "edge": ("read_edgelist", "write_edgelist"),
+    "edges": ("read_edgelist", "write_edgelist"),
+    "el": ("read_edgelist", "write_edgelist"),
+    "pickle": ("read_gpickle", "write_gpickle"),
+    "picklez": ("read_gpickle", "write_gpickle"),
     # "svg":        (None, "write_svg"),
     # "gw":         (None, "write_leda"),
     # "leda":       (None, "write_leda"),
@@ -145,6 +159,10 @@ def main(args):
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(TqdmLoggingHandler())
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(

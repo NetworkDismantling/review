@@ -29,8 +29,8 @@ import logging
 import threading
 from collections import defaultdict
 from functools import partial
-from multiprocessing import Queue
 from pathlib import Path
+from queue import Queue
 
 import numpy as np
 import pandas as pd
@@ -115,11 +115,11 @@ def grid(df,
          network,
          logger=logging.getLogger("dummy")
          ):
-    try:
-        if cuda.is_available():
-            multiprocessing.set_start_method('spawn', force=True)
-    except RuntimeError:
-        pass
+    # try:
+    #     if cuda.is_available():
+    #         multiprocessing.set_start_method('spawn', force=True)
+    # except RuntimeError:
+    #     pass
 
     network_name = network.graph_properties["filename"]
 
@@ -170,7 +170,7 @@ def grid(df,
     devices = []
     locks = dict()
 
-    logger.info(f"Using package {network_dismantling.__file__}")
+    logger.debug(f"Using package {network_dismantling.__file__}")
     if cuda.is_available() and not args.force_cpu:
         logger.info("Using GPU(s).")
         for device in range(cuda.device_count()):
@@ -199,7 +199,7 @@ def grid(df,
                         f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
                         )
 
-            # CoreHD does not support nor parallel edges nor self loops.
+            # CoreHD does not support nor parallel edges nor self-loops.
             # Remove them.
             remove_parallel_edges(network)
             remove_self_loops(network)

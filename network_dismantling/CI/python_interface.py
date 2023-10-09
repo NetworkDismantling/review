@@ -1,19 +1,11 @@
-import os
-import sys
-import tempfile
-from operator import itemgetter
-from subprocess import check_output, STDOUT
-
-import numpy as np
 from graph_tool import Graph
 
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
-local_dir = os.path.dirname(__file__) + os.sep
 
-sys.path.append(local_dir)
-
+# TODO use tempfile.NamedTemporaryFile?
+# TODO use logger instead of print
 
 # @dismantler_wrapper
 def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
@@ -32,10 +24,17 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
     :return:
     """
 
-    folder = f'network_dismantling/CI/'
-    cd_cmd = f'cd {folder} && '
+    import tempfile
+    import numpy as np
+
+    from operator import itemgetter
+    from os import remove, close
+    from subprocess import check_output, STDOUT
 
     from graph_tool.all import remove_parallel_edges, remove_self_loops
+
+    folder = f"network_dismantling/CI/"
+    cd_cmd = f"cd {folder} && "
 
     remove_parallel_edges(network)
     remove_self_loops(network)
@@ -48,23 +47,31 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
     network_fd, network_path = tempfile.mkstemp()
     output_fd, output_path = tempfile.mkstemp()
 
+    tmp_file_handles = [network_fd, output_fd]
+    tmp_file_paths = [network_path, output_path]
+
     cmds = [
-        'make clean',
-        'make',
-        f'./CI {network_path} {l} {stop_condition} {output_path}'
+        "make clean",
+        "make",
+        f"./CI {network_path} {l} {stop_condition} {output_path}"
         # f'./CI {network_path} {l} {stop_condition / network.num_vertices()} {output_path}'
     ]
 
+    nodes = []
     try:
-        with open(network_fd, 'w+') as tmp:
+        with open(network_fd, "w+") as tmp:
             # for node in network.vertices():
-            for node, node_id in network.iter_vertices(vprops=[network.vp["static_id"]]):
+            for node, node_id in network.iter_vertices(
+                vprops=[network.vp["static_id"]]
+            ):
                 # node_id = static_id[node]
                 node_id = node_id_mapping[node_id]
                 tmp.write(f"{node_id}")
 
                 for out_neighbor, out_neighbor_id in sorted(
-                        network.iter_out_neighbors(node, vprops=[network.vp["static_id"]]), key=itemgetter(1)):
+                    network.iter_out_neighbors(node, vprops=[network.vp["static_id"]]),
+                    key=itemgetter(1),
+                ):
                     # out_neighbor_id = static_id[out_neighbor]
                     out_neighbor_id = node_id_mapping[out_neighbor_id]
                     tmp.write(f" {out_neighbor_id}")
@@ -75,18 +82,17 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
             try:
                 print(f"Running cmd: {cmd}")
                 print(
-                    check_output(cd_cmd + cmd,
-                                 shell=True,
-                                 text=True,
-                                 stderr=STDOUT,
-                                 )
+                    check_output(
+                        cd_cmd + cmd,
+                        shell=True,
+                        text=True,
+                        stderr=STDOUT,
+                    )
                 )
             except Exception as e:
                 raise RuntimeError(f"ERROR! When running cmd: {cmd}. {e}")
 
-        nodes = []
-
-        with open(output_fd, 'r+') as tmp:
+        with open(output_fd, "r+") as tmp:
             for line in tmp.readlines():
                 _, node = line.strip().split(" ")
                 node = reverse_node_id_mapping[int(node)]
@@ -97,8 +103,18 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
         raise e
 
     finally:
-        os.remove(network_path)
-        os.remove(output_path)
+        for fd, path in zip(tmp_file_handles, tmp_file_paths):
+            try:
+                close(fd)
+
+            except:
+                pass
+
+            try:
+                remove(path)
+
+            except:
+                pass
 
     output = np.zeros(network.num_vertices())
     for n, p in zip(nodes, list(reversed(range(1, len(nodes) + 1)))):
@@ -118,29 +134,40 @@ method_info = {
 }
 
 
-@dismantling_method(name="Collective Influence $\ell-1$",
-                    # display_name="GND",
-                    short_name="CI $\ell-1$",
-
-                    **method_info)
+@dismantling_method(
+    name="Collective Influence $\ell-1$",
+    # display_name="GND",
+    short_name="CI $\ell-1$",
+    **method_info,
+)
 @dismantler_wrapper
 def CollectiveInfluenceL1(network, stop_condition, **kwargs):
-    return _collective_influence_l(network, l=1, stop_condition=stop_condition, **kwargs)
+    return _collective_influence_l(
+        network, l=1, stop_condition=stop_condition, **kwargs
+    )
 
 
-@dismantling_method(name="Collective Influence $\ell-2$",
-                    # display_name="GND",
-                    short_name="CI $\ell-2$",
-                    **method_info)
+@dismantling_method(
+    name="Collective Influence $\ell-2$",
+    # display_name="GND",
+    short_name="CI $\ell-2$",
+    **method_info,
+)
 @dismantler_wrapper
 def CollectiveInfluenceL2(network, stop_condition, **kwargs):
-    return _collective_influence_l(network, l=2, stop_condition=stop_condition, **kwargs)
+    return _collective_influence_l(
+        network, l=2, stop_condition=stop_condition, **kwargs
+    )
 
 
-@dismantling_method(name="Collective Influence $\ell-3$",
-                    # display_name="GND",
-                    short_name="CI $\ell-3$",
-                    **method_info)
+@dismantling_method(
+    name="Collective Influence $\ell-3$",
+    # display_name="GND",
+    short_name="CI $\ell-3$",
+    **method_info,
+)
 @dismantler_wrapper
 def CollectiveInfluenceL3(network, stop_condition, **kwargs):
-    return _collective_influence_l(network, l=3, stop_condition=stop_condition, **kwargs)
+    return _collective_influence_l(
+        network, l=3, stop_condition=stop_condition, **kwargs
+    )

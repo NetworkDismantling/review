@@ -20,10 +20,12 @@ BIN=GND reinsertion
 
 all: $(BIN)
 
+# -Wl, -soname,$@
 GND: GND.cpp
-	${CXX} ${FLAGS} ${CInc} -Wl,-soname,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) GND.cpp -o $@ ${CLinkFlags} ${LIBS}
+	${CXX} ${FLAGS} ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) GND.cpp -o $@ ${CLinkFlags} ${LIBS}
 
+# -Wl, -soname,$@
 reinsertion: reinsertion.cpp
-	${CXX} ${FLAGS} ${CInc} -Wl,-soname,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) reinsertion.cpp -o $@ ${CLinkFlags} ${LIBS}
+	${CXX} ${FLAGS} ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) reinsertion.cpp -o $@ ${CLinkFlags} ${LIBS}
 clean:
 	rm -f $(BIN) *.o

@@ -23,8 +23,9 @@ BIN=coreHD
 
 all: $(BIN)
 
+# -Wl, -soname,$@
 coreHD: TAbyTwoCoreV01.cpp
-	${CXX} ${FLAGS} TAbyTwoCoreV01.cpp ${CInc} -Wl,-soname,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION)  -o $@ ${CLinkFlags}  ${LIBS}
+	${CXX} ${FLAGS} TAbyTwoCoreV01.cpp ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION)  -o $@ ${CLinkFlags}  ${LIBS}
 
 clean:
 	rm -f $(BIN) *.o *.so

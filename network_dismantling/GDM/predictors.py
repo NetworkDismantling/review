@@ -1,7 +1,7 @@
 #   This file is part of GDM (Graph Dismantling with Machine learning),
 #   proposed in the paper "Machine learning dismantling and
 #   early-warning signals of disintegration in complex systems"
-#   by M. Grassia, M. De Domenico and G. Mangioni.
+#   by M. Grassia, M. De Domenico and G. Mangioni.
 #
 #   GDM is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -24,14 +24,24 @@ import numpy as np
 
 from network_dismantling.GDM.dataset_providers import prepare_graph
 from network_dismantling.common.multiprocessing import clean_up_the_pool
-from network_dismantling.machine_learning.pytorch.training_data_extractor import training_data_extractor
+from network_dismantling.machine_learning.pytorch.training_data_extractor import (
+    training_data_extractor,
+)
 
 
-def get_predictions(network, model, lock, device=None, data=None, features=None, logger=logging.getLogger('dummy'),
-                    **kwargs):
+def get_predictions(
+    network,
+    model,
+    lock,
+    device=None,
+    data=None,
+    features=None,
+    logger=logging.getLogger("dummy"),
+    **kwargs,
+):
     network_name = kwargs["network_name"]
 
-    logger.info(f"Getting predictions for {network_name}...")
+    logger.debug(f"Getting predictions for {network_name}...")
 
     start_time = time()
 
@@ -56,9 +66,10 @@ def get_predictions(network, model, lock, device=None, data=None, features=None,
             clean_up_the_pool()
 
     time_spent = time() - start_time
-    logger.info(f"{network_name}: Done predicting dismantling order."
-                f"Took {timedelta(seconds=time_spent)} (including GPU access time, if any)"
-                )
+    logger.debug(
+        f"{network_name}: Done predicting dismantling order."
+        f"Took {timedelta(seconds=time_spent)} (including GPU access time, if any)"
+    )
 
     return predictions, time_spent
 
@@ -67,9 +78,13 @@ def dynamic_predictor(network, model, lock, device, features, data=None):
     for _ in range(network.num_vertices()):
         static_id = network.vertex_properties["static_id"].a
 
-        training_data_extractor(network, compute_targets=False, features=features)  # , logger=print)
+        training_data_extractor(
+            network, compute_targets=False, features=features
+        )  # , logger=print)
 
-        predictions, _ = get_predictions(network, model, lock, data=data, features=features, device=device)
+        predictions, _ = get_predictions(
+            network, model, lock, data=data, features=features, device=device
+        )
 
         while predictions.shape[0] > 0:
             # Get the largest predicted value
@@ -96,9 +111,13 @@ def block_dynamic_predictor(network, model, lock, features, device, k, data=None
         static_id = network.vertex_properties["static_id"].a
 
         num_removals = 0
-        training_data_extractor(network, compute_targets=False, features=features)  # , logger=print)
+        training_data_extractor(
+            network, compute_targets=False, features=features
+        )  # , logger=print)
 
-        predictions, _ = get_predictions(network, model, lock, data=data, features=features, device=device)
+        predictions, _ = get_predictions(
+            network, model, lock, data=data, features=features, device=device
+        )
 
         while predictions.shape[0] > 0:
             # Get the largest predicted value
@@ -124,30 +143,81 @@ def block_dynamic_predictor(network, model, lock, features, device, k, data=None
     raise RuntimeError("No more vertices to remove!")
 
 
-def static_predictor(network, model, lock, data, features, device, logger=logging.getLogger('dummy'), ):
+def static_predictor(
+    network,
+    model,
+    lock,
+    data,
+    features,
+    device,
+    logger=logging.getLogger("dummy"),
+):
     logger.info("Predicting dismantling order. ")
     start_time = time()
 
-    predictions, _ = get_predictions(network, model, lock, data=data, features=features, device=device)
+    predictions, _ = get_predictions(
+        network, model, lock, data=data, features=features, device=device
+    )
     # predictions = list(zip(network.vertex_properties["static_id"].a, predictions))
 
     # Sort by highest prediction value
     removal_indices = np.argsort(-predictions, kind="stable")
     static_id = network.vertex_properties["static_id"].a
 
-    logger.info("Done predicting dismantling order. Took {} (including GPU access time and sorting)".format(
-        timedelta(seconds=(time() - start_time))))
+    logger.info(
+        "Done predicting dismantling order. Took {} (including GPU access time and sorting)".format(
+            timedelta(seconds=(time() - start_time))
+        )
+    )
 
     for i in removal_indices:
         yield static_id[i], predictions[i]
 
 
-def lcc_static_predictor(network, model, lock, data, features, device, logger=logging.getLogger('dummy')):
-    logger.warning("WARNING!! Using the LCC static predictor. THIS NEW VERSION WAS NOT TESTED YET!!!")
+# def lcc_static_predictor(network, model, lock, data, features, device, logger=logging.getLogger('dummy')):
+#     logger.info("Predicting dismantling order. ")
+#     start_time = time()
+#
+#     predictions, _ = get_predictions(network, model, lock, data=data, features=features, device=device)
+#
+#     # TODO IMPROVE SORTING!
+#     # Sort by highest prediction value
+#     sorted_predictions = sorted(predictions, key=itemgetter(1), reverse=True)
+#     logger.info("Done predicting dismantling order. Took {} (including GPU access time and sorting)".format(
+#         timedelta(seconds=(time() - start_time)))
+#     )
+#
+#     i = 0
+#     while True:
+#         if i >= len(sorted_predictions):
+#             break
+#
+#         removed = yield sorted_predictions[i]
+#         if removed is not False:
+#             # Vertex was removed, remove it from predictions
+#             del sorted_predictions[i]
+#
+#             # ... and start over
+#             i = 0
+#
+#         else:
+#             i += 1
+#
+#     raise RuntimeError("No more vertices to remove!")
+
+
+def lcc_static_predictor(
+    network, model, lock, data, features, device, logger=logging.getLogger("dummy")
+):
+    logger.warning(
+        "WARNING!! Using the LCC static predictor. THIS NEW VERSION WAS NOT TESTED YET!!!"
+    )
     logger.info("Predicting dismantling order. ")
     start_time = time()
 
-    predictions, _ = get_predictions(network, model, lock, data=data, features=features, device=device)
+    predictions, _ = get_predictions(
+        network, model, lock, data=data, features=features, device=device
+    )
     # predictions = list(zip(network.vertex_properties["static_id"].a, predictions))
     masked_predictions: np.ma.masked_array = np.ma.masked_array(predictions, mask=False)
 

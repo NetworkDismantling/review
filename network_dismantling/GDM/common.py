@@ -3,7 +3,7 @@ class dotdict(dict):
     """dot.notation access to dictionary attributes"""
 
     def __getattr__(self, attr):
-        if attr.startswith('__'):
+        if attr.startswith("__"):
             raise AttributeError
         return self.get(attr, None)
 
@@ -37,5 +37,3 @@ class DefaultDict(dict):
 
     def __missing__(self, key):
         return self.__default_value
-
-

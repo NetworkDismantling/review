@@ -1,5 +1,5 @@
-import sys
 import heapq
+import sys
 
 
 # quick and dirty graph implementation: removed nodes are just flagged
@@ -36,11 +36,11 @@ G = Graph()
 n = 0
 for l in sys.stdin:
     v = l.split()
-    if v[0] == 'D' or v[0] == 'E':
+    if v[0] == "D" or v[0] == "E":
         G.add_edge(int(v[1]), int(v[2]))
     if v[0] == "V":
         G.add_node(int(v[1]))
-    if v[0] == 'S':
+    if v[0] == "S":
         G.remove_node(int(v[1]))
         n += 1
 
@@ -64,7 +64,7 @@ H = [(-size(i, None), i) for i in range(len(G.V)) if G.present[i] and not S[i]]
 
 Ncc = len(H)
 # print("# N:", N, "Ncc:", Ncc, "M:", G.M)
-assert (N - Ncc == G.M)
+assert N - Ncc == G.M
 
 # print("# the graph is acyclic")
 

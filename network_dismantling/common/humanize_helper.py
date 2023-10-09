@@ -9,7 +9,7 @@ from humanize import i18n
 _ = i18n.gettext_module.gettext
 N_ = lambda x: x
 
-powers = [10 ** x for x in (3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 100)]
+powers = [10**x for x in (3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 100)]
 human_powers = (
     N_("K"),
     N_("M"),
@@ -53,7 +53,7 @@ def intword(value, format="%.1f"):
     for ordinal, power in enumerate(powers[1:], 1):
         if value < power:
             chopped = value / float(powers[ordinal - 1])
-            if float(format % chopped) == float(10 ** 3):
+            if float(format % chopped) == float(10**3):
                 chopped = value / float(powers[ordinal])
                 human_power = _(human_powers[ordinal])
             else:
@@ -61,7 +61,7 @@ def intword(value, format="%.1f"):
 
             human_value = format % chopped
 
-            return "{}{}".format(human_value.rstrip('0').rstrip('.'), human_power)
+            return "{}{}".format(human_value.rstrip("0").rstrip("."), human_power)
 
     return str(value)
 
@@ -72,8 +72,8 @@ def from_human(value):
     if isinstance(value, str):
         value = value.strip()
         for human_power, real_power in human_power_mapping.items():
-            if human_power.lower() in value[-len(human_power):].lower():
-                value = fast_real(value.replace(human_power, '')) * real_power
+            if human_power.lower() in value[-len(human_power) :].lower():
+                value = fast_real(value.replace(human_power, "")) * real_power
                 break
     else:
         value = fast_real(value, raise_on_invalid=True)

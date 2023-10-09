@@ -4,7 +4,7 @@ from pathlib import Path
 def extend_filename(file: Path, filename_extension: str, postfixes=None) -> Path:
     suffixes = []
 
-    file_split = file.stem.split('.')
+    file_split = file.stem.split(".")
     file_name = file_split[0]
 
     if len(file_split) > 1:
@@ -22,7 +22,7 @@ def extend_filename(file: Path, filename_extension: str, postfixes=None) -> Path
     extended_file = file.with_name(file_name + filename_extension)
 
     if len(suffixes) > 0:
-        suffix = '.' + '.'.join(suffixes)
+        suffix = "." + ".".join(suffixes)
         extended_file = extended_file.with_suffix(suffix)
 
     return extended_file

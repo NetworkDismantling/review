@@ -21,8 +21,12 @@ all: dismantler.so
 dismantler.so: dismantler.o
 
 #-Wl,--verbose
+# -Wl,--as-needed
+# -Wl,-soname
+
+# -Wl, -soname,$@
 %.so: %.o
-	$(CXX) -shared -Wl,--as-needed -Wl,-soname,$@  $^ -o $@ $(CLinkFlags)
+	$(CXX) -shared -Wl,-install_name,$@  $^ -o $@ $(CLinkFlags)
 
 #--verbose
 %.o: %.cpp

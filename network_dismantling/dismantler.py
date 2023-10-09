@@ -16,10 +16,31 @@
 #   You should have received a copy of the GNU General Public License
 #   along with the code.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO allow to pass parameters to the heuristics
+# TODO allow heuristics to re-run the same network with different parameters
+#  and/or to complete some missing runs
+# TODO allow parallel execution of the heuristics
+# TODO define a way to test the imports needed by the heuristics, and show a warning if they are not installed
+# TODO define a way to configure the parameters of the heuristics, and show information / errors
+# TODO improve pool performance by using a single pool for all the heuristics.
+#  Can we spawn a worker for each network and heuristic?
+#  A worker for each heuristic is not a good idea, if they have multiple parameters.
+#  Moreover, the network processing should be done only once anyway to avoid overhead...
+#  Plus, I really don't like the idea of having a ton of tasks submitted to the pool at the same time.
+#  I would like to submit them in batches.
+# TODO handle common errors like broken dataframes, missing columns, etc...
+# TODO store dataframes in binary format to reduce the size of the output file?
+# TODO compress the output file? Cleanup the removals suboptimal solutions? Of intermediate results?
+# TODO (big todo actually): it would be nice to use boost data structures and pass the data to the heuristics
+#  without using text edge lists.
+# TODO make network column in DataFrames a categorical column. It should reduce the memory footprint.
+# TODO make filtering the DataFrames faster.
+
 import argparse
 import logging
 import threading
 from datetime import timedelta
+from logging.handlers import QueueHandler
 from pathlib import Path
 from time import time
 from typing import Callable
@@ -27,22 +48,59 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
-from torch import multiprocessing, cuda
 from tqdm.auto import tqdm
 
-from network_dismantling.common.dataset_providers import list_files, init_network_provider
+from network_dismantling.common.logger import logger_thread
+
+try:
+    from torch import multiprocessing, cuda
+except ImportError:
+    import multiprocessing
+
+    # TODO maybe improve this cuda mock?
+    cuda = object()
+    cuda.is_available = lambda: False
+
+from network_dismantling.common.dataset_providers import (
+    list_files,
+    init_network_provider,
+)
 from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler, dataset_writer
+from network_dismantling.common.multiprocessing import (
+    TqdmLoggingHandler,
+    dataset_writer,
+)
 
-import os
-from graph_tool.all import openmp_set_num_threads
+# # Remove the OpenMP threads. Use data parallelism instead
+# from graph_tool.all import openmp_set_num_threads
+# from os import environ
+# environ["OMP_NUM_THREADS"] = "1"
+# openmp_set_num_threads(1)
 
-# Remove the OpenMP threads. Use data parallelism instead
-# os.environ["OMP_NUM_THREADS"] = "1"
-openmp_set_num_threads(1)
+logger = None
 
 
-def get_predictions(network: Graph, sorting_function: Callable, logger=logging.getLogger('dummy'), **kwargs):
+def pool_initializer(log_queue, log_level=logging.INFO):
+    global logger
+
+    logging.basicConfig(
+        format="%(message)s",
+        # stream=sys.stdout,
+        level=log_level,
+        handlers=[QueueHandler(log_queue)],
+        # datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    logger = logging.getLogger(__name__)
+    # queue_logger.setLevel(logging.DEBUG)
+
+
+def get_predictions(
+    network: Graph,
+    sorting_function: Callable,
+    logger=logging.getLogger("dummy"),
+    **kwargs,
+):
     logger.debug(f"Sorting the predictions...")
     start_time = time()
 
@@ -54,37 +112,61 @@ def get_predictions(network: Graph, sorting_function: Callable, logger=logging.g
     return values, time_spent
 
 
-def main(args):
+def main(args, logger=logging.getLogger("dummy")):
     try:
         from deadpool import Deadpool as ProcessPoolExecutor
 
         pool_kwargs = {
-            "max_tasks_per_child": 10
+            # "max_tasks_per_child": 25,
         }
 
     except ImportError:
         logger.warning("Deadpool not found. Using ProcessPoolExecutor instead.")
+
         from concurrent.futures import ProcessPoolExecutor
 
         # if __version__ == "0.5.0":
-        pool_kwargs = {
-        }
+        pool_kwargs = {}
 
     try:
         if cuda.is_available():
-            multiprocessing.set_start_method('spawn', force=True)
+            multiprocessing.set_start_method("spawn", force=True)
     except RuntimeError:
         pass
 
     # Create the Multiprocessing Manager
-    mp_manager: multiprocessing.Manager = multiprocessing.Manager()
+    mp_context: multiprocessing.context = multiprocessing.get_context("spawn")
+    from multiprocessing.managers import SyncManager
+
+    mp_manager: multiprocessing.Manager = SyncManager(ctx=mp_context)
+    mp_manager.start()
+    # mp_manager: multiprocessing.Manager = multiprocessing.Manager()
+
     # Create the Dataset Queue
     df_queue = mp_manager.Queue()
 
+    # Create the Log Queue
+    log_queue = mp_manager.Queue()
+
+    # Create and start the Logger Thread
+    lp = threading.Thread(
+        target=logger_thread,
+        args=(
+            logger,
+            log_queue,
+        ),
+    )
+    lp.start()
+
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(target=dataset_writer, args=(df_queue, args.output_file), daemon=True)
+    dp = threading.Thread(
+        target=dataset_writer, args=(df_queue, args.output_file), daemon=True
+    )
     dp.start()
 
+    logger: logging.Logger
+
+    # List the networks. Do not load them yet to save memory and CPU time.
     test_networks_list = []
 
     if not isinstance(args.location, list):
@@ -92,32 +174,48 @@ def main(args):
 
     for loc in args.location:
         try:
-            test_networks_list += list_files(loc,
-                                             # max_num_vertices=args.max_num_vertices,
-                                             filter=args.filter,
-                                             targets=None,
-                                             # manager=mp_manager,
-                                             )
+            test_networks_list += list_files(
+                loc,
+                # max_num_vertices=args.max_num_vertices,
+                filter=args.filter,
+                targets=None,
+                # manager=mp_manager,
+            )
         except FileNotFoundError:
             pass
 
     if len(test_networks_list) == 0:
-        logger.info(f"No networks found in {str(args.location)} with filter {args.filter} .")
+        logger.info(
+            f"No networks found in {str(args.location)} with filter {args.filter} ."
+        )
 
+    reader_kwargs = dict(
+        include_removals=False,
+        # expected_columns=args.output_df_columns,
+        at_least_one_file=False,
+        raise_on_missing_file=False,
+        dtype_dict={
+            "network": "category",
+            "heuristic": "category",
+            # "rem_num"
+        },
+    )
     if args.input is not None:
-        df = df_reader(args.input, include_removals=False)
-
         expected_columns = args.output_df_columns.copy()
         expected_columns.remove("removals")
 
-        if (df.columns != expected_columns).all():
-            raise ValueError(
-                f"Input file columns {df.columns} do not match the expected columns {args.output_df_columns}.")
-
-    elif args.output_file.exists():
-        df = df_reader(args.output_file, include_removals=False)
+        df = df_reader(args.input,
+                       expected_columns=expected_columns,
+                       **reader_kwargs,
+                       )
     else:
-        df = pd.DataFrame(columns=args.output_df_columns)
+        df = df_reader(
+            args.output_file,
+            expected_columns=args.output_df_columns,
+            **reader_kwargs,
+        )
+    # else:
+    #     df = pd.DataFrame(columns=args.output_df_columns)
 
     # with multiprocessing.Pool(processes=args.jobs,
     #                           initializer=tqdm.set_lock,
@@ -125,152 +223,176 @@ def main(args):
     #                           ) as p:
 
     # Create the pool
-    # mp_context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(
-            max_workers=args.jobs,
-            mp_context=multiprocessing.get_context("spawn"),
-            # initializer=tqdm.set_lock,
-            # initargs=(multiprocessing.Lock(),),
-            **pool_kwargs,
+        max_workers=args.jobs,
+        mp_context=mp_context,
+        initializer=pool_initializer,
+        initargs=(log_queue, logger.level),
+        # initializer=tqdm.set_lock,
+        # initargs=(multiprocessing.Lock(),),
+        **pool_kwargs,
     ) as executor:
-
-        with tqdm(test_networks_list,
-                  desc="Networks",
-                  position=0,
-                  ) as tqdm_test_network_list:
-
+        with tqdm(
+            test_networks_list,
+            desc="Networks",
+            position=0,
+        ) as tqdm_test_network_list:
             # noinspection PyTypeChecker
             for network_path in tqdm_test_network_list:
                 name = network_path.stem
 
-                # logger.info(f"Loading network: {name}")
                 tqdm_test_network_list.set_description(f"Networks ({name})")
 
-                networks_provider = init_network_provider(location=network_path.parent,
-                                                          filter=f"{name}",
-                                                          logger=logger,
-                                                          )
+                # Check if the network was already tested
+                # Get the rows of the dataframe with the same network name
+                # Note that the network is a categorical column
+                # Avoid .loc for performance reasons
 
-                if len(networks_provider) == 0:
-                    logger.info(f"Network {name} not found!")
-                    continue
+                network_df = df[df["network"] == name]
+                # network_df = df.loc[(df["network"] == name)]
 
-                elif len(networks_provider) > 1:
-                    logger.info(f"More than one network found for {name}!")
-                    continue
+                networks_provider = None
+                network_size = None
+                generator_args = None
 
-                network_name, network = networks_provider[0]
-
-                assert network_name == name
-
-                network_df = df.loc[(df["network"] == name)]
-
-                network_size = network.num_vertices()
-
-                # Compute stop condition
-                stop_condition = np.ceil(network_size * args.threshold)
-
-                generator_args = {
-                    "network_name": name,
-                    "stop_condition": int(stop_condition),
-                    "threshold": args.threshold,
-                    "logger": logger,
-                }
-
-                # noinspection PyTypeChecker
-                for heuristic in tqdm(
-                        args.heuristics,
-                        position=1,
-                        desc="Heuristics",
-                ):
+                # Iterate over the heuristics
+                for heuristic in args.heuristics:
                     dismantling_method = dismantling_methods[heuristic]
-                    display_name = dismantling_method.name
-                    display_name_short = dismantling_method.short_name
 
-                    # generator_args["sorting_function"] = dismantling_method.function
-
-                    logger.info(f"\n"
-                                f"==================================\n"
-                                f"Running {display_name} ({display_name_short}) heuristic. Cite as:\n"
-                                f"{dismantling_method.citation.strip()}\n"
-                                f"==================================\n"
-                                )
-
-                    filter = {
+                    df_filter = {
                         "heuristic": heuristic,
                     }
 
                     df_filtered = network_df.loc[
-                        (network_df[list(filter.keys())] == list(filter.values())).all(axis='columns'),
-                        ["network"]
+                        (
+                            network_df[list(df_filter.keys())]
+                            == list(df_filter.values())
+                        ).all(axis="columns"),
+                        ["network"],
                     ]
 
-                    filtered_network_df = df_filtered.loc[(df_filtered["network"] == name)]
-
-                    if len(filtered_network_df) != 0:
+                    # TODO also check if all the requested metrics are present?
+                    if len(df_filtered) != 0:
                         # Nothing to do. The network was already tested
                         continue
 
-                    # logger.info(f"Dismantling {name} according to {display_name}. "
-                    #             f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
-                    #             )
+                    if networks_provider is None:
+                        # Delay the network loading until the heuristic is actually run
+                        # (to avoid loading the network if it is not needed, e.g., the heuristics have been already run)
+
+                        logger.debug(f"Loading network: {name}")
+
+                        networks_provider = init_network_provider(
+                            location=network_path.parent,
+                            filter=f"{name}",
+                            logger=logger,
+                        )
+
+                        if len(networks_provider) == 0:
+                            logger.error(f"Network {name} not found!")
+                            continue
+
+                        elif len(networks_provider) > 1:
+                            logger.error(f"More than one network found for {name}!")
+                            continue
+
+                        network_name, network = networks_provider[0]
+
+                        if network_name != name:
+                            logger.error(
+                                f"Loaded network with filename {network_name} does not match the expected filename {name}!"
+                            )
+                            continue
+
+                        network_size = network.num_vertices()
+
+                        # Compute stop condition
+                        stop_condition = np.ceil(network_size * args.threshold)
+
+                        generator_args = {
+                            "network_name": name,
+                            "stop_condition": int(stop_condition),
+                            "threshold": args.threshold,
+                        }
+
+                    logger.debug(
+                        f"Dismantling {name} according to {display_name}. "
+                        f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
+                    )
 
                     try:
-
                         # TODO REMOVE THE COPY OF THE NETWORK, and move where its actually needed
-                        runs = dismantling_method(network=network.copy(),
-                                                  stop_condition=stop_condition,
-                                                  generator_args=generator_args,
-
-                                                  executor=executor,
-                                                  # pool=p,
-                                                  pool_size=args.jobs,
-                                                  mp_manager=mp_manager,
-
-                                                  logger=logger,
-                                                  )
+                        runs = dismantling_method(
+                            network=network.copy(),
+                            stop_condition=stop_condition,
+                            generator_args=generator_args,
+                            executor=executor,
+                            pool_size=args.jobs,
+                            mp_manager=mp_manager,
+                            logger=logger,
+                        )
 
                         runs["network"] = name
 
                         if not isinstance(runs, pd.DataFrame):
-                            runs_dataframe = pd.DataFrame(data=[runs],
-                                                          columns=args.output_df_columns,
-                                                          )
+                            runs_dataframe = pd.DataFrame(
+                                data=[runs],
+                                columns=args.output_df_columns,
+                            )
                         else:  # isinstance(runs, pd.DataFrame):
                             runs_dataframe = runs[args.output_df_columns]
 
                         df_queue.put(runs_dataframe)
 
                     except Exception as e:
-                        logger.exception(e, exc_info=True)
+                        logger.exception(
+                            f"Error while dismantling network {network_name}: {e}",
+                            exc_info=True,
+                        )
 
                         continue
 
         # Close the pool
-        executor.shutdown(wait=True,
-                          cancel_futures=False,
-                          )
-        # p.close()
-        # p.join()
-
+        executor.shutdown(
+            wait=True,
+            cancel_futures=False,
+        )
     df_queue.put(None)
 
     dp.join()
 
 
 def get_df_columns():
-    return ["network", "heuristic", "slcc_peak_at", "lcc_size_at_peak",
-            "slcc_size_at_peak", "removals", "static", "r_auc", "rem_num",
-            "prediction_time", "dismantle_time",
-            ]
+    return [
+        "network",
+        "heuristic",
+        "slcc_peak_at",
+        "lcc_size_at_peak",
+        "slcc_size_at_peak",
+        "removals",
+        "static",
+        "r_auc",
+        "rem_num",
+        "prediction_time",
+        "dismantle_time",
+    ]
 
 
 if __name__ == "__main__":
     from network_dismantling import dismantling_methods
 
+    # Create the logger
+
+    logging.basicConfig(
+        format="%(asctime)s :: %(levelname)-8s :: %(processName)s :: %(message)s",
+        # stream=sys.stdout,
+        level=logging.INFO,
+        handlers=[TqdmLoggingHandler()],
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(TqdmLoggingHandler())
 
     parser = argparse.ArgumentParser()
 
@@ -349,6 +471,14 @@ if __name__ == "__main__":
     )
 
     # parser.add_argument(
+    #     "-sa",
+    #     "--simultaneous_access",
+    #     type=int,
+    #     default=float('inf'),
+    #     help="Maximum number of simultaneous predictions on torch CUDA device.",
+    # )
+
+    # parser.add_argument(
     #     "-mnv",
     #     "--max_num_vertices",
     #     type=int,
@@ -359,6 +489,7 @@ if __name__ == "__main__":
     args, cmdline_args = parser.parse_known_args()
 
     logger.setLevel(logging.getLevelName(args.verbose))
+
     if not args.output.is_absolute():
         # args.output_file = base_dataframes_path / args.output
         args.output = args.output.resolve()
@@ -374,7 +505,6 @@ if __name__ == "__main__":
             args.input = args.output_file
 
     else:
-
         if not isinstance(args.input, list):
             args.input = [args.input]
 
@@ -395,4 +525,17 @@ if __name__ == "__main__":
 
     logger.info(f"Running the following heuristics: {', '.join(args.heuristics)}")
 
-    main(args)
+    for heuristic in args.heuristics:
+        dismantling_method = dismantling_methods[heuristic]
+        display_name = dismantling_method.name
+        display_name_short = dismantling_method.short_name
+
+        logger.info(
+            f"\n"
+            f"==================================\n"
+            f"Cite {display_name} ({display_name_short}) as:\n"
+            f"{dismantling_method.citation.strip()}\n"
+            f"==================================\n"
+        )
+
+    main(args, logger=logger)

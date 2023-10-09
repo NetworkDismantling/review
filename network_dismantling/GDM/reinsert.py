@@ -1,7 +1,7 @@
 #   This file is part of GDM (Graph Dismantling with Machine learning),
 #   proposed in the paper "Machine learning dismantling and
 #   early-warning signals of disintegration in complex systems"
-#   by M. Grassia, M. De Domenico and G. Mangioni.
+#   by M. Grassia, M. De Domenico and G. Mangioni.
 #
 #   GDM is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -16,14 +16,14 @@
 #   You should have received a copy of the GNU General Public License
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
-import argparse
 import logging
-import tempfile
 from ast import literal_eval
+from errno import ENOSPC
 from operator import itemgetter
-from os import remove
+from os import remove, close
 from pathlib import Path
 from subprocess import check_output
+from tempfile import NamedTemporaryFile
 from time import time
 
 import numpy as np
@@ -32,16 +32,16 @@ from graph_tool import Graph
 from scipy.integrate import simps
 from tqdm import tqdm
 
-from network_dismantling.GDM.dataset_providers import storage_provider, list_files
+from network_dismantling.GDM.dataset_providers import list_files
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 
-folder = 'network_dismantling/GDM/reinsertion/'
-cd_cmd = 'cd {} && '.format(folder)
+folder = "network_dismantling/GDM/reinsertion/"
+cd_cmd = "cd {} && ".format(folder)
 reinsertion_strategy = 2
-reinsertion_executable = 'reinsertion'
+reinsertion_executable = "reinsertion"
 
 # Define run columns to match the runs
 run_columns = [
@@ -54,52 +54,68 @@ run_columns = [
     "seed",
     "average_dmg",
     "rem_num",
-    "idx"
+    "idx",
 ]
 
 cached_networks = {}
 
 
-def get_predictions(network, removals, stop_condition, logger=logging.getLogger('dummy'), **kwargs):
+def get_predictions(
+    network, removals, stop_condition, logger=logging.getLogger("dummy"), **kwargs
+):
     start_time = time()
 
-    predictions = reinsert(network=network,
-                           removals=removals,
-                           stop_condition=stop_condition,
-                           logger=logger,
-                           )
+    predictions = reinsert(
+        network=network,
+        removals=removals,
+        stop_condition=stop_condition,
+        logger=logger,
+    )
 
     time_spent = time() - start_time
 
     return predictions, time_spent
 
 
-def reinsert(network, removals, stop_condition,
-             logger=logging.getLogger('dummy'),
-             ):
+def reinsert(
+    network,
+    removals,
+    stop_condition,
+    logger=logging.getLogger("dummy"),
+):
     network_path = get_network_file(network)
 
-    broken_fd, broken_path = tempfile.mkstemp()
-    output_fd, output_path = tempfile.mkstemp()
+    # broken_fd, broken_path = tempfile.mkstemp()
+    # output_fd, output_path = tempfile.mkstemp()
+    #
+    # tmp_file_handles = [broken_fd, output_fd]
+    # tmp_file_paths = [broken_path, output_path]
 
     nodes = []
-    try:
 
-        with open(broken_fd, "w+") as tmp:
-            for removal in removals:
-                tmp.write(f"{removal}\n")
+    with (
+        NamedTemporaryFile("w+") as broken_fd,
+        NamedTemporaryFile("w+") as output_fd
+    ):
+
+        broken_path = broken_fd.name
+        output_path = output_fd.name
 
         cmds = [
             # 'make clean && make',
-            'make',
-
-            f'./{reinsertion_executable} '
-            f'--NetworkFile {network_path} '
+            "make",
+            f"./{reinsertion_executable} "
+            f"--NetworkFile {network_path} "
             f'--IDFile "{broken_path}" '
             f'--OutFile "{output_path}" '
-            f'--TargetSize {stop_condition} '
-            f'--SortStrategy {reinsertion_strategy} '
+            f"--TargetSize {stop_condition} "
+            f"--SortStrategy {reinsertion_strategy} ",
         ]
+
+        # try:
+        # with open(broken_fd, "w+") as tmp:
+        for removal in removals:
+            broken_fd.write(f"{removal}\n")
 
         for cmd in cmds:
             try:
@@ -107,16 +123,32 @@ def reinsert(network, removals, stop_condition,
             except Exception as e:
                 raise RuntimeError("ERROR! {}".format(e))
 
-        with open(output_path, 'r+') as tmp:
-            for line in tmp.readlines():
-                node = int(line.strip())
+        with open(output_path, "r+") as tmp:
+            num_lines = sum(1 for _ in tmp.readlines())
 
-                nodes.append(node)
+        # output_fd.rewind()
 
-    finally:
-        # remove(network_path)
-        remove(broken_path)
-        remove(output_path)
+        for line in output_fd.readlines():
+            num_lines -= 1
+            node = int(line.strip())
+
+            nodes.append(node)
+
+        assert num_lines == 0
+
+    # finally:
+    #     for fd, path in zip(tmp_file_handles, tmp_file_paths):
+    #         try:
+    #             close(fd)
+    #
+    #         except:
+    #             pass
+    #
+    #         try:
+    #             remove(path)
+    #
+    #         except:
+    #             pass
 
     output = np.zeros(network.num_vertices())
 
@@ -130,6 +162,7 @@ def reinsert(network, removals, stop_condition,
 
     nodes = filtered_removals + removed_removals
 
+    # TODO improve this loop
     for n, p in zip(nodes, list(reversed(range(1, len(nodes) + 1)))):
         output[n] = p
 
@@ -137,44 +170,67 @@ def reinsert(network, removals, stop_condition,
 
 
 def get_network_file(network: Graph) -> str:
+    from tempfile import mkstemp
+
     network_file_path = network.graph_properties.get("filepath", None)
     cached_network_path = cached_networks.get(network_file_path, None)
-    if (cached_network_path is not None) and \
-            (Path(cached_network_path).exists()):
+    if (cached_network_path is not None) and (Path(cached_network_path).exists()):
         network_path = cached_network_path
 
     else:
-        network_fd, network_path = tempfile.mkstemp()
+        try:
+            try:
+                network_fd, network_path = mkstemp()
+            except OSError as e:
+                # If there is no space left on the device
+                #  remove the cached networks and try again
+                if e.errno == ENOSPC:
+                    cleanup_cache()
 
-        static_id = network.vertex_properties["static_id"]
-        with open(network_fd, 'w+') as tmp:
-            for edge in network.edges():
-                tmp.write(f"{static_id[edge.source()]} {static_id[edge.target()]}\n")
+                    network_fd, network_path = mkstemp()
 
-        if (network_file_path is not None):
-            cached_networks[network_file_path] = network_path
+            static_id = network.vertex_properties["static_id"]
+
+            with open(network_fd, "w+") as tmp:
+                for edge in network.edges():
+                    tmp.write(f"{static_id[edge.source()]} {static_id[edge.target()]}\n")
+
+            if network_file_path is not None:
+                cached_networks[network_file_path] = network_path
+
+        finally:
+            try:
+                close(network_fd)
+            except:
+                pass
 
     return network_path
 
 
-def cleanup():
+def cleanup_cache():
     for path in cached_networks.values():
-        remove(path)
+        try:
+            remove(path)
+        except:
+            pass
 
     cached_networks.clear()
 
 
-def main(args,
-         df=None,
-         test_networks=None,
-         predictor=get_predictions,
-         dismantler=lcc_threshold_dismantler,
-         logger=logging.getLogger('dummy'),
-         ):
-
+def main(
+    args,
+    df=None,
+    test_networks=None,
+    predictor=get_predictions,
+    dismantler=lcc_threshold_dismantler,
+    logger=logging.getLogger("dummy"),
+):
     if df is None:
         # Load the runs dataframe...
-        df = df_reader(args.file, include_removals=True)
+        df = df_reader(args.file,
+                       include_removals=True,
+                       raise_on_missing_file=True,
+                       )
 
         if args.query is not None:
             # ... and query it
@@ -190,12 +246,14 @@ def main(args,
     if test_networks is None:
         # TODO defer the loading of the networks
         # Get the list of networks in the folder
-        test_networks_list = list_files(args.location_test,
-                                        filter=args.test_filter,
-                                        )
-        test_networks_list = np.intersect1d([file.stem for file in test_networks_list],
-                                            df["network"].unique(),
-                                            )
+        test_networks_list = list_files(
+            args.location_test,
+            filter=args.test_filter,
+        )
+        test_networks_list = np.intersect1d(
+            [file.stem for file in test_networks_list],
+            df["network"].unique(),
+        )
 
         # TODO create the mapping preserving the file location
         # that was lost in the previous step
@@ -210,26 +268,30 @@ def main(args,
     # Filter the networks in the folder
     df = df.loc[(df["network"].isin(test_networks.keys()))]
 
+    if df.shape[0] == 0:
+        logger.warning("No networks to reinsert!")
+
     if args.sort_column == "average_dmg":
         df["average_dmg"] = (1 - df["lcc_size_at_peak"]) / df["slcc_peak_at"]
 
     # Sort dataframe
-    df.sort_values(by=[args.sort_column],
-                   ascending=(not args.sort_descending),
-                   inplace=True,
-                   )
+    df.sort_values(
+        by=[args.sort_column],
+        ascending=(not args.sort_descending),
+        inplace=True,
+    )
 
     all_runs = []
     groups = df.groupby("network")
     for network_name, network_df in groups:
         network_df = network_df.head(args.reinsert_first)
 
-        with tqdm(network_df.iterrows(),
-                  ascii=True,
-                  desc="Reinserting",
-                  leave=False,
-                  ) as runs_iterable:
-
+        with tqdm(
+            network_df.iterrows(),
+            ascii=False,
+            desc="Reinserting",
+            leave=False,
+        ) as runs_iterable:
             runs_iterable.set_description(network_name)
 
             for _, run in runs_iterable:
@@ -242,8 +304,10 @@ def main(args,
                 run = run.to_dict()
 
                 reinserted_run_df = output_df.loc[
-                    (output_df[list(run.keys())] == list(run.values())).all(axis='columns'),
-                    ["network", "seed"]
+                    (output_df[list(run.keys())] == list(run.values())).all(
+                        axis="columns"
+                    ),
+                    ["network", "seed"],
                 ]
 
                 if len(reinserted_run_df) != 0:
@@ -254,28 +318,27 @@ def main(args,
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
-                    "logger": logger,
+                    # "logger": logger,
                     "network_name": network_name,
                 }
 
-                removals, _, _ = dismantler(network=network.copy(),
-                                            predictor=predictor,
-                                            generator_args=generator_args,
-                                            stop_condition=stop_condition,
-                                            dismantler=dismantler,
-                                            logger=logger,
-                                            )
+                removals, _, _ = dismantler(
+                    network=network.copy(),
+                    predictor=predictor,
+                    generator_args=generator_args,
+                    stop_condition=stop_condition,
+                    dismantler=dismantler,
+                    logger=logger,
+                )
 
                 peak_slcc = max(removals, key=itemgetter(4))
 
                 _run = {
                     "network": network_name,
                     "removals": removals,
-
                     "slcc_peak_at": peak_slcc[0],
                     "lcc_size_at_peak": peak_slcc[3],
                     "slcc_size_at_peak": peak_slcc[4],
-
                     "r_auc": simps(list(r[3] for r in removals), dx=1),
                     "rem_num": len(removals),
                 }
@@ -286,7 +349,11 @@ def main(args,
                 # Check if something is wrong with the removals
                 if removals[-1][2] == 0:
                     for removal in removals:
-                        logger.info("\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(*removal))
+                        logger.info(
+                            "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
+                                *removal
+                            )
+                        )
 
                     raise RuntimeError
 
@@ -299,7 +366,7 @@ def main(args,
                         "path_or_buf": Path(args.output_file),
                         "index": False,
                         # header='column_names',
-                        "columns": df_columns
+                        "columns": df_columns,
                     }
 
                     # If dataframe exists append without writing the header
@@ -309,12 +376,14 @@ def main(args,
 
                     run_df.to_csv(**kwargs)
 
-        cleanup()
+        cleanup_cache()
 
     return all_runs
 
 
-def parse_parameters(parse_string=None, logger=logging.getLogger('dummy')):
+def parse_parameters(parse_string=None, logger=logging.getLogger("dummy")):
+    import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-f",
@@ -377,12 +446,13 @@ def parse_parameters(parse_string=None, logger=logging.getLogger('dummy')):
     if not args.location_test.is_absolute():
         args.location_test = args.location_test.resolve()
 
-    logger.info(f"args.file {args.file}")
-    args.output_file = extend_filename(args.file,
-                                       filename_extension="_reinserted",
-                                       )
+    logger.debug(f"Reinsertion input file {args.file}")
+    args.output_file = extend_filename(
+        args.file,
+        filename_extension="_reinserted",
+    )
 
-    logger.info(f"Output file {args.output_file}")
+    logger.debug(f"Reinsertion output file {args.output_file}")
 
     return args
 
@@ -394,6 +464,7 @@ if __name__ == "__main__":
 
     args = parse_parameters()
 
-    main(args,
-         logger=logger,
-         )
+    main(
+        args,
+        logger=logger,
+    )

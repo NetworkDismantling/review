@@ -21,9 +21,8 @@ import threading
 from collections import defaultdict
 from functools import partial
 from itertools import combinations
-from queue import Queue
-
 from pathlib import Path
+from queue import Queue
 
 import numpy as np
 import pandas as pd
@@ -42,21 +41,26 @@ from network_dismantling.GDM.network_dismantler import ModelWeightsNotFoundError
 from network_dismantling.GDM.training_data_extractor import training_data_extractor
 from network_dismantling.common.config import output_path, base_dataframes_path
 from network_dismantling.common.dataset_providers import list_files
-from network_dismantling.common.multiprocessing import dataset_writer, apply_async, progressbar_thread, \
-    TqdmLoggingHandler
+from network_dismantling.common.multiprocessing import (
+    dataset_writer,
+    apply_async,
+    progressbar_thread,
+    TqdmLoggingHandler,
+)
 
 
-def process_parameters_wrapper(args,
-                               df,
-                               nn_model,
-                               params_queue,
-                               train_networks,
-                               test_networks,
-                               df_queue,
-                               iterations_queue,
-                               early_stopping_dict,
-                               logger=logging.getLogger("dummy"),
-                               ):
+def process_parameters_wrapper(
+    args,
+    df,
+    nn_model,
+    params_queue,
+    train_networks,
+    test_networks,
+    df_queue,
+    iterations_queue,
+    early_stopping_dict,
+    logger=logging.getLogger("dummy"),
+):
     import logging
 
     from queue import Empty
@@ -65,9 +69,11 @@ def process_parameters_wrapper(args,
 
     from network_dismantling.common.multiprocessing import clean_up_the_pool
     from network_dismantling.common.multiprocessing import get_position
-    from network_dismantling.CoreGDM.core_network_dismantler import add_run_parameters, \
-        train_wrapper, \
-        test
+    from network_dismantling.CoreGDM.core_network_dismantler import (
+        add_run_parameters,
+        train_wrapper,
+        test,
+    )
 
     logger.setLevel(logging.INFO)
     # logger.addHandler(TqdmLoggingHandler())
@@ -91,10 +97,10 @@ def process_parameters_wrapper(args,
             value = getattr(args, key)
             params.setdefault(key, value)
 
-        key = '_'.join(params.features)
+        key = "_".join(params.features)
         # key = '_'.join(sorted(params.features))
 
-        available_device = (child_number % len(args.devices))
+        available_device = child_number % len(args.devices)
         available_device = args.devices[available_device]
         # logger.info(f"Using device {available_device}")
 
@@ -108,13 +114,14 @@ def process_parameters_wrapper(args,
         # model = None
         #
         try:
-            model = train_wrapper(params,
-                                  nn_model=nn_model,
-                                  networks_provider=train_networks[key],
-                                  train_ne=(not args.dont_train),
-                                  print_model=False,
-                                  logger=logger,
-                                  )
+            model = train_wrapper(
+                params,
+                nn_model=nn_model,
+                networks_provider=train_networks[key],
+                train_ne=(not args.dont_train),
+                print_model=False,
+                logger=logger,
+            )
 
             if params.device:
                 model.to(params.device)
@@ -139,15 +146,16 @@ def process_parameters_wrapper(args,
         filter = {}
         add_run_parameters(params, filter, model)
         df_filtered = df.loc[
-            (df[list(filter.keys())] == list(filter.values())).all(axis='columns'),
-            ["network", "seed"]
+            (df[list(filter.keys())] == list(filter.values())).all(axis="columns"),
+            ["network", "seed"],
         ]
 
         # noinspection PyTypeChecker
-        for name, network, data in tqdm(test_networks[key],
-                                        desc="Networks",
-                                        leave=False,
-                                        ):
+        for name, network, data in tqdm(
+            test_networks[key],
+            desc="Networks",
+            leave=False,
+        ):
             network_df = df_filtered.loc[(df_filtered["network"] == name)]
 
             if nn_model.is_affected_by_seed():
@@ -171,14 +179,17 @@ def process_parameters_wrapper(args,
                     #     model = train_wrapper(params, nn_model=nn_model, networks_provider=train_networks[key], print=logger)
 
                     # Test
-                    runs = test(params,
-                                model=model,
-                                networks_provider=[(name, network, data), ],
-                                early_stopping_dict=early_stopping_dict,
-                                logger=logger,
-                                # print_model=True,
-                                print_model=False,
-                                )
+                    runs = test(
+                        params,
+                        model=model,
+                        networks_provider=[
+                            (name, network, data),
+                        ],
+                        early_stopping_dict=early_stopping_dict,
+                        logger=logger,
+                        # print_model=True,
+                        print_model=False,
+                    )
                     all_runs += runs
 
                 except RuntimeError as e:
@@ -202,16 +213,22 @@ def process_parameters_wrapper(args,
         iterations_queue.put(1)
 
     if runtime_exceptions > 0:
-        logger.warning("\n\n\n"
-                       "WARNING: Some runs did not complete due to some runtime exception (most likely CUDA OOM)."
-                       "Try again with lower GPU load."
-                       "\n\n\n"
-                       )
+        logger.warning(
+            "\n\n\n"
+            "WARNING: Some runs did not complete due to some runtime exception (most likely CUDA OOM)."
+            "Try again with lower GPU load."
+            "\n\n\n"
+        )
 
     return all_runs
 
 
 def main(args, nn_model):
+    # try:
+    #     if cuda.is_available():
+    #         multiprocessing.set_start_method('spawn')
+    # except RuntimeError:
+    #     pass
 
     parameters_to_try = args.parameters + nn_model.get_parameters() + ["seed_train"]
 
@@ -227,28 +244,34 @@ def main(args, nn_model):
 
     # Init network providers
     if not args.dont_train:
-        train_networks = init_network_provider(args.location_train,
-                                               max_num_vertices=None,
-                                               features_list=args.features,
-                                               targets=args.target,
-                                               # manager=mp_manager
-                                               )
+        train_networks = init_network_provider(
+            args.location_train,
+            max_num_vertices=None,
+            features_list=args.features,
+            targets=args.target,
+            # manager=mp_manager
+        )
         # logger.debug(f"Train networks {len(train_networks)}: {train_networks}")
     else:
         train_networks = defaultdict(list)
 
-    test_networks_list = list_files(args.location_test,
-                                    max_num_vertices=args.max_num_vertices,
-                                    features_list=args.features,
-                                    filter=args.test_filter,
-                                    targets=None,
-                                    # manager=mp_manager,
-                                    )
+    test_networks_list = list_files(
+        args.location_test,
+        max_num_vertices=args.max_num_vertices,
+        features_list=args.features,
+        filter=args.test_filter,
+        targets=None,
+        # manager=mp_manager,
+    )
 
     # logger.debug(f"Test network list: {len(test_networks_list)} {test_networks_list}")
 
     # List the parameters to try
-    params_list = list(product_dict(_callback=nn_model.parameters_combination_validator, **parameters_to_try))
+    params_list = list(
+        product_dict(
+            _callback=nn_model.parameters_combination_validator, **parameters_to_try
+        )
+    )
 
     # Create the Multiprocessing Manager
     mp_manager = multiprocessing.Manager()
@@ -270,7 +293,9 @@ def main(args, nn_model):
         }
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(target=dataset_writer, args=(df_queue, args.output_file), daemon=True)
+    dp = threading.Thread(
+        target=dataset_writer, args=(df_queue, args.output_file), daemon=True
+    )
     dp.start()
 
     devices = []
@@ -285,7 +310,7 @@ def main(args, nn_model):
             locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
     else:
         logger.info("Using CPU.")
-        device = 'cpu'
+        device = "cpu"
         devices.append(device)
         locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
 
@@ -298,40 +323,44 @@ def main(args, nn_model):
     args.devices = devices
     args.locks = locks
 
-    for network_name in tqdm(test_networks_list,
-                             desc="Networks",
-                             ):
-
-        for features in tqdm(args.features,
-                             desc="Features",
-                             ):
+    for network_name in tqdm(
+        test_networks_list,
+        desc="Networks",
+    ):
+        for features in tqdm(
+            args.features,
+            desc="Features",
+        ):
             logger.info(f"Loading network: {network_name} with features: {features}")
 
             def storage_provider_callback(filename, network):
                 network_size = network.num_vertices()
                 stop_condition = int(np.ceil(network_size * float(args.threshold)))
-                logger.info(f"Dismantling {filename} according to the predictions. "
-                            f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
-                            )
+                logger.info(
+                    f"Dismantling {filename} according to the predictions. "
+                    f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
+                )
 
                 # CoreHD does not support nor parallel edges nor self loops.
                 # Remove them.
                 remove_parallel_edges(network)
                 remove_self_loops(network)
 
-                training_data_extractor(network,
-                                        compute_targets=False,
-                                        features=features,
-                                        # logger=print,
-                                        )
+                training_data_extractor(
+                    network,
+                    compute_targets=False,
+                    features=features,
+                    # logger=print,
+                )
 
-            pp_test_networks = init_network_provider(args.location_test,
-                                                     features_list=[features],
-                                                     filter=f"{network_name}",
-                                                     targets=None,
-                                                     # manager=mp_manager,
-                                                     callback=storage_provider_callback,
-                                                     )
+            pp_test_networks = init_network_provider(
+                args.location_test,
+                features_list=[features],
+                filter=f"{network_name}",
+                targets=None,
+                # manager=mp_manager,
+                callback=storage_provider_callback,
+            )
             # logger.info(f"Test network LOADED: {len(test_networks)}: {test_networks}")
             # Fill the params queue
             # TODO ANY BETTER WAY?
@@ -342,41 +371,49 @@ def main(args, nn_model):
                 params_queue.put(params)
 
             # Create the pool
-            with multiprocessing.Pool(processes=args.jobs, initializer=tqdm.set_lock,
-                                      initargs=(multiprocessing.Lock(),)) as p:
-
-                with tqdm(total=len(params_list),
-                          leave=False,
-                          desc="Parameters",
-                          ) as pb:
+            with multiprocessing.Pool(
+                processes=args.jobs,
+                initializer=tqdm.set_lock,
+                initargs=(multiprocessing.Lock(),),
+            ) as p:
+                with tqdm(
+                    total=len(params_list),
+                    leave=False,
+                    desc="Parameters",
+                ) as pb:
                     # Create and start the ProgressBar Thread
-                    pbt = threading.Thread(target=progressbar_thread,
-                                           args=(iterations_queue, pb,),
-                                           daemon=True,
-                                           )
+                    pbt = threading.Thread(
+                        target=progressbar_thread,
+                        args=(
+                            iterations_queue,
+                            pb,
+                        ),
+                        daemon=True,
+                    )
                     pbt.start()
 
                     for i in range(args.jobs):
                         # torch.cuda._lazy_init()
 
                         # p.apply_async(
-                        apply_async(pool=p,
-                                    func=process_parameters_wrapper,
-                                    kwargs=dict(
-                                        args=args,
-                                        df=df,
-                                        nn_model=nn_model,
-                                        params_queue=params_queue,
-                                        train_networks=train_networks,
-                                        test_networks=pp_test_networks,
-                                        df_queue=df_queue,
-                                        iterations_queue=iterations_queue,
-                                        early_stopping_dict=early_stopping_dict,
-                                        logger=logger,
-                                    ),
-                                    # callback=_callback,
-                                    error_callback=partial(logger.exception, exc_info=True),
-                                    )
+                        apply_async(
+                            pool=p,
+                            func=process_parameters_wrapper,
+                            kwargs=dict(
+                                args=args,
+                                df=df,
+                                nn_model=nn_model,
+                                params_queue=params_queue,
+                                train_networks=train_networks,
+                                test_networks=pp_test_networks,
+                                df_queue=df_queue,
+                                iterations_queue=iterations_queue,
+                                early_stopping_dict=early_stopping_dict,
+                                logger=logger,
+                            ),
+                            # callback=_callback,
+                            error_callback=partial(logger.exception, exc_info=True),
+                        )
 
                     # Close the pool
                     p.close()
@@ -392,18 +429,25 @@ def main(args, nn_model):
     dp.join()
 
 
-def parse_parameters(parse_args=None,
-                     base_dataframes_path=base_dataframes_path,
-                     base_models_path=base_models_path,
-                     logger=logging.getLogger("dummy"),
-                     ):
+def parse_parameters(
+    parse_args=None,
+    base_dataframes_path=base_dataframes_path,
+    base_models_path=base_models_path,
+    logger=logging.getLogger("dummy"),
+):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-p",
         "--parameters",
         type=str,
         nargs="*",
-        default=["batch_size", "num_epochs", "learning_rate", "weight_decay", "features"],
+        default=[
+            "batch_size",
+            "num_epochs",
+            "learning_rate",
+            "weight_decay",
+            "features",
+        ],
         help="The features to use",
         # action="append",
     )
@@ -593,7 +637,7 @@ def parse_parameters(parse_args=None,
         "-sa",
         "--simultaneous_access",
         type=int,
-        default=float('inf'),
+        default=float("inf"),
         help="Maximum number of simultaneous predictions on CUDA device.",
     )
     parser.add_argument(
@@ -662,8 +706,11 @@ def parse_parameters(parse_args=None,
     args.features_min -= len(args.static_features)
     args.features_max -= len(args.static_features)
 
-    args.features = [sorted(args.static_features + list(c)) for i in range(args.features_min, args.features_max + 1)
-                     for c in combinations(args.features, i)]
+    args.features = [
+        sorted(args.static_features + list(c))
+        for i in range(args.features_min, args.features_max + 1)
+        for c in combinations(args.features, i)
+    ]
 
     if args.removals_num is None:
         if args.static_dismantling:
@@ -671,16 +718,19 @@ def parse_parameters(parse_args=None,
         else:
             args.removals_num = 1
 
-    logger.info(f"Cuda device count {cuda.device_count()}")
-    logger.info(f"Output folder {output_path}")
+    logger.debug(f"Cuda device count {cuda.device_count()}")
+    logger.debug(f"Output folder {output_path}")
 
     if args.simultaneous_access is None:
         args.simultaneous_access = args.jobs
 
-    logger.info(f"Simultaneous access to PyTorch device {args.simultaneous_access}")
+    logger.debug(f"Simultaneous access to PyTorch device {args.simultaneous_access}")
 
-    base_dataframes_path = base_dataframes_path / args.location_train.name / args.target / "T_{}".format(
-        float(args.threshold) if not args.peak_dismantling else "PEAK"
+    base_dataframes_path = (
+        base_dataframes_path
+        / args.location_train.name
+        / args.target
+        / "T_{}".format(float(args.threshold) if not args.peak_dismantling else "PEAK")
     )
 
     if not base_dataframes_path.exists():
@@ -688,7 +738,7 @@ def parse_parameters(parse_args=None,
 
     args.models_location = args.models_location.resolve()
 
-    # logging.debug("Models location {}".format(args.models_location))
+    # logger.debug("Models location {}".format(args.models_location))
 
     if not args.models_location.exists():
         # args.models_location.mkdir(parents=True)

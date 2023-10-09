@@ -1,7 +1,7 @@
 #   This file is part of GDM (Graph Dismantling with Machine learning),
 #   proposed in the paper "Machine learning dismantling and
 #   early-warning signals of disintegration in complex systems"
-#   by M. Grassia, M. De Domenico and G. Mangioni.
+#   by M. Grassia, M. De Domenico and G. Mangioni.
 #
 #   GDM is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@ def load_and_clean_df(args):
     if args.output_file is None:
         args.output_file = extend_filename(args.file, "_best_runs")
 
-    assert args.output_file != args.file, "Output file is the same as input file."
+    if args.output_file != args.file:
+        raise RuntimeError("Output file is the same as input file.")
 
     print(f"Storing to {args.output_file}")
 
@@ -96,6 +97,10 @@ def extract_best_runs(args, df, heuristic_name=None):
         extracted_df_buffer.append(extracted_df)
 
     extracted_df = pd.concat(extracted_df_buffer, ignore_index=True)
+
+    if extracted_df["network"].dtype != str:
+        extracted_df["network"] = extracted_df["network"].astype(str)
+
     if heuristic_name is None:
         heuristic_name = "GDM"
 

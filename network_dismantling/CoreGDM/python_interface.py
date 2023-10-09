@@ -26,35 +26,13 @@
 # 6. Extract the best runs from the CSV file and store them in the heuristics.csv file
 
 import logging
-import threading
-from collections import defaultdict
-from functools import partial
 from pathlib import Path
-from queue import Queue
 
-import numpy as np
-import pandas as pd
 from graph_tool import Graph
-from graph_tool.all import remove_parallel_edges, remove_self_loops
-from torch import cuda
-from torch import multiprocessing
-from tqdm import tqdm
-from tqdm.auto import tqdm
 
-import network_dismantling
-from network_dismantling.CoreGDM.core_grid import process_parameters_wrapper, parse_parameters
-from network_dismantling.GDM.common import product_dict, dotdict
-from network_dismantling.GDM.dataset_providers import init_network_provider
-from network_dismantling.GDM.dataset_providers import prepare_graph
-from network_dismantling.GDM.extract_gdm_best import extract_best_runs as best_run_extractor
+from network_dismantling.GDM.common import dotdict
 from network_dismantling.GDM.python_interface import models_folder_path
-from network_dismantling.GDM.reinsert import main as reinsert, parse_parameters as reinsert_parse_parameters
-# from network_dismantling.GDM.models import models_mapping
-from network_dismantling.GDM.training_data_extractor import training_data_extractor
 from network_dismantling._sorters import dismantling_method
-from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.helpers import extend_filename
-from network_dismantling.common.multiprocessing import progressbar_thread, dataset_writer, apply_async
 
 folder = 'network_dismantling/CoreGDM/'
 cd_cmd = f'cd {folder} && '
@@ -115,6 +93,27 @@ def grid(df,
          network,
          logger=logging.getLogger("dummy")
          ):
+    import threading
+    from collections import defaultdict
+    from functools import partial
+    from queue import Queue
+
+    import numpy as np
+    import pandas as pd
+    from graph_tool.all import remove_parallel_edges, remove_self_loops
+    from torch import cuda
+    from torch import multiprocessing
+    from tqdm.auto import tqdm
+
+    import network_dismantling
+    from network_dismantling.CoreGDM.core_grid import process_parameters_wrapper
+    from network_dismantling.GDM.common import product_dict
+    from network_dismantling.GDM.dataset_providers import init_network_provider
+    from network_dismantling.GDM.dataset_providers import prepare_graph
+    # from network_dismantling.GDM.models import models_mapping
+    from network_dismantling.GDM.training_data_extractor import training_data_extractor
+    from network_dismantling.common.multiprocessing import progressbar_thread, dataset_writer, apply_async
+
     # try:
     #     if cuda.is_available():
     #         multiprocessing.set_start_method('spawn', force=True)
@@ -157,6 +156,7 @@ def grid(df,
     early_stopping_dict = mp_manager.dict()
 
     network_df = df.loc[(df["network"] == network_name)]
+    # network_df = df.filter()
 
     early_stopping_dict[network_name] = {
         "auc": network_df["r_auc"].min() or np.inf,
@@ -281,13 +281,23 @@ def grid(df,
     dp.join()
 
     new_df_runs = pd.DataFrame(new_runs_buffer, columns=df.columns)
-    # new_runs = pd.concat(new_runs_buffer, ignore_index=True)
+
+    if new_df_runs["network"].dtype != str:
+        new_df_runs["network"] = new_df_runs["network"].astype(str)
 
     return new_df_runs
 
 
 def _CoreGDM(network: Graph, stop_condition: int, parameters=default_gdm_params,
              logger=logging.getLogger("dummy"), **kwargs):
+    import pandas as pd
+
+    from network_dismantling.CoreGDM.core_grid import parse_parameters
+    from network_dismantling.GDM.extract_gdm_best import extract_best_runs as best_run_extractor
+    from network_dismantling.GDM.reinsert import main as reinsert, parse_parameters as reinsert_parse_parameters
+    from network_dismantling.common.df_helpers import df_reader
+    from network_dismantling.common.helpers import extend_filename
+
     global df
 
     # Run the grid script

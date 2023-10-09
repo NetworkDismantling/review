@@ -59,16 +59,22 @@ def run_dill_encoded(payload):
     """
     https://stackoverflow.com/questions/8804830/python-multiprocessing-picklingerror-cant-pickle-type-function
     """
-    import dill
+    from dill import loads
 
-    fun, args, kwargs = dill.loads(payload)
+    fun, args, kwargs = loads(payload, ignore=False)
+
     return fun(*args, **kwargs)
 
 
 def submit(executor, func, *args, **kwargs):
-    import dill
+    from dill import dumps, HIGHEST_PROTOCOL
 
-    payload = dill.dumps((func, args, kwargs))
+    payload = dumps(
+        (func, args, kwargs),
+        byref=False,
+        protocol=HIGHEST_PROTOCOL,
+        recurse=True,
+    )
     return executor.submit(run_dill_encoded, payload)
 
 
@@ -82,7 +88,9 @@ def apply_async(pool, func, args=None, kwargs=None, callback=None, error_callbac
         kwargs = {}
 
     payload = dill.dumps((func, args, kwargs))
-    return pool.apply_async(run_dill_encoded, (payload,), callback=callback, error_callback=error_callback)
+    return pool.apply_async(
+        run_dill_encoded, (payload,), callback=callback, error_callback=error_callback
+    )
 
 
 def clean_up_the_pool(*args, **kwargs):
@@ -111,5 +119,6 @@ class TqdmLoggingHandler(logging.Handler):
             msg = self.format(record)
             tqdm.write(msg)
             self.flush()
+
         except Exception:
             self.handleError(record)

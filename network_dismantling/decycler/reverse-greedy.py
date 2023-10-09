@@ -8,9 +8,9 @@ S = set()
 n = 0
 for l in sys.stdin:
     v = l.split()
-    if v[0] == 'D':
-        G.add_edge(int(v[1]),int(v[2]))
-    if v[0] == 'S':
+    if v[0] == "D":
+        G.add_edge(int(v[1]), int(v[2]))
+    if v[0] == "S":
         S.add(int(v[1]))
         n += 1
 
@@ -35,5 +35,5 @@ while True:
             mins = s
             mini = i
     S.remove(mini)
-    print (mini, largest)
+    print(mini, largest)
     sys.stdout.flush()

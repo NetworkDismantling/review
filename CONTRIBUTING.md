@@ -1,9 +1,11 @@
 ## How to contribute to this project
 
-This project is open source, and its meant to provide a common benchmark for the network dismantling algorithms.
-We welcome contributions from the community.
+This project is open source, and it is meant to provide a common framework for network dismantling.
+The applications are twofold: this project can be used either to dismantle networks with the state-of-the-art algorithms or as a benchmark to compare the performance of such algorithms.
+We welcome and encourage contributions from the community, being them new algorithms implementations or improvements.
+If we work together, we can make this project a great tool for the network science community.
 
-If you want to contribute, please read this document first, the readme file, and the [Discussions](https://github.com/NetworkDismantling/review/discussions) section of the repository.
+If you want to contribute, please read this document first, the ReadMe file, and the [Discussions](https://github.com/NetworkDismantling/review/discussions) section of the repository.
 
 ### Pull requests
 

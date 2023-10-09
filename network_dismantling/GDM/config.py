@@ -1,7 +1,7 @@
 #   This file is part of GDM (Graph Dismantling with Machine learning),
 #   proposed in the paper "Machine learning dismantling and
 #   early-warning signals of disintegration in complex systems"
-#   by M. Grassia, M. De Domenico and G. Mangioni.
+#   by M. Grassia, M. De Domenico and G. Mangioni.
 #
 #   GDM is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by

@@ -2,12 +2,9 @@
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Union
 
-import networkx as nx
-import numpy as np
 from graph_tool import Graph
 
 from network_dismantling import dismantler_wrapper
@@ -27,12 +24,12 @@ if not model_file_path.exists():
 elif not model_file_path.is_dir():
     raise NotADirectoryError(f"Model file path {model_file_path} is not a directory")
 
-dqn = FINDER()
+dqn = None
 
 
-def to_networkx(g):
+def to_networkx(g: Graph):
     from io import BytesIO
-    from networkx import read_graphml
+    from networkx import read_graphml, relabel_nodes
 
     print("Converting graph to NetworkX")
     with BytesIO() as io_buffer:
@@ -48,7 +45,7 @@ def to_networkx(g):
     # Map nodes to consecutive IDs to avoid issues with FINDER
     mapping = {k: i for i, k in enumerate(gn.nodes)}
 
-    gn = nx.relabel_nodes(gn, mapping)
+    gn = relabel_nodes(gn, mapping)
 
     return gn
 
@@ -73,8 +70,14 @@ def _finder_nd(network: Graph, reinsertion=True, strategy_id=0,
     :param kwargs:
     :return:
     """
+    global dqn
+
+    dqn = FINDER()
 
     from graph_tool.all import remove_parallel_edges, remove_self_loops
+    import time
+    import networkx as nx
+    import numpy as np
 
     remove_parallel_edges(network)
     remove_self_loops(network)

@@ -1,7 +1,7 @@
 #   This file is part of GDM (Graph Dismantling with Machine learning),
 #   proposed in the paper "Machine learning dismantling and
 #   early-warning signals of disintegration in complex systems"
-#   by M. Grassia, M. De Domenico and G. Mangioni.
+#   by M. Grassia, M. De Domenico and G. Mangioni.
 #
 #   GDM is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -25,9 +25,10 @@ from random import seed
 
 import numpy as np
 import torch
+from graph_tool import Graph
 from scipy.integrate import simps
 from torch_geometric import seed_everything
-from tqdm.auto import tqdm
+from torch_geometric.data import Data
 
 from network_dismantling.GDM.config import all_features, threshold
 from network_dismantling.GDM.dataset_providers import storage_provider, prepare_graph
@@ -174,14 +175,22 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
         # Init runs buffer
         runs = []
 
-        # noinspection PyTypeChecker
-        for filename, network, data in tqdm(networks_provider,
-                                            desc="Testing",
-                                            leave=False,
-                                            # position=1,
-                                            ):
+        # # noinspection PyTypeChecker
+        # for filename, network, data in tqdm(networks_provider,
+        #                                     desc="Testing",
+        #                                     leave=False,
+        #                                     # position=1,
+        #                                     ):
 
-            network = deepcopy(network)
+        # TODO remove this loop, it is not used anymore in the review version
+        for filename, network, data in networks_provider:
+            filename: str
+            network: Graph
+            data: Data
+
+            # TODO avoid deepcopy?
+            # network = deepcopy(network)
+            network = network.copy()
             data = deepcopy(data)
 
             network_size = network.num_vertices()
@@ -192,7 +201,7 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
             # Compute stop condition
             stop_condition = int(np.ceil(network_size * float(args.threshold)))
 
-            logger.info(f"Dismantling {filename} according to the predictions. "
+            logger.debug(f"Dismantling {filename} according to the predictions. "
                         f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
                         )
 
@@ -413,9 +422,6 @@ def add_arguments(nn_model, parser):
 def train_wrapper(args, nn_model, train_ne=True, networks_provider=None, logger=logging.getLogger('dummy'),
                   print_model=True):
     seed_everything(args.seed_train)
-    # torch.manual_seed(args.seed_train)
-    # np.random.seed(args.seed_train)
-    # seed(args.seed_train)
 
     model = nn_model(args)
 

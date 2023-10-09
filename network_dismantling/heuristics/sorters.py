@@ -36,6 +36,9 @@ def get_random(network):
     return np.random.rand(network.num_vertices())
 
 
-__all__ = [(name.replace("get_", ""), thing) for (name, thing) in locals().items() if
-           callable(thing) and thing.__module__ == __name__ and thing.__name__[0] != "_"]
+__all__ = [
+    (name.replace("get_", ""), thing)
+    for (name, thing) in locals().items()
+    if callable(thing) and thing.__module__ == __name__ and thing.__name__[0] != "_"
+]
 __all_dict__ = dict(__all__)

@@ -196,3 +196,8 @@ dataset.tar.gz
 *.out
 
 
+# macOS
+.DS_Store
+
+# CMakelists
+CMakeLists.txt

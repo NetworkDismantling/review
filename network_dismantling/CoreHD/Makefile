@@ -20,12 +20,22 @@ LIBS= -lboost_program_options
 
 BIN=coreHD
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+    LDFLAGS=-Wl,-soname,$@
+endif
+ifeq ($(UNAME_S),Darwin)
+    LDFLAGS=-Wl,-install_name,$@
+endif
+
+LDFLAGS += -Wl,-rpath,$(BOOST_LIB_LOCATION)
 
 all: $(BIN)
 
 # -Wl, -soname,$@
 coreHD: TAbyTwoCoreV01.cpp
-	${CXX} ${FLAGS} TAbyTwoCoreV01.cpp ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION)  -o $@ ${CLinkFlags}  ${LIBS}
+	${CXX} ${FLAGS} TAbyTwoCoreV01.cpp ${CInc} $(LDFLAGS) -o $@ ${CLinkFlags}  ${LIBS}
 
 clean:
 	rm -f $(BIN) *.o *.so

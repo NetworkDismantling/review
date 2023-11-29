@@ -22,11 +22,18 @@ dismantler.so: dismantler.o
 
 #-Wl,--verbose
 # -Wl,--as-needed
-# -Wl,-soname
 
-# -Wl, -soname,$@
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+    LDFLAGS=-Wl,-soname,$@
+endif
+ifeq ($(UNAME_S),Darwin)
+    LDFLAGS=-Wl,-install_name,$@
+endif
+
 %.so: %.o
-	$(CXX) -shared -Wl,-install_name,$@  $^ -o $@ $(CLinkFlags)
+	$(CXX) -shared $(LDFLAGS) $^ -o $@ $(CLinkFlags)
 
 #--verbose
 %.o: %.cpp

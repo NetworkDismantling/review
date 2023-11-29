@@ -17,15 +17,25 @@ LIBS= -lboost_program_options
 
 BIN=GND reinsertion
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+    LDFLAGS=-Wl,-soname,$@
+endif
+ifeq ($(UNAME_S),Darwin)
+    LDFLAGS=-Wl,-install_name,$@
+endif
+
+LDFLAGS += -Wl,-rpath,$(BOOST_LIB_LOCATION)
 
 all: $(BIN)
 
 # -Wl, -soname,$@
 GND: GND.cpp
-	${CXX} ${FLAGS} ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) GND.cpp -o $@ ${CLinkFlags} ${LIBS}
+	${CXX} ${FLAGS} ${CInc} $(LDFLAGS)  GND.cpp -o $@ ${CLinkFlags} ${LIBS}
 
 # -Wl, -soname,$@
 reinsertion: reinsertion.cpp
-	${CXX} ${FLAGS} ${CInc} -Wl,-install_name,$@ -Wl,-rpath,$(BOOST_LIB_LOCATION) reinsertion.cpp -o $@ ${CLinkFlags} ${LIBS}
+	${CXX} ${FLAGS} ${CInc} $(LDFLAGS) reinsertion.cpp -o $@ ${CLinkFlags} ${LIBS}
 clean:
 	rm -f $(BIN) *.o

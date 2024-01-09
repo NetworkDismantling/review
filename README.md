@@ -1,51 +1,61 @@
-# WARNING
-
-This repository is being refactored and improved to make it as user-friendly as possible.
-Some features may be missing or may not work as expected.
-We are working on it, and we will update this warning as soon as we are done.
-
-If you have any issues, please contact the authors or open an issue on GitHub.
-We apologize for the inconvenience.
-
 # Robustness and resilience of complex networks
 
-This repository contains the scripts and data from the "Robustness and resilience of complex networks" paper by Oriol
-Artime, Marco Grassia, Manlio De Domenico, James P. Gleeson, Hernán A. Makse, Giuseppe Mangioni, Matjaž Perc and Filippo
-Radicchi.
-The manuscript is currently under review.
+This repository contains the scripts and data from the "Robustness and resilience of complex networks" Nature Review Physics paper by Oriol Artime, Marco Grassia, Manlio De Domenico, James P. Gleeson, Hernán A. Makse, Giuseppe Mangioni, Matjaž Perc and Filippo Radicchi.
 
 
 ## Citations
 
 ### How to cite the paper
 
-The paper is currently under review.
-We will update this section as soon as it is published.
-
->
+> Artime, O., Grassia, M., De Domenico, M. et al. Robustness and resilience of complex networks. Nat Rev Phys (2024). https://doi.org/10.1038/s42254-023-00676-y
 
 BibTex:
 
 ```bibtex
-
+@article{artime2024robustness,
+	abstract = {Complex networks are ubiquitous: a cell, the human brain, a group of people and the Internet are all examples of interconnected many-body systems characterized by macroscopic properties that cannot be trivially deduced from those of their microscopic constituents. Such systems are exposed to both internal, localized, failures and external disturbances or perturbations. Owing to their interconnected structure, complex systems might be severely degraded, to the point of disintegration or systemic dysfunction. Examples include cascading failures, triggered by an initially localized overload in power systems, and the critical slowing downs of ecosystems which can be driven towards extinction. In recent years, this general phenomenon has been investigated by framing localized and systemic failures in terms of perturbations that can alter the function of a system. We capitalize on this mathematical framework to review theoretical and computational approaches to characterize robustness and resilience of complex networks. We discuss recent approaches to mitigate the impact of perturbations in terms of designing robustness, identifying early-warning signals and adapting responses. In terms of applications, we compare the performance of the state-of-the-art dismantling techniques, highlighting their optimal range of applicability for practical problems, and provide a repository with ready-to-use scripts, a much-needed tool set.},
+	author = {Artime, Oriol and Grassia, Marco and De Domenico, Manlio and Gleeson, James P. and Makse, Hern{\'a}n A. and Mangioni, Giuseppe and Perc, Matja{\v z} and Radicchi, Filippo},
+	date = {2024/01/08},
+	date-added = {2024-01-09 08:22:35 +0100},
+	date-modified = {2024-01-09 08:23:03 +0100},
+	doi = {10.1038/s42254-023-00676-y},
+	id = {Artime2024},
+	isbn = {2522-5820},
+	journal = {Nature Reviews Physics},
+	title = {Robustness and resilience of complex networks},
+	url = {https://doi.org/10.1038/s42254-023-00676-y},
+	year = {2024},
+	bdsk-url-1 = {https://doi.org/10.1038/s42254-023-00676-y}
+}
 ```
 
 RIS:
-
 ```ris
-
+TY  - JOUR
+AB  - Complex networks are ubiquitous: a cell, the human brain, a group of people and the Internet are all examples of interconnected many-body systems characterized by macroscopic properties that cannot be trivially deduced from those of their microscopic constituents. Such systems are exposed to both internal, localized, failures and external disturbances or perturbations. Owing to their interconnected structure, complex systems might be severely degraded, to the point of disintegration or systemic dysfunction. Examples include cascading failures, triggered by an initially localized overload in power systems, and the critical slowing downs of ecosystems which can be driven towards extinction. In recent years, this general phenomenon has been investigated by framing localized and systemic failures in terms of perturbations that can alter the function of a system. We capitalize on this mathematical framework to review theoretical and computational approaches to characterize robustness and resilience of complex networks. We discuss recent approaches to mitigate the impact of perturbations in terms of designing robustness, identifying early-warning signals and adapting responses. In terms of applications, we compare the performance of the state-of-the-art dismantling techniques, highlighting their optimal range of applicability for practical problems, and provide a repository with ready-to-use scripts, a much-needed tool set.
+AU  - Artime, Oriol
+AU  - Grassia, Marco
+AU  - De Domenico, Manlio
+AU  - Gleeson, James P.
+AU  - Makse, Hernán A.
+AU  - Mangioni, Giuseppe
+AU  - Perc, Matjaž
+AU  - Radicchi, Filippo
+DO  - 10.1038/s42254-023-00676-y
+ID  - Artime2024
+SN  - 2522-5820
+T2  - Nature Reviews Physics
+TI  - Robustness and resilience of complex networks
+UR  - https://doi.org/10.1038/s42254-023-00676-y
+PY  - 2024
+ER  - 
 ```
 
 Also, please cite the original papers of the algorithms you use (see the [Algorithms](#algorithms) section),
 the datasets you use (see the [Dataset](#dataset) section), and the libraries you use (see the [Setup](#setup)
 
 ### How to cite this repository
-
->
-
-```bib
-
-```
+If you use the code, please cite the paper as described [here](#how-to-cite-the-paper).
 
 ## License
 
@@ -65,13 +75,13 @@ This library integrates and provides a common interface to the following algorit
 
 - Brute Force
 - [Collective Influence (CI)](https://github.com/makselab/Collective-Influence):  [reference](CITATIONS.md#collective-influence-ci)
-- [CoreGDM](https://github.com/NetworkScienceLab/CoreGDM): [reference](CITATIONS.md#coregdm)
+- CoreGDM (almost ready, needs some fixes): [reference](CITATIONS.md#coregdm)
 - CoreHD: [reference](CITATIONS.md#corehd)
 - [Ensemble GND (EGND)](https://github.com/renxiaolong/2019-Ensemble-approach-for-generalized-network-dismantling): [reference](CITATIONS.md#ensemble-gnd-egnd)
 - [Explosive Immunization (EI)](https://github.com/pclus/explosive-immunization): [reference](CITATIONS.md#explosive-immunization-ei)
 - [FINDER](https://github.com/FFrankyy/FINDER): [reference](CITATIONS.md#finder)
-- [Generalized Network Dismantling (GND)](https://github.com/renxiaolong/Generalized-Network-Dismantling): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
-- [Graph Dismantling Machine (GDM)](https://github.com/NetworkScienceLab/GDM/): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
+- Generalized Network Dismantling (GND): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
+- [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
 - [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
 - Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)
     - Degree
@@ -90,13 +100,10 @@ See the [Citations file](CITATIONS.md) for more information.**
 
 This package is written in Python (tested with version 3.9), and uses graph-tool[1] for the graph processing.
 The bundled scripts should take cake of building and setting up the included algorithms.
-However, the users may need to manually install some dependencies, see [Requirements](#requirements) for more
-information.
+However, the users may need to manually install some dependencies, see [Requirements](#requirements) for more information.
 
-Regarding the Python environment, we recommend you to use Conda environments and avoid installing any package in your
-main Python environment, to avoid conflicts or issues with your operating system.
-This step is crucial, since some of the algorithms depend (directly and/or indirectly) on different libraries version (
-e.g., pytorch and tensorflow with different library version requirements).
+Regarding the Python environment, we recommend you to use Conda environments and avoid installing any package in your main Python environment in order to avoid conflicts or issues with your operating system.
+This step is crucial, since some of the algorithms depend (directly and/or indirectly) on different libraries version (e.g., pytorch and tensorflow with different library version requirements).
 
 ### Requirements
 
@@ -121,50 +128,11 @@ While in a Fedora system, you can use the following command:
 sudo dnf install development-tools gcc gcc-c++ make cmake boost-devel libomp-devel
 ```
 
-To install Conda, please refer to
-the [miniconda official documentation](https://docs.conda.io/en/latest/miniconda.html), or to the
-full [Anaconda distribution](https://www.anaconda.com/).
-
-To make the setup phase easier, we provide the Conda[2] environments we used to run our experiments.
-In particular, we include two Conda[2] environments, one for FINDER and one for all the other algorithms.
-See the [Bundled environments](#bundled-environments) section for more information.
-**Unfortunately, such environments are not guaranteed to work on all systems (e.g., Windows) or to be optimized for your
-host machine.
-We strongly suggest to build your own environment using the instructions in
-the [Building your own environment](#building-your-own-environment) section.**
-
-### Bundled environments
-
-To set up the provided environments:
-
-1. Install conda-pack:
-
-    ```bash
-    conda install conda-pack
-    ```
-
-2. Unpack the environments using conda-pack as follows:
-   - Generic and GDM's environment
-      ```bash
-      cd review
-      
-      conda-unpack -n gdm -f environment_full.tar.gz
-      ```
-    
-      Finder environment:
-    
-      ```bash
-      cd review
-      
-      conda-unpack -n finder -f environments/finder.tar.gz  
-      ```
-
-3. Follow the instructions in section [Common](#common)
+To install Conda, please refer to the [miniconda official documentation](https://docs.conda.io/en/latest/miniconda.html), or to the full [Anaconda distribution](https://www.anaconda.com/).
 
 ### Building your own environment
 
-In this section, we will show how to build the Conda environments with the required dependencies for the various
-algorithms.
+In this section, we will show how to build the Conda environments with the required dependencies for the various algorithms.
 Remember to switch to the right environment before running the algorithms.
 If you have any issues, please refer to the official documentation of the specific algorithms.
 You can find them in their sub-folders.
@@ -172,25 +140,27 @@ You can find them in their sub-folders.
 #### All algorithms except FINDER and GDM
 
 ```bash
-conda create -n dismantling python=3.9 graph-tool seaborn numpy scipy matplotlib mkl-service -c anaconda -c conda-forge
+conda create -n dismantling python=3.9 boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib -c anaconda -c conda-forge
 
 conda activate dismantling
 ```
 
 #### GDM
 
-In progress.
+Create an environment like the generic one, but also install [PyTorch](https://pytorch.org/) and [PyTorch Geometric (PyG)](https://pytorch-geometric.readthedocs.io/).
 
-TODO: Update the old environment and convert the pre-trained PyG 1.2.1 models to the newer PyG GAT models.
+Please refer to the [PyTorch installation matrix](https://pytorch.org/get-started/locally/) and to the [PyG documentation](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) to choose the right configuration.
 
+Just as an example, if your host machine supports CUDA (11.8), the command should look like the following:
 ```bash
-conda env create -f environment.yml
+conda create --name gdm boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib python pytorch torchvision torchaudio pytorch-cuda=11.8 pyg -c pyg -c pytorch -c nvidia -c conda-forge -c anaconda
 
 conda activate gdm
-
 ```
 
-[//]: # (conda create -n gdm python=3.9 graph-tool pytorch torchvision torchaudio cudatoolkit pyg seaborn numpy scipy matplotlib dill jupyter mkl-service -c pyg -c pytorch -c nvidia -c anaconda -c conda-forge)
+Should you experience any issues with the installation, please refer to the respective documentation first.
+
+NOTE: the models were updated to be compatible with PyG > 1.1.2, however they might provide slightly different results than the original implementation.
 
 #### FINDER
 
@@ -213,6 +183,8 @@ cd review
 
 pip install -e .
 ```
+
+The '-e' flag installs the package in development mode, and will keep the installed package in sync with the directory.
 
 FINDER also requires the following additional steps, due to the use of Cython:
 Please make sure to use the GCC-8 compiler, as the code is not compatible with GCC-9 right now.
@@ -240,8 +212,7 @@ python setup.py build
 ### Data used in the paper
 
 This repository contains the datasets used in the experiments.
-We refer the Reader to the [Read-me](dataset/README.md) in the dataset folder for more information about the data
-sources, citations, licenses, etc.
+We refer the Reader to the [Read-me](dataset/README.md) in the dataset folder for more information about the data sources, citations, licenses, etc.
 
 ### New data
 
@@ -421,30 +392,23 @@ It is worth mentioning that the -P flag (--pivot) will pivot the table.
 
 ## Issues
 
-If you find any issue with the code after reading this file carefully, please feel free to submit an Issue in the GitHub
-repository.
-Please provide information about your system, your environment, the traceback of the exception (if any), the script
-where the issue appeared, the input parameters and any other useful information.
+If you find any issue with the code after reading this file carefully, please feel free to submit an Issue in the GitHub repository.
+
+Please provide information about your system, your environment, the traceback of the exception (if any), the script where the issue appeared, the input parameters and any other useful information.
 
 ## [WIP] Contributing
 
-This repository is meant to be a collaborative project, where new dismantling algorithms can be easily integrated and
-benchmarked.
-To do so, we have built a simple framework that allows to easily integrate new algorithms and compare them with the
-existing ones.
-New algorithms can be integrated by implementing a simple function that takes as input an undirected graph-tool graph
-and returns a list of nodes to remove.
-The function should then be registered using the @dismantling_algorithm decorator.
+This repository is meant to be a collaborative project, where new dismantling algorithms can be easily integrated and benchmarked.
+To do so, we have built a simple framework that allows to easily integrate new algorithms and compare them with the existing ones.
+New algorithms can be integrated by implementing a simple function that takes as input an undirected graph-tool graph and returns a list of nodes to remove.
+The function should then be registered using the `@dismantling_algorithm` decorator.
 
-MORE INFO TO COME ... also about edge dismantling
-
-You can integrate a new algorithm just by providing a function
+[//]: # (You can integrate a new algorithm just by providing a function)
 If you wish to contribute to this project, please feel free to submit a Pull Request in the GitHub repository.
-**Keep in mind that this project is still under development, so please contact the authors before starting to work on a
-new feature.**
-In fact, we are currently working on a better way to integrate new dismantling algorithms, and also on a better way to
-handle the output.
+**Keep in mind that this project is still under development, so please contact the authors before starting to work on a new feature.**
+In fact, we are currently planning to polish the integration of algorithms, and also on a better way to handle the output.
 
+### More info will be added, also about edge dismantling
 
 [1]: https://graph-tool.skewed.de/
 [2]: https://www.anaconda.com/products/individual

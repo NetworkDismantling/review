@@ -51,8 +51,8 @@ PY  - 2024
 ER  - 
 ```
 
-Also, please cite the original papers of the algorithms you use (see the [Algorithms](#algorithms) section),
-the datasets you use (see the [Dataset](#dataset) section), and the libraries you use (see the [Setup](#setup)
+Also, please cite the original papers of the [algorithms](#algorithms),
+of the [Dataset](#dataset), and of the libraries you use (see the [Setup](#setup) section).
 
 ### How to cite this repository
 If you use the code, please cite the paper as described [here](#how-to-cite-the-paper).

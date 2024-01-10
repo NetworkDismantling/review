@@ -1,24 +1,50 @@
 # Citations
 In this section, we provide the citations for the paper, for the data, for the algorithms and for the libraries used in our project.
 
+## How to cite the paper
 
-### How to cite the paper
-
-The paper is currently under review.
-We will update this section as soon as it is published.
-
-DOI: 
-
->
+> Artime, O., Grassia, M., De Domenico, M. et al. Robustness and resilience of complex networks. Nat Rev Phys (2024). https://doi.org/10.1038/s42254-023-00676-y
 
 BibTex:
-```bibtex
 
+```bibtex
+@article{artime2024robustness,
+	abstract = {Complex networks are ubiquitous: a cell, the human brain, a group of people and the Internet are all examples of interconnected many-body systems characterized by macroscopic properties that cannot be trivially deduced from those of their microscopic constituents. Such systems are exposed to both internal, localized, failures and external disturbances or perturbations. Owing to their interconnected structure, complex systems might be severely degraded, to the point of disintegration or systemic dysfunction. Examples include cascading failures, triggered by an initially localized overload in power systems, and the critical slowing downs of ecosystems which can be driven towards extinction. In recent years, this general phenomenon has been investigated by framing localized and systemic failures in terms of perturbations that can alter the function of a system. We capitalize on this mathematical framework to review theoretical and computational approaches to characterize robustness and resilience of complex networks. We discuss recent approaches to mitigate the impact of perturbations in terms of designing robustness, identifying early-warning signals and adapting responses. In terms of applications, we compare the performance of the state-of-the-art dismantling techniques, highlighting their optimal range of applicability for practical problems, and provide a repository with ready-to-use scripts, a much-needed tool set.},
+	author = {Artime, Oriol and Grassia, Marco and De Domenico, Manlio and Gleeson, James P. and Makse, Hern{\'a}n A. and Mangioni, Giuseppe and Perc, Matja{\v z} and Radicchi, Filippo},
+	date = {2024/01/08},
+	date-added = {2024-01-09 08:22:35 +0100},
+	date-modified = {2024-01-09 08:23:03 +0100},
+	doi = {10.1038/s42254-023-00676-y},
+	id = {Artime2024},
+	isbn = {2522-5820},
+	journal = {Nature Reviews Physics},
+	title = {Robustness and resilience of complex networks},
+	url = {https://doi.org/10.1038/s42254-023-00676-y},
+	year = {2024},
+	bdsk-url-1 = {https://doi.org/10.1038/s42254-023-00676-y}
+}
 ```
 
 RIS:
 ```ris
-
+TY  - JOUR
+AB  - Complex networks are ubiquitous: a cell, the human brain, a group of people and the Internet are all examples of interconnected many-body systems characterized by macroscopic properties that cannot be trivially deduced from those of their microscopic constituents. Such systems are exposed to both internal, localized, failures and external disturbances or perturbations. Owing to their interconnected structure, complex systems might be severely degraded, to the point of disintegration or systemic dysfunction. Examples include cascading failures, triggered by an initially localized overload in power systems, and the critical slowing downs of ecosystems which can be driven towards extinction. In recent years, this general phenomenon has been investigated by framing localized and systemic failures in terms of perturbations that can alter the function of a system. We capitalize on this mathematical framework to review theoretical and computational approaches to characterize robustness and resilience of complex networks. We discuss recent approaches to mitigate the impact of perturbations in terms of designing robustness, identifying early-warning signals and adapting responses. In terms of applications, we compare the performance of the state-of-the-art dismantling techniques, highlighting their optimal range of applicability for practical problems, and provide a repository with ready-to-use scripts, a much-needed tool set.
+AU  - Artime, Oriol
+AU  - Grassia, Marco
+AU  - De Domenico, Manlio
+AU  - Gleeson, James P.
+AU  - Makse, Hernán A.
+AU  - Mangioni, Giuseppe
+AU  - Perc, Matjaž
+AU  - Radicchi, Filippo
+DO  - 10.1038/s42254-023-00676-y
+ID  - Artime2024
+SN  - 2522-5820
+T2  - Nature Reviews Physics
+TI  - Robustness and resilience of complex networks
+UR  - https://doi.org/10.1038/s42254-023-00676-y
+PY  - 2024
+ER  - 
 ```
 
 Also, please cite the original papers of the algorithms you use (see the [Algorithms](#algorithms) section),
@@ -278,8 +304,4 @@ DOI [10.6084/m9.figshare.1164194](https://doi.org/10.6084/m9.figshare.1164194)
     keywords = {all, complex networks, graph, network, other}
 }
 ```
-
-### TODO MORE TO COME?
-
-### networkx
 

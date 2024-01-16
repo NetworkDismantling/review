@@ -10,7 +10,6 @@ This repository contains the scripts and data from the "Robustness and resilienc
 > Artime, O., Grassia, M., De Domenico, M. et al. Robustness and resilience of complex networks. Nat Rev Phys (2024). https://doi.org/10.1038/s42254-023-00676-y
 
 BibTex:
-
 ```bibtex
 @article{artime2024robustness,
 	abstract = {Complex networks are ubiquitous: a cell, the human brain, a group of people and the Internet are all examples of interconnected many-body systems characterized by macroscopic properties that cannot be trivially deduced from those of their microscopic constituents. Such systems are exposed to both internal, localized, failures and external disturbances or perturbations. Owing to their interconnected structure, complex systems might be severely degraded, to the point of disintegration or systemic dysfunction. Examples include cascading failures, triggered by an initially localized overload in power systems, and the critical slowing downs of ecosystems which can be driven towards extinction. In recent years, this general phenomenon has been investigated by framing localized and systemic failures in terms of perturbations that can alter the function of a system. We capitalize on this mathematical framework to review theoretical and computational approaches to characterize robustness and resilience of complex networks. We discuss recent approaches to mitigate the impact of perturbations in terms of designing robustness, identifying early-warning signals and adapting responses. In terms of applications, we compare the performance of the state-of-the-art dismantling techniques, highlighting their optimal range of applicability for practical problems, and provide a repository with ready-to-use scripts, a much-needed tool set.},
@@ -166,10 +165,10 @@ NOTE: the models were updated to be compatible with PyG > 1.1.2, however they mi
 
 ```bash
 # If you have a CUDA compatible GPU
-conda create --name finder cython==0.29.13 networkx==2.3 numpy==1.17.3 pandas==0.25.2 scipy==1.3.1 tensorflow-cpu==1.14.0 tqdm==4.36.1 dill graph-tool -c conda-forge
+conda create --name finder cython==0.29.13 networkx==2.3 numpy==1.17.3 pandas==0.25.2 scipy==1.3.1 tensorflow==1.14.0 tqdm==4.36.1 dill graph-tool -c conda-forge
 
 # Otherwise, the models will be run on the CPU
-conda create --name finder cython==0.29.13 networkx==2.3 numpy==1.17.3 pandas==0.25.2 scipy==1.3.1 tensorflow==1.14.0 tqdm==4.36.1 dill graph-tool -c conda-forge
+conda create --name finder cython==0.29.13 networkx==2.3 numpy==1.17.3 pandas==0.25.2 scipy==1.3.1 tensorflow-cpu==1.14.0 tqdm==4.36.1 dill graph-tool -c conda-forge
 ```
 
 ### Common

@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+preferred-citation:
+    type: "article"
+    authors:
+    - family-names: "Oriol"
+      given-names: "Artime"
+    - family-names: "Marco"
+      given-names: "Grassia"
+      orcid: "0000-0001-5841-6058"
+    - family-names: "Manlio"
+      given-names: "De Domenico"
+      orcid: "0000-0001-5158-8594"
+    - family-names: "James P."
+      given-names: "Gleeson"
+    - family-names: "Hernán A."
+      given-names: "Makse"
+    - family-names: "Giuseppe"
+      given-names: "Mangioni"
+      orcid: "0000-0001-6910-0112"
+    - family-names: "Matjaž"
+      given-names: "Perc"
+      orcid: "0000-0002-3087-541X"
+    - family-names: "Filippo"
+      given-names: "Radicchi"
+    title: "Robustness and resilience of complex networks"
+    doi: 10.1038/s42254-023-00676-y
+    journal-title: "Nature Reviews Physics"
+    url: "https://doi.org/10.1038/s42254-023-00676-y"
+    year: 2024
+    month: 01
+    day: 08

@@ -3,7 +3,7 @@ from glob import glob
 from pathlib import Path
 from typing import Union, List
 
-from network_utils.io.graph_tool import load_graph
+from network_dismantling.common.loaders import load_graph
 
 
 def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", "gt"), **kwargs):

@@ -43,7 +43,7 @@ train_wrapper
 
 def tree_breaker(network: Graph, stop_condition: int, logger=logging.getLogger("dummy")) -> np.ndarray:
     print("Running tree breaker!")
-    from network_dismantling.machine_learning.pytorch.treebreaker import Graph, tree_breaker as minsum_tree_breaker, \
+    from network_dismantling.CoreGDM.treebreaker import Graph, tree_breaker as minsum_tree_breaker, \
         CyclesError
 
     static_id = network.vertex_properties["static_id"]

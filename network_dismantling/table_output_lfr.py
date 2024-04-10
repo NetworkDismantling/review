@@ -27,7 +27,7 @@ import seaborn as sns
 
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.humanize_helper import intword
-from network_dismantling.machine_learning.pytorch.grid_output import replace_labels
+from network_dismantling.plot import replace_labels
 from network_dismantling.table_output import reorder_heuristics
 from network_dismantling.table_output_synth import color_dictionary, names_dict, \
     name_regex_lfr

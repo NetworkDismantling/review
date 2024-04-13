@@ -23,21 +23,19 @@ from time import time
 import numpy as np
 
 from network_dismantling.GDM.dataset_providers import prepare_graph
+from network_dismantling.GDM.training_data_extractor import training_data_extractor
 from network_dismantling.common.multiprocessing import clean_up_the_pool
-from network_dismantling.machine_learning.pytorch.training_data_extractor import (
-    training_data_extractor,
-)
 
 
 def get_predictions(
-    network,
-    model,
-    lock,
-    device=None,
-    data=None,
-    features=None,
-    logger=logging.getLogger("dummy"),
-    **kwargs,
+        network,
+        model,
+        lock,
+        device=None,
+        data=None,
+        features=None,
+        logger=logging.getLogger("dummy"),
+        **kwargs,
 ):
     network_name = kwargs["network_name"]
 
@@ -144,13 +142,13 @@ def block_dynamic_predictor(network, model, lock, features, device, k, data=None
 
 
 def static_predictor(
-    network,
-    model,
-    lock,
-    data,
-    features,
-    device,
-    logger=logging.getLogger("dummy"),
+        network,
+        model,
+        lock,
+        data,
+        features,
+        device,
+        logger=logging.getLogger("dummy"),
 ):
     logger.info("Predicting dismantling order. ")
     start_time = time()
@@ -207,7 +205,7 @@ def static_predictor(
 
 
 def lcc_static_predictor(
-    network, model, lock, data, features, device, logger=logging.getLogger("dummy")
+        network, model, lock, data, features, device, logger=logging.getLogger("dummy")
 ):
     logger.warning(
         "WARNING!! Using the LCC static predictor. THIS NEW VERSION WAS NOT TESTED YET!!!"

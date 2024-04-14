@@ -18,7 +18,6 @@
 
 import logging
 import pkgutil
-from enum import Enum
 from pathlib import Path
 
 from network_dismantling.common.dismantlers import dismantler_wrapper
@@ -56,7 +55,7 @@ class DismantlingMethod:
     plot_color: str = None
     plot_marker: str = None
 
-    reinsertion: ReinsertionSupport = None
+    # reinsertion: ReinsertionSupport = None
     includes_reinsertion = False
     optional_reinsertion = False
     reinsertion_function = None

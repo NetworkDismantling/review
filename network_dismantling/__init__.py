@@ -15,7 +15,7 @@
 #
 #   You should have received a copy of the GNU General Public License
 #   along with the code.  If not, see <http://www.gnu.org/licenses/>.
-
+import importlib
 import logging
 import pkgutil
 from pathlib import Path
@@ -113,17 +113,25 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
 
     if module_name.endswith(".python_interface"):
         # print("Importing", module_name)
+        _module = None
         try:
-            _module = loader.find_module(module_name).load_module(module_name)
+            _module = importlib.import_module(module_name)
+        except Exception as e:
+            logger.debug(f"Exception: {e}\n", exc_info=True)
 
+            try:
+                _module = loader.find_module(module_name).load_module(module_name)
+            except Exception as e:
+                logger.debug(f"Exception: {e}\n", exc_info=True)
+
+        if _module is None:
+            # print("Error importing:", module_name, e)
+            logger.warning(f"Error importing {module_name.replace('.python_interface', '')}")
+
+            continue
+        else:
             # __alldict__[module_name] = _module
             __all__.append(module_name)
             globals()[module_name] = _module
-        except Exception as e:
-            # print("Error importing:", module_name, e)
-            logger.warning(f"Error importing: {module_name}")  # , exc_info=True)
-            logger.debug("Exception:\n", exc_info=True)
-
-            continue
 
 __alldict__ = {k: globals()[k] for k in __all__}

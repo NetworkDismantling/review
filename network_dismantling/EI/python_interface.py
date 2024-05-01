@@ -121,8 +121,8 @@ method_info = {
 
 
 @dismantling_method(
-    name="Explosive Immunization $\sigma=1$",
-    short_name="EI $\sigma=1$",
+    name=r"Explosive Immunization $\sigma=1$",
+    short_name=r"EI $\sigma=1$",
     includes_reinsertion=False,
     # plot_color="",
     **method_info,
@@ -133,8 +133,8 @@ def EI_s1(network, **kwargs):
 
 
 @dismantling_method(
-    name="Explosive Immunization $\sigma=2$",
-    short_name="EI $\sigma=2$",
+    name=r"Explosive Immunization $\sigma=2$",
+    short_name=r"EI $\sigma=2$",
     includes_reinsertion=False,
     # plot_color="",
     **method_info,

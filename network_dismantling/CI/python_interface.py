@@ -135,9 +135,9 @@ method_info = {
 
 
 @dismantling_method(
-    name="Collective Influence $\ell-1$",
+    name=r"Collective Influence $\ell-1$",
     # display_name="GND",
-    short_name="CI $\ell-1$",
+    short_name=r"CI $\ell-1$",
     **method_info,
 )
 @dismantler_wrapper
@@ -148,9 +148,9 @@ def CollectiveInfluenceL1(network, stop_condition, **kwargs):
 
 
 @dismantling_method(
-    name="Collective Influence $\ell-2$",
+    name=r"Collective Influence $\ell-2$",
     # display_name="GND",
-    short_name="CI $\ell-2$",
+    short_name=r"CI $\ell-2$",
     **method_info,
 )
 @dismantler_wrapper
@@ -161,9 +161,9 @@ def CollectiveInfluenceL2(network, stop_condition, **kwargs):
 
 
 @dismantling_method(
-    name="Collective Influence $\ell-3$",
+    name=r"Collective Influence $\ell-3$",
     # display_name="GND",
-    short_name="CI $\ell-3$",
+    short_name=r"CI $\ell-3$",
     **method_info,
 )
 @dismantler_wrapper

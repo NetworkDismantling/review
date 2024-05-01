@@ -16,6 +16,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
+import importlib
 import pkgutil
 
 from network_dismantling.GDM.models.base import BaseModel
@@ -24,8 +25,19 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
     if module_name.startswith("_"):
         continue
 
-    _module = loader.find_module(module_name).load_module(module_name)
-    globals()[module_name] = _module
+    _module = None
+    try:
+        _module = importlib.import_module(module_name)
+    except Exception as e:
+        try:
+            _module = loader.find_module(module_name).load_module(module_name)
+        except Exception as e:
+            pass
+
+    if _module is None:
+        pass
+    else:
+        globals()[module_name] = _module
 
 models_mapping = dict((cls.__name__, cls) for cls in BaseModel.__subclasses__())
 

@@ -90,12 +90,14 @@ def to_graphtool(g):
 
 def main(args):
     if args.output is None:
+        if args.input.is_dir():
+            args.output = args.input / "converted"
+        elif args.input.is_file():
+            args.output = args.input.with_suffix(f".converted.{args.output_ext}")
+
         args.output = args.input
 
-    if not args.output.is_dir():
-        exit("Error: output must be a directory!")
-
-    if not args.output.exists():
+    if args.output.is_dir() and not args.output.exists():
         args.output.mkdir(parents=True)
 
     if not isinstance(args.input_ext, list):
@@ -105,8 +107,11 @@ def main(args):
         args.output.mkdir(parents=True)
 
     files = []
-    for ext in args.input_ext:
-        files.extend(glob(str(args.input / ("*." + ext))))
+    if args.input.is_file():
+        files.append(args.input)
+    else:
+        for ext in args.input_ext:
+            files.extend(glob(str(args.input / ("*." + ext))))
 
     create_using = nx.Graph
 
@@ -152,7 +157,7 @@ def main(args):
             try:
                 _, writer = get_io_helpers(ext=args.output_ext)
 
-                writer(network, str(output_file), data=(args.no_weights is False))
+                writer(network, str(output_file))#, data=(args.no_weights is False))
             except ValueError as e:
                 logger.exception(e)
                 continue
@@ -163,14 +168,17 @@ if __name__ == "__main__":
     logger.setLevel(logging.INFO)
     logger.addHandler(TqdmLoggingHandler())
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        prog="python network_dismantling/converter.py",
+        description="Converts undirected and unweighted networks between different formats",
+    )
 
     parser.add_argument(
         "-i",
         "--input",
         type=Path,
         default=None,
-        help="Location of the input networks (directory)",
+        help="Location of the input network (single file) or of the directory containing the networks to convert",
     )
 
     parser.add_argument(
@@ -179,16 +187,16 @@ if __name__ == "__main__":
         type=Path,
         default=None,
         required=False,
-        help="Location of the output directory",
+        help="Location of the output directory. By default, it will be the same as the input directory",
     )
 
-    parser.add_argument(
-        "-nw",
-        "--no_weights",
-        default=False,
-        action='store_true',
-        help="Discard weights",
-    )
+    # parser.add_argument(
+    #     "-nw",
+    #     "--no_weights",
+    #     default=False,
+    #     action='store_true',
+    #     help="Discard weights",
+    # )
 
     parser.add_argument(
         "-ei",
@@ -196,8 +204,9 @@ if __name__ == "__main__":
         type=str,
         nargs="*",
         default=sorted(get_supported_exts()),
+        choices=sorted(get_supported_exts()),
         required=False,
-        help="Input extension without dot",
+        help="Input extension without dot. Required if input is a directory",
     )
 
     parser.add_argument(
@@ -205,10 +214,24 @@ if __name__ == "__main__":
         "--output_ext",
         type=str,
         default=None,
+        choices=sorted(list(get_supported_exts()) + ["gt"]),
         required=True,
         help="Output file extension without dot",
     )
 
     args, cmdline_args = parser.parse_known_args()
+
+    for i, input_format in enumerate(args.input_ext):
+        if input_format.count(".") > 0:
+            args.input_ext[i] = input_format.replace(".", "")
+
+        if input_format not in get_supported_exts():
+            exit(f"Input format {input_format} not supported")
+
+    if args.output_ext.count(".") > 0:
+        args.output_ext = args.output_ext.replace(".", "")
+
+    # if args.output_ext not in get_supported_exts():
+    #     exit(f"Output format {args.output_ext} not supported")
 
     main(args)

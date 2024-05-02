@@ -17,6 +17,7 @@
 #   along with the code.  If not, see <http://www.gnu.org/licenses/>.
 
 from argparse import ArgumentParser
+from operator import itemgetter
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from network_dismantling import dismantling_methods
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.plot import replace_labels, rename_networks
 
@@ -153,12 +155,19 @@ def display_df(args, df, print=print):
 
     df.loc[df["static"] == False, "heuristic"] = df["heuristic"] + " (dynamic)"
 
-    df["heuristic"] = df["heuristic"].apply(lambda x: x.replace("_", " ").strip().title())
+    heuristic_name = {}
+    for heuristic in df["heuristic"].unique():
+        if heuristic not in dismantling_methods:
+
+            heuristic_name[heuristic] = heuristic.replace("_", " ").strip().title()
+        else:
+            heuristic_name[heuristic] = dismantling_methods[heuristic].short_name
+
+    df["heuristic"] = df["heuristic"].apply(lambda x: heuristic_name.get(x, x))
     df["network"] = df["network"].apply(lambda x: rename_networks.get(x, x))
 
     # Rename heuristic names
-    df.replace(
-        {
+    df.replace({
             "heuristic": replace_labels
         },
         inplace=True
@@ -245,16 +254,13 @@ def display_df(args, df, print=print):
             multirow_align="t",
             multicol_align="r",
         )
-        output_df.to_latex(str(file), index=True, header=True, sparsify=True)  # , float_format="%.0f")
+        output_df.to_latex(str(file),
+                           index=True,
+                           header=True,
+                           sparsify=True,
+                           # float_format="%.0f",
+                           )
 
-        # # create a second figure for the legend
-        # figLegend = pylab.figure()
-        #
-        # file = file.with_suffix(".legend.pdf")
-        # # produce a legend for the objects in the other figure
-        # pylab.figlegend(*fig.get_legend_handles_labels(), loc='upper left')
-        #
-        # figLegend.savefig(str(file), bbox_inches='tight')
     else:
         plt.show()
 
@@ -263,12 +269,30 @@ def reorder_heuristics(df_sum):
     # TODO improve this, for instance by using the dismantler_methods information
 
     sum_values = df_sum.to_dict()
-    # order = list(map(itemgetter(0), sorted(sum_values.items(), key=itemgetter(1))))
-    order = sorted(sum_values.keys())
+    order = list(map(itemgetter(0), sorted(sum_values.items(), key=itemgetter(1))))
+    # order = sorted(sum_values.keys())
 
-    return \
-            [x for x in order if (not ("+R" in x or "CoreHD" in x or "CI" in x or "FINDER" in x))] + \
-            [x for x in order if ("+R" in x or "CoreHD" in x or "CI" in x or "FINDER" in x)]
+    short_names_to_long = {
+        method.short_name: name for name, method in dismantling_methods.items()
+    }
+    without_reinsertion = []
+    with_reinsertion = []
+
+    for heuristic in order:
+        dismantling_method = dismantling_methods.get(short_names_to_long[heuristic], None)
+
+        if dismantling_method is None:
+            if "+R" in heuristic:
+                with_reinsertion.append(heuristic)
+            else:
+                without_reinsertion.append(heuristic)
+        else:
+            if dismantling_method.includes_reinsertion:
+                with_reinsertion.append(heuristic)
+            else:
+                without_reinsertion.append(heuristic)
+
+    return without_reinsertion + with_reinsertion
 
 
 FUNCTION_MAP = {

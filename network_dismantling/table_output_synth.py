@@ -25,11 +25,11 @@ import pandas as pd
 import seaborn as sns
 from parse import compile
 
+from network_dismantling import dismantling_methods
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.humanize_helper import intword
 from network_dismantling.plot import replace_labels
 from network_dismantling.table_output import reorder_heuristics
-
 
 sns.set_theme(context="paper",
               style="whitegrid",
@@ -153,7 +153,16 @@ def display_df(args, df, print=print):
 
     df.loc[df["static"] == False, "heuristic"] = df["heuristic"] + " (dynamic)"
 
-    df["heuristic"] = df["heuristic"].apply(lambda x: x.replace("_", " ").strip().title())
+    heuristic_name = {}
+    for heuristic in df["heuristic"].unique():
+        if heuristic not in dismantling_methods:
+
+            heuristic_name[heuristic] = heuristic.replace("_", " ").strip().title()
+        else:
+            heuristic_name[heuristic] = dismantling_methods[heuristic].short_name
+
+    df["heuristic"] = df["heuristic"].apply(lambda x: heuristic_name.get(x, x))
+
     df.replace({"heuristic": replace_labels}, inplace=True)
 
     df.columns = [x.title() for x in df.columns]

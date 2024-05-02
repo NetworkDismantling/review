@@ -358,8 +358,10 @@ def main(args, logger=logging.getLogger("dummy")):
             cancel_futures=False,
         )
     df_queue.put(None)
+    log_queue.put(None)
 
     dp.join()
+    lp.join()
 
 
 def get_df_columns():

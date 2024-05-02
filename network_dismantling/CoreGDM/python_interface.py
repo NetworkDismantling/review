@@ -379,7 +379,7 @@ method_info = dict(
 @dismantling_method(name="CoreGDM",
                     short_name="CoreGDM",
 
-                    plot_color="#3080bd",
+                    plot_color="#13334b",
 
                     includes_reinsertion=True,
                     **method_info)

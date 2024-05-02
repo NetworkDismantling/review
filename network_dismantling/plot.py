@@ -192,6 +192,7 @@ def display_df(df, args):
         group_df_filtered = group_df.loc[:, [x for x in group_df.columns if
                                              x not in filtered_columns]
                             ]
+
         group_df_filtered["heuristic"] = group_df_filtered["heuristic"].apply(
             lambda x: dismantling_methods[x].short_name or x
         )

@@ -411,6 +411,9 @@ def dismantler_wrapper(function: Callable):
             **kwargs
     ):
         generator_args = kwargs.pop("generator_args")
+
+        logger: logging.Logger
+
         try:
             logger = kwargs.get("logger")
 
@@ -420,7 +423,6 @@ def dismantler_wrapper(function: Callable):
                                         logging.getLogger("dummy")
                                         )
 
-        logger: logging.Logger
         generator_args["sorting_function"] = function
 
         removals, prediction_time, dismantle_time = dismantler(

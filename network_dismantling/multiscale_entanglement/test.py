@@ -3,10 +3,10 @@ import unittest
 from pathlib import Path
 from typing import Dict, List
 
-import network_dismantling
 import numpy as np
 from graph_tool import VertexPropertyMap, Graph
 
+import network_dismantling
 from network_dismantling.common.dataset_providers import (
     # list_files,
     init_network_provider,
@@ -42,17 +42,15 @@ def to_networkx(g: Graph):
     return gn
 
 
-
 test_data_path = "./dataset/unit_test_data/"
 
 base_path = Path(network_dismantling.__file__)
-base_path = base_path.parent # Remove __init__.py
-base_path = base_path.parent # Remove network_dismantling
+base_path = base_path.parent  # Remove __init__.py
+base_path = base_path.parent  # Remove network_dismantling
 
 test_data_path = Path(test_data_path)
 test_data_path = base_path / test_data_path
 test_data_path = test_data_path.resolve()
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -72,7 +70,7 @@ class MyTestCase(unittest.TestCase):
 
         for network_name, network in networks_provider:
 
-            with self.subTest(network=network):
+            with self.subTest(network_name=network_name):
                 print(f"{network_name}: starting testing")
 
                 print(f"{network_name}: calculating new entanglement")
@@ -87,14 +85,26 @@ class MyTestCase(unittest.TestCase):
                 original_entanglement: Dict[int, float] = entanglement_small_original(networkx_network)
                 original_entanglement: List[float] = list(original_entanglement.values())
 
+                try:
+                    np.testing.assert_almost_equal(original_entanglement,
+                                                   new_entanglement,
+                                                   decimal=7,
+                                                   err_msg='',
+                                                   verbose=True,
+                                                   )
 
-                self.assertAlmostEqual(
-                    original_entanglement,
-                    new_entanglement,
-                    msg=f"{network_name}: "
-                        f"original entanglement: {original_entanglement} != "
-                        f"new entanglement: {new_entanglement}"
-                )
+                except AssertionError as e:
+                    logger.error(f"{network_name}: original and new entanglement are not equal")
+                    print(f"{network_name}: original and new entanglement are not equal")
+
+                    for i, (o, n) in enumerate(zip(original_entanglement, new_entanglement)):
+                        if not np.isclose(o, n, atol=1e-7):
+                            print(f"{i}: {o} != {n}")
+
+                    self.fail(f"{network_name}: "
+                              f"original entanglement: {original_entanglement} != \n"
+                              f"new entanglement: {new_entanglement}"
+                              )
 
                 logger.info(f"{network_name}: original and new entanglement are equal")
                 print(f"{network_name}: original and new entanglement are equal")

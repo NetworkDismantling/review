@@ -7,6 +7,7 @@ import numpy as np
 from graph_tool import Graph, VertexPropertyMap
 from graph_tool.spectral import laplacian
 from scipy.linalg import eigvalsh
+from scipy.sparse import csr_matrix
 
 # Beta values
 beta_small = 0.9
@@ -20,7 +21,8 @@ p_threshold = 10 ** -20
 
 def get_sorted_eigvals(G: Graph):
     # Ls = np.sort(nx.laplacian_spectrum(G))
-    L = laplacian(G)
+    L: csr_matrix = laplacian(G)
+    L: np.matrix = L.toarray()
     eigvals = eigvalsh(L)
 
     Ls = np.sort(eigvals)
@@ -130,7 +132,7 @@ def get_entropy(Ls,
 
 
 def entropy(G, beta):
-    Ls = np.sort(nx.laplacian_spectrum(G))
+    Ls = get_sorted_eigvals(G)
 
     return get_entropy(Ls, beta)
 
@@ -240,10 +242,13 @@ def entanglement(G: Graph,
         return S_2 - S_1
         # entropy_property[i] = S_2 - S_1
 
-    with ProcessPoolExecutor() as pool:
-        entropy_values = pool.map(compute_entropy_delta,
-                                  G.iter_vertices(),
-                                  )
+    entropy_values = []
+    for i in G.iter_vertices():
+        entropy_values.append(compute_entropy_delta(i))
+    # with ProcessPoolExecutor() as pool:
+    #     entropy_values = pool.map(compute_entropy_delta,
+    #                               G.iter_vertices(),
+    #                               )
 
     entropy_property = G.new_vertex_property("double",
                                              vals=entropy_values,

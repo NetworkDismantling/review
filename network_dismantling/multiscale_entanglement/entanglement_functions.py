@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from logging import Logger, getLogger
 
@@ -212,9 +213,14 @@ def entanglement(G: Graph,
                                   beta=beta,
                                   logger=logger,
                                   )
-    entropy_property = G.new_vertex_property("double")
     degree_property = G.degree_property_map("out")
-    for i in G.iter_vertices():
+
+    def compute_entropy_delta(  # G: Graph,
+            # S_1: float,
+            # beta: float,
+            # degree_property: VertexPropertyMap,
+            i: int,
+    ):
         k = degree_property[i]
 
         G_i = deepcopy(G)
@@ -230,8 +236,18 @@ def entanglement(G: Graph,
         S_star = entropy(G_star, beta)
 
         S_2 = S_2 + S_star
-        entropy_property[i] = S_2 - S_1
 
+        return S_2 - S_1
+        # entropy_property[i] = S_2 - S_1
+
+    with ProcessPoolExecutor() as pool:
+        entropy_values = pool.map(compute_entropy_delta,
+                                  G.iter_vertices(),
+                                  )
+
+    entropy_property = G.new_vertex_property("double",
+                                             vals=entropy_values,
+                                             )
     return entropy_property
 
 
@@ -240,12 +256,14 @@ def entanglement_small(G: Graph,
                        ):
     return entanglement(G, beta)
 
+
 def entanglement_mid(G: Graph,
                      beta=beta_mid,
                      ):
     return entanglement(G, beta)
 
+
 def entanglement_large(G: Graph,
-                          beta=beta_large,
-                          ):
-     return entanglement(G, beta)
+                       beta=beta_large,
+                       ):
+    return entanglement(G, beta)

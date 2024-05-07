@@ -1,7 +1,7 @@
 import logging
 import unittest
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import network_dismantling
 import numpy as np
@@ -79,11 +79,12 @@ class MyTestCase(unittest.TestCase):
 
                 print(f"{network_name}: calculating original entanglement")
                 original_entanglement: Dict[int, float] = entanglement_small_original(networkx_network)
-                original_entanglement: np.ndarray = np.ndarray(list(original_entanglement.values()))
+                original_entanglement: List[float] = list(original_entanglement.values())
 
                 print(f"{network_name}: calculating new entanglement")
                 new_entanglement: VertexPropertyMap = entanglement_small_new(network)
                 new_entanglement: np.ndarray = new_entanglement.get_array()
+                new_entanglement: List[float] = new_entanglement.tolist()
 
                 self.assertAlmostEqual(
                     original_entanglement,

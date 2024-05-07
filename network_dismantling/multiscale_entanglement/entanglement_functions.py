@@ -1,13 +1,13 @@
-from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
+from functools import partial
 from logging import Logger, getLogger
 
-import networkx as nx
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap
 from graph_tool.spectral import laplacian
 from scipy.linalg import eigvalsh
 from scipy.sparse import csr_matrix
+from tqdm.contrib.concurrent import process_map
 
 # Beta values
 beta_small = 0.9
@@ -30,8 +30,8 @@ def get_sorted_eigvals(G: Graph):
     return Ls
 
 
-def get_first_non_zero_laplacian_eig(Ls,
-                                     zero_threshold=zero_threshold,
+def get_first_non_zero_laplacian_eig(Ls: np.ndarray,
+                                     zero_threshold: float = zero_threshold,
                                      ):
     return Ls[np.where(Ls > zero_threshold)[0]][0]
 
@@ -97,12 +97,12 @@ def get_first_non_zero_laplacian_eig(Ls,
 #     return S, beta
 
 
-def entropy_diff_time(G,
-                      beta,
-                      p_threshold=p_threshold,
-                      zero_threshold=zero_threshold,
+def entropy_diff_time(G: Graph,
+                      beta: float,
+                      p_threshold: float = p_threshold,
+                      zero_threshold: float = zero_threshold,
                       logger: Logger = getLogger("dummy"),
-                      **kwargs):
+                      **kwargs) -> tuple[float, float]:
     Ls = get_sorted_eigvals(G)
     diff_time = get_first_non_zero_laplacian_eig(Ls,
                                                  zero_threshold=zero_threshold,
@@ -117,10 +117,10 @@ def entropy_diff_time(G,
     return S, beta
 
 
-def get_entropy(Ls,
-                beta,
+def get_entropy(Ls: np.ndarray,
+                beta: float,
                 p_threshold=p_threshold,
-                ):
+                ) -> float:
     sp = np.exp(-beta * Ls)
 
     Z = np.sum(sp)
@@ -131,7 +131,9 @@ def get_entropy(Ls,
     return S
 
 
-def entropy(G, beta):
+def entropy(G: Graph,
+            beta: float,
+            ):
     Ls = get_sorted_eigvals(G)
 
     return get_entropy(Ls, beta)
@@ -194,6 +196,31 @@ def entropy(G, beta):
 #     return ent
 
 
+def compute_entropy_value(
+        i: int,
+        G: Graph,
+        beta: float,
+        degree_property: VertexPropertyMap,
+):
+    k = degree_property[i]
+
+    G_i: Graph = deepcopy(G)
+    G_i.set_fast_edge_removal(True)
+
+    G_i.remove_vertex(i,
+                      fast=True,
+                      )
+
+    S_2 = entropy(G_i, beta)
+
+    G_star = star_graph(k + 1)
+    S_star = entropy(G_star, beta)
+
+    S_2 = S_2 + S_star
+
+    return S_2
+
+
 def star_graph(k: int) -> Graph:
     G: Graph = Graph(directed=False)
 
@@ -217,38 +244,22 @@ def entanglement(G: Graph,
                                   )
     degree_property = G.degree_property_map("out")
 
-    def compute_entropy_delta(  # G: Graph,
-            # S_1: float,
-            # beta: float,
-            # degree_property: VertexPropertyMap,
-            i: int,
-    ):
-        k = degree_property[i]
+    partial_compute_entropy_value = partial(compute_entropy_value,
+                                            G=G,
+                                            beta=beta,
+                                            degree_property=degree_property,
+                                            )
 
-        G_i = deepcopy(G)
-        G_i.set_fast_edge_removal(True)
+    entropy_values = process_map(partial_compute_entropy_value,
+                                 list(G.iter_vertices()),
+                                 chunksize=16,
+                                 desc="Computing entanglement",
+                                 total=G.num_vertices(),
 
-        G_i.remove_vertex(i,
-                          fast=True,
-                          )
-
-        S_2 = entropy(G_i, beta)
-
-        G_star = star_graph(k + 1)
-        S_star = entropy(G_star, beta)
-
-        S_2 = S_2 + S_star
-
-        return S_2 - S_1
-        # entropy_property[i] = S_2 - S_1
-
-    entropy_values = []
-    for i in G.iter_vertices():
-        entropy_values.append(compute_entropy_delta(i))
-    # with ProcessPoolExecutor() as pool:
-    #     entropy_values = pool.map(compute_entropy_delta,
-    #                               G.iter_vertices(),
-    #                               )
+                                 # max_workers=2,
+                                 )
+    entropy_values = np.array(entropy_values)
+    entropy_values -= S_1
 
     entropy_property = G.new_vertex_property("double",
                                              vals=entropy_values,
@@ -257,18 +268,18 @@ def entanglement(G: Graph,
 
 
 def entanglement_small(G: Graph,
-                       beta=beta_small,
+                       beta: float = beta_small,
                        ):
     return entanglement(G, beta)
 
 
 def entanglement_mid(G: Graph,
-                     beta=beta_mid,
+                     beta: float = beta_mid,
                      ):
     return entanglement(G, beta)
 
 
 def entanglement_large(G: Graph,
-                       beta=beta_large,
+                       beta: float = beta_large,
                        ):
     return entanglement(G, beta)

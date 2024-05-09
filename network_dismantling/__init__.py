@@ -19,6 +19,9 @@ import importlib
 import logging
 import pkgutil
 from pathlib import Path
+from typing import Union, List
+
+import pandas as pd
 
 from network_dismantling.common.dismantlers import dismantler_wrapper
 
@@ -41,23 +44,23 @@ class DismantlingMethod:
     name: str = None
     short_name: str = None
 
-    doi = None
-    citation = None
-    description = None
-    authors = None
+    doi: str = None
+    citation: str = None
+    description: str = None
+    authors: Union[str, List[str]] = None
 
     function = None
     dynamic = None
 
-    display_name = None
-    short_display_name = None
+    display_name: str = None
+    short_display_name: str = None
 
     plot_color: str = None
     plot_marker: str = None
 
     # reinsertion: ReinsertionSupport = None
-    includes_reinsertion = False
-    optional_reinsertion = False
+    includes_reinsertion: bool = False
+    optional_reinsertion: bool = False
     reinsertion_function = None
     reinsertion_display_name = None
     reinsertion_short_display_name = None

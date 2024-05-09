@@ -19,17 +19,18 @@
 import inspect
 from functools import wraps
 from pathlib import Path
+from typing import Union, List, Callable
 
 from network_dismantling import DismantlingMethod, dismantling_methods
 
 
-def dismantling_method(name=None,
-                       short_name=None,
-                       includes_reinsertion=False,
-                       description=None,
-                       citation=None,
-                       authors=None,
-                       source=None,
+def dismantling_method(name: str = None,
+                       short_name: str = None,
+                       includes_reinsertion: bool = False,
+                       description: str = None,
+                       citation: str = None,
+                       authors: Union[str, List[str]] = None,
+                       source: str = None,
                        # plot_color: str = None,
                        # plot_marker: str = None,
                        **kwargs,

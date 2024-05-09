@@ -80,7 +80,10 @@ from network_dismantling.common.multiprocessing import (
 logger = None
 
 
-def pool_initializer(log_queue, log_level=logging.INFO):
+def pool_initializer(log_queue,
+                     log_level=logging.INFO,
+                     lock: multiprocessing.Lock = None,
+                     ):
     global logger
 
     logging.basicConfig(
@@ -94,12 +97,14 @@ def pool_initializer(log_queue, log_level=logging.INFO):
     logger = logging.getLogger(__name__)
     # queue_logger.setLevel(logging.DEBUG)
 
+    tqdm.set_lock(lock)
+
 
 def get_predictions(
-    network: Graph,
-    sorting_function: Callable,
-    logger=logging.getLogger("dummy"),
-    **kwargs,
+        network: Graph,
+        sorting_function: Callable,
+        logger=logging.getLogger("dummy"),
+        **kwargs,
 ):
     logger.debug(f"Sorting the predictions...")
     start_time = time()
@@ -133,6 +138,8 @@ def main(args, logger=logging.getLogger("dummy")):
             multiprocessing.set_start_method("spawn", force=True)
     except RuntimeError:
         pass
+
+    multiprocessing.set_start_method("spawn", force=True)
 
     # Create the Multiprocessing Manager
     mp_context: multiprocessing.context = multiprocessing.get_context("spawn")
@@ -224,18 +231,21 @@ def main(args, logger=logging.getLogger("dummy")):
 
     # Create the pool
     with ProcessPoolExecutor(
-        max_workers=args.jobs,
-        mp_context=mp_context,
-        initializer=pool_initializer,
-        initargs=(log_queue, logger.level),
-        # initializer=tqdm.set_lock,
-        # initargs=(multiprocessing.Lock(),),
-        **pool_kwargs,
+            max_workers=args.jobs,
+            mp_context=mp_context,
+            initializer=pool_initializer,
+            initargs=(log_queue,
+                      logger.level,
+                      multiprocessing.Lock(),
+                      ),
+            # initializer=tqdm.set_lock,
+            # initargs=(multiprocessing.Lock(),),
+            **pool_kwargs,
     ) as executor:
         with tqdm(
-            test_networks_list,
-            desc="Networks",
-            position=0,
+                test_networks_list,
+                desc="Networks",
+                position=0,
         ) as tqdm_test_network_list:
             # noinspection PyTypeChecker
             for network_path in tqdm_test_network_list:
@@ -265,8 +275,8 @@ def main(args, logger=logging.getLogger("dummy")):
 
                     df_filtered = network_df.loc[
                         (
-                            network_df[list(df_filter.keys())]
-                            == list(df_filter.values())
+                                network_df[list(df_filter.keys())]
+                                == list(df_filter.values())
                         ).all(axis="columns"),
                         ["network"],
                     ]

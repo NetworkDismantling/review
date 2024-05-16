@@ -1,7 +1,9 @@
 import logging
 from datetime import timedelta
 from time import time, perf_counter_ns
+from typing import Callable, Dict
 
+from graph_tool import Graph
 import numpy as np
 
 
@@ -38,11 +40,11 @@ def add_dismantling_edges(filename, network):
 
 # def _threshold_dismantler(network, predictions, generator_args, stop_condition, dismantler):
 def _threshold_dismantler(
-    network,
-    predictor,
-    generator_args,
-    stop_condition,
-    dismantler,
+    network: Graph,
+    predictor: Callable,
+    generator_args: Dict,
+    stop_condition: int,
+    dismantler: Callable,
     logger=logging.getLogger("dummy"),
     **kwargs,
 ):

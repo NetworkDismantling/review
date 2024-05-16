@@ -9,7 +9,6 @@ from graph_tool import Graph, VertexPropertyMap
 from graph_tool.spectral import laplacian
 from scipy.linalg import eigvalsh
 from scipy.sparse import csr_matrix
-from tqdm.auto import tqdm
 
 # Beta values
 beta_small = 0.9
@@ -238,9 +237,14 @@ def star_graph(k: int) -> Graph:
 
 def entanglement(G: Graph,
                  beta: float,
+                 pool_size: int = None,
+                 mp_manager: multiprocessing.Manager = multiprocessing.get_context("spawn"),
+                 executor: ProcessPoolExecutor = None,
+                 chunksize: int = 16,
                  logger: Logger = getLogger("dummy"),
                  **kwargs
                  ) -> VertexPropertyMap:
+    logger.debug("Kwargs: %s", kwargs)
     S_1, beta = entropy_diff_time(G=G,
                                   beta=beta,
                                   logger=logger,
@@ -254,34 +258,23 @@ def entanglement(G: Graph,
                                             # **kwargs,
                                             )
 
-    with ProcessPoolExecutor(max_workers=None,
-                             mp_context=multiprocessing.get_context("spawn"),
-                             # initializer=tqdm.set_lock,
-                             # initargs=(tqdm.get_lock(),)
-                             ) as ex:
-        chunksize = 16
-        entropy_values = list(tqdm(
-            ex.map(partial_compute_entropy_value,
-                   list(G.iter_vertices()),
-                   chunksize=chunksize,
-                   ),
-            desc="Computing entanglement",
-            total=G.num_vertices(),
-        ))
-    # entropy_values = process_map(partial_compute_entropy_value,
-    #                              list(G.iter_vertices()),
-    #                              chunksize=16,
-    #                              desc="Computing entanglement",
-    #                              total=G.num_vertices(),
-    #                              # max_workers=2,
-    #                              )
+    entropy_values = list(  # tqdm(
+        executor.map(partial_compute_entropy_value,
+                     list(G.iter_vertices()),
+                     chunksize=chunksize,
+                     ),
+        # desc="Computing entanglement",
+        # total=G.num_vertices(),
+        # )
+    )
+
     entropy_values = np.array(entropy_values)
     entropy_values -= S_1
 
     entropy_property = G.new_vertex_property("double",
                                              vals=entropy_values,
                                              )
-    return entropy_property
+    return entropy_property.get_array()
 
 
 def entanglement_small(G: Graph,

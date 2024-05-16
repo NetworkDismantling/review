@@ -23,6 +23,7 @@ from typing import Union, List
 
 import pandas as pd
 
+from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dismantlers import dismantler_wrapper
 
 dismantling_methods = {}
@@ -120,12 +121,12 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
         try:
             _module = importlib.import_module(module_name)
         except Exception as e:
-            logger.debug(f"Exception: {e}\n", exc_info=True)
+            logger.warning(f"Exception: {e}\n", exc_info=True)
 
             try:
                 _module = loader.find_module(module_name).load_module(module_name)
             except Exception as e:
-                logger.debug(f"Exception: {e}\n", exc_info=True)
+                logger.warning(f"Exception: {e}\n", exc_info=True)
 
         if _module is None:
             # print("Error importing:", module_name, e)

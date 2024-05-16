@@ -97,7 +97,7 @@ def grid(
     from tqdm.auto import tqdm
 
     # import network_dismantling
-    from network_dismantling.GDM.common import product_dict
+    from network_dismantling.common.data_structures import product_dict
     from network_dismantling.GDM.grid import process_parameters_wrapper
     from network_dismantling.common.multiprocessing import (
         progressbar_thread,
@@ -272,7 +272,7 @@ def _GDM(
 ):
     import pandas as pd
 
-    from network_dismantling.GDM.common import dotdict
+    from network_dismantling.common.data_structures import dotdict
     from network_dismantling.GDM.dataset_providers import prepare_graph
     from network_dismantling.GDM.extract_gdm_best import (
         extract_best_runs as best_run_extractor,

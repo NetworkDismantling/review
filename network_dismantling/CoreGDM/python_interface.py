@@ -30,7 +30,7 @@ from pathlib import Path
 
 from graph_tool import Graph
 
-from network_dismantling.GDM.common import dotdict
+from network_dismantling.common.data_structures import dotdict, product_dict
 from network_dismantling.GDM.python_interface import models_folder_path
 from network_dismantling._sorters import dismantling_method
 
@@ -107,7 +107,6 @@ def grid(df,
 
     import network_dismantling
     from network_dismantling.CoreGDM.core_grid import process_parameters_wrapper
-    from network_dismantling.GDM.common import product_dict
     from network_dismantling.GDM.dataset_providers import init_network_provider
     from network_dismantling.GDM.dataset_providers import prepare_graph
     # from network_dismantling.GDM.models import models_mapping

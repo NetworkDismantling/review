@@ -26,7 +26,7 @@ from random import seed
 import numpy as np
 import torch
 from graph_tool import Graph
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from torch_geometric import seed_everything
 from torch_geometric.data import Data
 
@@ -202,8 +202,8 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
             stop_condition = int(np.ceil(network_size * float(args.threshold)))
 
             logger.debug(f"Dismantling {filename} according to the predictions. "
-                        f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
-                        )
+                         f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
+                         )
 
             removals, prediction_time, dismantle_time = dismantler(network, predictor, generator_args, stop_condition)
 
@@ -218,7 +218,7 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
                 "lcc_size_at_peak": peak_slcc[3],
                 "slcc_size_at_peak": peak_slcc[4],
 
-                "r_auc": simps(list(r[3] for r in removals), dx=1),
+                "r_auc": simpson(list(r[3] for r in removals), dx=1),
                 "rem_num": len(removals),
 
                 "prediction_time": prediction_time,

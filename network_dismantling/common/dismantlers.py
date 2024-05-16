@@ -6,7 +6,7 @@ from typing import Dict, Callable, Union
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
 from graph_tool.topology import label_components, kcore_decomposition
-from scipy.integrate import simps
+from scipy.integrate import simpson
 
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     threshold_dismantler as external_threshold_dismantler,
@@ -77,7 +77,7 @@ def threshold_dismantler(
         if local_network_lcc_size <= stop_condition:
             break
 
-        current_auc = simps(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
             removals.append((-1, -1, -1, -1, -1))
@@ -176,7 +176,7 @@ def kcore_lcc_threshold_dismantler(
             generator.close()
             break
 
-        current_auc = simps(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
 
@@ -437,7 +437,7 @@ def dismantler_wrapper(
                 dismantler: Callable = dismantler,
                 **kwargs
         ):
-            generator_args = kwargs.pop("generator_args")
+            generator_args = kwargs.pop("generator_args", {})
 
             logger: logging.Logger
 
@@ -449,16 +449,20 @@ def dismantler_wrapper(
                 logger = generator_args.get("logger",
                                             logging.getLogger("dummy")
                                             )
+            logger.debug("dismantler_wrapper_kwargs: %s", kwargs)
 
             generator_args["sorting_function"] = function
 
+            # kwargs["generator_args"] = generator_args
+            logger.debug(f"passing kwargs to dismantler: {kwargs}")
             removals, prediction_time, dismantle_time = dismantler(
                 network=network,
                 predictor=predictor,
                 generator_args=generator_args,
                 # stop_condition=stop_condition,
                 # *args,
-                **kwargs
+                **kwargs,
+                # **generator_args,
             )
 
             peak_slcc = max(removals, key=itemgetter(4))
@@ -480,7 +484,7 @@ def dismantler_wrapper(
                 "slcc_size_at_peak": peak_slcc[4],
                 # "heuristic": heuristic,
                 # "static": None,
-                "r_auc": simps(list(r[3] for r in removals), dx=1),
+                "r_auc": simpson(list(r[3] for r in removals), dx=1),
                 "rem_num": rem_num,
 
                 "prediction_time": prediction_time,

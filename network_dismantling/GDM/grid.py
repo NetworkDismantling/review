@@ -246,7 +246,7 @@ def main(args, nn_model):
     from tqdm import tqdm
 
     import network_dismantling
-    from network_dismantling.GDM.common import product_dict
+    from network_dismantling.common.data_structures import product_dict
     from network_dismantling.GDM.dataset_providers import init_network_provider
     from network_dismantling.common.dataset_providers import list_files
     from network_dismantling.common.df_helpers import df_reader
@@ -774,7 +774,7 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     import network_dismantling
-    from network_dismantling.GDM.common import product_dict
+    from network_dismantling.common.data_structures import product_dict
     from network_dismantling.GDM.config import all_features, threshold, base_models_path
     from network_dismantling.GDM.dataset_providers import init_network_provider
     from network_dismantling.GDM.models import models_mapping

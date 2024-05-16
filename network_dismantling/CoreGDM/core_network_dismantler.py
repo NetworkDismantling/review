@@ -26,7 +26,7 @@ import numpy as np
 import torch
 from graph_tool import Graph, GraphView, VertexPropertyMap
 from graph_tool.topology import kcore_decomposition, label_largest_component
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from torch_geometric import seed_everything
 from tqdm.auto import tqdm
 
@@ -322,7 +322,7 @@ def test(args, model, early_stopping_dict: dict = None, networks_provider=None, 
 
         best_dismantling = removals[-1]
 
-        r_auc = simps(list(r[3] for r in removals), dx=1)
+        r_auc = simpson(list(r[3] for r in removals), dx=1)
         rem_num = best_dismantling[0]
         # rem_num = len(removals)
         min_lcc_size = best_dismantling[3]

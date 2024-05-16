@@ -93,7 +93,8 @@ def dismantling_method(name: str = None,
 
         dismantling_methods[key] = method
 
-        return funct
+        # return funct
+        return method
 
     return wrapper
 

@@ -119,7 +119,7 @@ def main(args):
 
             # TODO !
 
-            from network_dismantling.GDM.common import DefaultDict
+            from network_dismantling.common.data_structures import DefaultDict
             features_to_compute = DefaultDict(False)
             features_to_compute["degree"] = True
             features_to_compute["clustering_coefficient"] = True

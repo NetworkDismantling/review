@@ -29,10 +29,10 @@ from time import time
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
-from scipy.integrate import simps
 from tqdm import tqdm
 
 from network_dismantling.GDM.dataset_providers import list_files
+from network_dismantling.common.dataset_providers import init_network_provider
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
@@ -61,7 +61,7 @@ cached_networks = {}
 
 
 def get_predictions(
-    network, removals, stop_condition, logger=logging.getLogger("dummy"), **kwargs
+        network, removals, stop_condition, logger=logging.getLogger("dummy"), **kwargs
 ):
     start_time = time()
 
@@ -78,10 +78,10 @@ def get_predictions(
 
 
 def reinsert(
-    network,
-    removals,
-    stop_condition,
-    logger=logging.getLogger("dummy"),
+        network,
+        removals,
+        stop_condition,
+        logger=logging.getLogger("dummy"),
 ):
     network_path = get_network_file(network)
 
@@ -218,13 +218,15 @@ def cleanup_cache():
 
 
 def main(
-    args,
-    df=None,
-    test_networks=None,
-    predictor=get_predictions,
-    dismantler=lcc_threshold_dismantler,
-    logger=logging.getLogger("dummy"),
+        args,
+        df=None,
+        test_networks=None,
+        predictor=get_predictions,
+        dismantler=lcc_threshold_dismantler,
+        logger=logging.getLogger("dummy"),
 ):
+    from scipy.integrate import simpson
+
     if df is None:
         # Load the runs dataframe...
         df = df_reader(args.file,
@@ -287,10 +289,10 @@ def main(
         network_df = network_df.head(args.reinsert_first)
 
         with tqdm(
-            network_df.iterrows(),
-            ascii=False,
-            desc="Reinserting",
-            leave=False,
+                network_df.iterrows(),
+                ascii=False,
+                desc="Reinserting",
+                leave=False,
         ) as runs_iterable:
             runs_iterable.set_description(network_name)
 
@@ -339,7 +341,7 @@ def main(
                     "slcc_peak_at": peak_slcc[0],
                     "lcc_size_at_peak": peak_slcc[3],
                     "slcc_size_at_peak": peak_slcc[4],
-                    "r_auc": simps(list(r[3] for r in removals), dx=1),
+                    "r_auc": simpson(list(r[3] for r in removals), dx=1),
                     "rem_num": len(removals),
                 }
 
@@ -464,7 +466,14 @@ if __name__ == "__main__":
 
     args = parse_parameters()
 
+    networks_provider = init_network_provider(
+        location=args.location_test,
+        filter=args.test_filter,
+        logger=logger,
+    )
+    test_networks = dict(networks_provider)
     main(
         args,
+        test_networks=test_networks,
         logger=logger,
     )

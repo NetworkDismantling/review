@@ -32,7 +32,7 @@ from tqdm import tqdm
 
 import network_dismantling
 from network_dismantling.CoreGDM.core_network_dismantler import get_df_columns
-from network_dismantling.GDM.common import product_dict
+from network_dismantling.common.data_structures import product_dict
 from network_dismantling.GDM.config import all_features, threshold
 from network_dismantling.GDM.config import base_models_path
 from network_dismantling.GDM.dataset_providers import init_network_provider

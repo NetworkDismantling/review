@@ -29,14 +29,15 @@ from time import time
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
-from scipy.integrate import simpson
-from tqdm import tqdm
-
 from network_dismantling.common.dataset_providers import init_network_provider
 from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler
+from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler, \
+    threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
+from network_dismantling.common.logging.pipe import LogPipe
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from scipy.integrate import simpson
+from tqdm import tqdm
 
 folder = "network_dismantling/multiscale_entanglement/reinsertion/"
 cd_cmd = r"cd {} && ".format(folder)
@@ -56,13 +57,22 @@ run_columns = [
     "idx",
 ]
 
+lcc_threshold_dismantler
+threshold_dismantler
+
 cached_networks = {}
 
 
 def get_predictions(
-        network, removals, stop_condition, logger=logging.getLogger("dummy"), **kwargs
+        network,
+        removals,
+        stop_condition,
+        logger=logging.getLogger("dummy"),
+        **kwargs
 ):
     start_time = time()
+
+    logger.debug("Running reinsertion algorithm")
 
     predictions = reinsert(
         network=network,
@@ -96,7 +106,11 @@ def reinsert(
 
         cmds = [
             # 'make clean && make',
+
+            # Build the reinsertion program, if necessary
             "make",
+
+            # Run the reinsertion algorithm
             f"./{reinsertion_executable} "
             f"--NetworkFile {network_path} "
             f'--IDFile "{broken_path}" '
@@ -108,11 +122,21 @@ def reinsert(
         for removal in removals:
             broken_fd.write(f"{removal}\n")
 
-        for cmd in cmds:
-            try:
-                check_output(cd_cmd + cmd, shell=True, text=True)  # , stderr=STDOUT))
-            except Exception as e:
-                raise RuntimeError("ERROR! {}".format(e))
+        with LogPipe(logger=logger,
+                     level=logging.ERROR,
+                     ) as stderr_pipe:
+
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running command: {cd_cmd + cmd}")
+                    check_output(cd_cmd + cmd,
+                                 shell=True,
+                                 stderr=stderr_pipe,
+                                 # stderr=STDOUT,
+                                 text=True,
+                                 )
+                except Exception as e:
+                    raise RuntimeError("ERROR! {}".format(e))
 
         with open(output_path, "r+") as tmp:
             num_lines = sum(1 for _ in tmp.readlines())
@@ -197,10 +221,12 @@ def main(
         df=None,
         test_networks=None,
         predictor=get_predictions,
-        dismantler=lcc_threshold_dismantler,
-        # dismantler=threshold_dismantler,
+        # dismantler=lcc_threshold_dismantler,
+        dismantler=threshold_dismantler,
         logger=logging.getLogger("dummy"),
 ):
+    logger.info(f"Using dismantler {dismantler.__name__}")
+
     if df is None:
         # Load the runs dataframe...
         df = df_reader(args.file,
@@ -218,28 +244,6 @@ def main(
         output_df = pd.read_csv(args.output_file)
     else:
         output_df = pd.DataFrame(columns=df.columns)
-
-    # if test_networks is None:
-    #     # TODO defer the loading of the networks
-    #     # Get the list of networks in the folder
-    #     test_networks_list = list_files(
-    #         args.location_test,
-    #         filter=args.test_filter,
-    #     )
-    #     test_networks_list = np.intersect1d(
-    #         [file.stem for file in test_networks_list],
-    #         df["network"].unique(),
-    #     )
-    #
-    #     # TODO create the mapping preserving the file location
-    #     # that was lost in the previous step
-    #
-    #     # # Load the networks
-    #     # test_networks = dict(
-    #     #     storage_provider(args.location_test,
-    #     #                      filter=args.test_filter,
-    #     #                      )
-    #     # )
 
     # Filter the networks in the folder
     df = df.loc[(df["network"].isin(test_networks.keys()))]
@@ -291,11 +295,12 @@ def main(
                     continue
 
                 stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
+
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
-                    # "logger": logger,
                     "network_name": network_name,
+                    "logger": logger,
                 }
 
                 removals, _, _ = dismantler(

@@ -24,7 +24,6 @@ from typing import Dict
 
 import networkx as nx
 import numpy as np
-
 from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 from network_dismantling.converter import get_io_helpers, get_supported_exts
 
@@ -80,28 +79,63 @@ def main(args):
         file = Path(file)
 
         e = np.loadtxt(file, dtype=int)  # read edge_list
+
+        edge_list = []
         G = nx.Graph()
         for m in range(len(e)):
             G.add_edge(*e[m])
+            edge_list.append(e[m])
+
         A = nx.to_numpy_array(G)
         network = nx.from_numpy_array(A)
 
+        # print("edge_list", edge_list)
+        # A = np.array(edge_list)
+        #
+        # A = A - A.min()
+        # network = nx.from_edgelist(A, create_using=create_using)
+        #
+        # print("G:", G)
+        # print("A:", A)
+        # print("network:", network)
+
+        assert network.number_of_edges() == A.shape[0], \
+            f"Number of edges does not match after loading the network: {network.number_of_edges()} != {A.shape[0]}"
+
+        assert network.number_of_nodes() == A.max() + 1, \
+            "Number of nodes does not match after loading the network"
+
+        assert A.min() == 0, "Minimum node id is not 0 but {}".format(A.min())
+
+        assert A.max() == network.number_of_nodes() - 1, \
+            "Maximum node id is not the number of nodes minus 1 but {}".format(A.max())
+
+        # Check for index contiguity
+        assert np.unique(A).shape[0] == network.number_of_nodes(), \
+            "Node ids are not contiguous"
+
         centrality_file = file.parent / "centrality.npy"
         numpy_centrality: Dict = np.load(str(centrality_file),
-                                   allow_pickle=True,
-                                   ).item()
+                                         allow_pickle=True,
+                                         ).item()
 
+        print(numpy_centrality["VE"])
         logger.info(f"Loaded centrality measures from {centrality_file}:\n"
                     # f"{numpy_centrality.dtype}\n"
-                    f"{numpy_centrality}"
+                    # f"{numpy_centrality}"
                     )
 
         for centrality_measure, centrality_dict in numpy_centrality.items():
             logger.info(f"Adding {centrality_measure} with values {centrality_dict} to the network")
 
+            assert len(centrality_dict) == network.number_of_nodes(), \
+                "Number of nodes does not match after loading centrality measures"
+            assert all([node in network for node in centrality_dict.keys()]), \
+                "Nodes in centrality measures not found in the network"
+
             nx.set_node_attributes(network,
-                                values=centrality_dict,
-                                name=centrality_measure,
+                                   values=centrality_dict,
+                                   name=centrality_measure,
                                    )
 
         output_file = Path(args.output) / file.with_suffix("." + args.output_ext)

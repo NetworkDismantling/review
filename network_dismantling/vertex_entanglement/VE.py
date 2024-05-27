@@ -2,10 +2,11 @@ import argparse
 import copy
 import os
 
+from tqdm.auto import tqdm
+
 from network_dismantling.vertex_entanglement.reinsertion import reinsertion, get_gcc
 from network_dismantling.vertex_entanglement.utils import fileUtils
 from network_dismantling.vertex_entanglement.utils.graphUtils import *
-from tqdm.auto import tqdm
 
 
 def generate_Belta(eigValue):
@@ -127,6 +128,7 @@ def VertexEnt(G, belta=None, perturb_strategy='default', printLog=False):
 
 def get_ve_nodeList(graph: nx, VE: np, dismantling_threshold=0.01):
     """
+    This function is more appropriate when there are many identical VE values in the network, otherwise it is recommended to use the get_ve_nodeList_quick function
     当网络中有较多相同的VE值时用该函数更合适，否则建议使用 get_ve_nodeList_quick 函数
     :param graph: Note that nodes should be numbered starting from 0 #注意graph中要求节点从0开始编号
     :param VE:
@@ -139,30 +141,44 @@ def get_ve_nodeList(graph: nx, VE: np, dismantling_threshold=0.01):
     if target_size <= 2:
         target_size = 2
 
+    # Sort VE from small to large and obtain the sorted index list
     delque = np.argsort(VE)  # 对VE从小到大进行排序，并获取排序后的索引列表
 
-    index_lists = []  # 用于存储相同元素的索引
+    # 用于存储相同元素的索引
+    # Index used to store identical elements
+    index_lists = []
     # 遍历排序后的索引列表
+    # Traverse the sorted index list
     for i, index in enumerate(delque):
         if i == 0 or VE[index] != VE[delque[i - 1]]:
             # 若当前元素与前一个元素不相同，则创建新的索引列表
+            # If the current element is different from the previous element, create a new index list
             index_lists.append([index])
         else:
             # 若当前元素与前一个元素相同，则将索引添加到当前列表中
+            # If the current element is the same as the previous element, add the index to the current list
             index_lists[-1].append(index)
 
-    remove_list = []  # 最终的移除顺序
+    # 最终的移除顺序
+    # Final removal order
+    remove_list = []
     gcc_list = []
     for same_VE_list in index_lists:
         while len(same_VE_list) > 0:
             max_index = np.argmax([G.degree[v] for v in same_VE_list])
             remove_node = same_VE_list[max_index]
+
             G.remove_node(remove_node)
+
             temp_gcc = get_gcc(G)
             if temp_gcc <= target_size:
                 break
-            remove_list.append(remove_node + 1)  # +1是因为 G中节点从0开始，而输出结果节点从1开始
+
+            # +1是因为 G中节点从0开始，而输出结果节点从1开始
+            # +1 is because the nodes in G start from 0, and the output result nodes start from 1
+            remove_list.append(remove_node + 1)
             gcc_list.append(temp_gcc)
+
             del same_VE_list[max_index]
 
     return remove_list, gcc_list
@@ -177,8 +193,13 @@ def get_ve_nodeList_quick(graph: nx, VE: np, dismantling_threshold=0.01):
         target_size = 2
 
     ds = np.array([G.degree(v) for v in range(G.number_of_nodes())])
-    delque = np.argsort(VE - ds / 100000)  # 对VE从小到大进行排序，并获取排序后的索引列表
-    remove_list = []  # 最终的移除顺序
+    # 对VE从小到大进行排序，并获取排序后的索引列表
+    # Sort VE from small to large and obtain the sorted index list
+    delque = np.argsort(VE - ds / 100000)
+
+    # 最终的移除顺序
+    # Final removal order
+    remove_list = []
     gcc_list = []
 
     for v in tqdm(delque, desc="Computing gcc", unit="node"):

@@ -223,16 +223,16 @@ def vertex_entanglement(network: Graph,
 
     return VE_cent
 
-# @dismantling_method(
-#     name=r"Vertex Entanglement + Reinsertion",
-#     short_name=r"$\mathrm{VE}$ + R",
-#     includes_reinsertion=True,
-#     plot_color="#34eb46",
-#     # **method_info,
-# )
-# @dismantler_wrapper
-# def vertex_entanglement_reinsertion(network: Graph,
-#                                     stop_condition: int,
-#                                     logger: Logger = getLogger("dummy"),
-#                                     **kwargs):
-#     raise NotImplementedError
+@dismantling_method(
+    name=r"Vertex Entanglement + Reinsertion",
+    short_name=r"$\mathrm{VE}$ + R",
+    includes_reinsertion=True,
+    plot_color="#34eb46",
+    # **method_info,
+)
+@dismantler_wrapper
+def vertex_entanglement_reinsertion(network: Graph,
+                                    stop_condition: int,
+                                    logger: Logger = getLogger("dummy"),
+                                    **kwargs):
+    raise NotImplementedError

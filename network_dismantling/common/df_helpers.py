@@ -11,7 +11,10 @@ def get_df_columns(file: Path):
     return cols
 
 
-def read_without_removals(file, exclude_columns: Union[str, List[str]] = None):
+def read_without_removals(file,
+                          exclude_columns: Union[str, List[str]] = None,
+                          **kwargs,
+                          ):
     if exclude_columns is None:
         exclude_columns = ["removals"]
     elif isinstance(exclude_columns, str):
@@ -22,22 +25,43 @@ def read_without_removals(file, exclude_columns: Union[str, List[str]] = None):
     return read_without_columns(
         file=file,
         exclude_columns=exclude_columns,
+        **kwargs,
     )
 
 
 def read_without_columns(
-    file,
-    exclude_columns: Union[str, List[str]],
-    dtype_dict=None,
+        file,
+        exclude_columns: Union[str, List[str]],
+        read_index: Union[None, int, List[int]] = None,
+        dtype_dict=None,
 ):
     if exclude_columns is None:
         exclude_columns = []
-        
+
     if isinstance(exclude_columns, str):
         exclude_columns = [exclude_columns]
 
     # Read column names from file
     cols = get_df_columns(file)
+
+    indices_to_read = None
+    if read_index is not None:
+        if isinstance(read_index, int):
+            indices_to_read = [read_index]
+
+        buffer = []
+        for index_to_read in indices_to_read:
+            buffer.append(
+                pd.read_csv(
+                    str(file),
+                    skiprows=index_to_read - 1,
+                    nrows=1,
+                    usecols=[i for i in cols if i not in exclude_columns],
+                    dtype=dtype_dict,
+                )
+            )
+
+        return pd.concat(buffer, ignore_index=True)
 
     # Use list comprehension to remove the unwanted column in **usecol**
     df = pd.read_csv(
@@ -50,14 +74,15 @@ def read_without_columns(
 
 
 def df_reader(
-    files,
-    include_removals: bool = False,
-    file_callbacks: Union[Callable, List[Callable]] = None,
-    raise_on_missing_file: bool = True,
-    expected_columns: Union[str, List[str]] = None,
-    exclude_columns: Union[str, List[str]] = None,
-    at_least_one_file: bool = False,
-    dtype_dict: Dict = None,
+        files,
+        include_removals: bool = False,
+        file_callbacks: Union[Callable, List[Callable]] = None,
+        raise_on_missing_file: bool = True,
+        expected_columns: Union[str, List[str]] = None,
+        exclude_columns: Union[str, List[str]] = None,
+        at_least_one_file: bool = False,
+        dtype_dict: Dict = None,
+        read_index: Union[None, int, List[int], Dict[Union[str, Path], List[int]]] = None,
 ):
     from pathlib import Path
 
@@ -71,6 +96,26 @@ def df_reader(
     if dtype_dict is None:
         dtype_dict = {}
     dtype_dict.setdefault("network", "category")
+
+    if read_index is not None:
+        if len(files) > 0:
+            if isinstance(read_index, list):
+                if len(read_index) != len(files):
+                    raise ValueError(
+                        f"read_index must have the same length as files. Found {len(read_index)} read_index values and {len(files)} files."
+                    )
+
+                read_index = {file: [index] if isinstance(index, int) else index
+                              for file, index in
+                              zip(files, read_index)
+                              }
+
+            elif isinstance(read_index, dict):
+                for file in files:
+                    if file not in read_index:
+                        raise ValueError(
+                            f"read_index must have a value for each file. Missing value for {file}."
+                        )
 
     df_buffer = []
     for file in files:
@@ -86,21 +131,17 @@ def df_reader(
                 continue
 
         if include_removals is False:
-            df = read_without_removals(
-                file,
-                exclude_columns=exclude_columns,
-            )
-        else:
-            df = read_without_columns(
-                file,
-                exclude_columns=exclude_columns,
-            )
+            read_function = read_without_removals
 
-        # for expected_column in expected_columns:
-        #     if expected_column not in df:
-        #         raise ValueError(
-        #             f"Expected column {expected_column} not found in {file}."
-        #         )
+        else:
+            read_function = read_without_columns
+
+        df = read_function(
+            file,
+            exclude_columns=exclude_columns,
+            read_index=read_index[file] if read_index is not None else None,
+        )
+
         if expected_columns is not None:
             if (len(df.columns) != len(expected_columns)) or (df.columns != expected_columns).all():
                 raise ValueError(
@@ -121,6 +162,10 @@ def df_reader(
                     file=file,
                     df=df,
                 )
+        df["idx"] = df.index
+        df["file"] = f"{file}"
+
+        df["file"] = df["file"].astype("category")
 
         df_buffer.append(df)
 
@@ -146,3 +191,22 @@ def df_reader(
     #     df["network"] = df["network"].astype(str)
 
     return df
+
+
+# def read_index(file,
+#                index_col="idx",
+#                ):
+#     # Read column names from file
+#     cols = get_df_columns(file)
+#
+#     # Use list comprehension to remove the unwanted column in **usecol**
+#     df = pd.read_csv(
+#         str(file),
+#         usecols=[i for i in cols if i not in exclude_columns],
+#         dtype=dtype_dict,
+#     )
+#
+#     return pd.read_csv(
+#         str(file),
+#         index_col=index_col,
+#     )

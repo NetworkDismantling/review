@@ -139,6 +139,8 @@ def prepare_df(df, args):
 def display_df(df, args):
     prepare_df(df, args)
 
+    print(f"Storing to {args.output}")
+
     groups = df.groupby("network")
     for network_name, group_df in groups:
 
@@ -325,7 +327,7 @@ if __name__ == "__main__":
         "--output",
         type=Path,
         default=None,
-        required=False,
+        required=True,
         help="Output plot location",
     )
 
@@ -364,5 +366,7 @@ if __name__ == "__main__":
         choices=["paper", "talk", "poster"],
     )
     args, cmdline_args = parser.parse_known_args()
+
+    logger.warning(f"Unknown arguments: {cmdline_args}")
 
     FUNCTION_MAP[args.command](args)

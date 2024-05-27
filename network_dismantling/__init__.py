@@ -45,6 +45,8 @@ class DismantlingMethod:
     name: str = None
     short_name: str = None
 
+    _depends_on: str = None
+
     doi: str = None
     citation: str = None
     description: str = None
@@ -80,6 +82,8 @@ class DismantlingMethod:
                  # authors=None,
                  # source=None,
                  # return_type=None,
+                 # depends_on: Union[str, Callable] = None,
+
                  **kwargs
                  ):
 
@@ -107,6 +111,35 @@ class DismantlingMethod:
             output = pd.DataFrame(output)
 
         return output
+
+    def _format_input(self, input: pd.DataFrame):
+        return input
+
+    def _filter_input(self, input: pd.DataFrame):
+        return input
+
+    def handle_parameters(self, **kwargs):
+        return product_dict(kwargs)
+
+    @property
+    def depends_on(self):
+        if self._depends_on is None:
+            return None
+
+        return dismantling_methods[self._depends_on]
+
+    @depends_on.setter
+    def depends_on(self, value):
+        if value is None:
+            self._depends_on = None
+        else:
+
+            if isinstance(value, str):
+                self._depends_on = value
+            elif isinstance(value, DismantlingMethod):
+                self._depends_on = value.key
+            else:
+                self._depends_on = value.__name__
 
 
 __all__ = []

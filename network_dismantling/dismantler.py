@@ -39,11 +39,13 @@
 import argparse
 import logging
 import threading
+from ast import literal_eval
 from datetime import timedelta
 from logging.handlers import QueueHandler
+from operator import itemgetter
 from pathlib import Path
 from time import time
-from typing import Callable
+from typing import Callable, Union, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -106,18 +108,58 @@ def get_predictions(
         logger=logging.getLogger("dummy"),
         **kwargs,
 ):
-    logger.debug(f"Sorting the predictions...")
+    logger.debug(f"Calling the sorting function...")
     start_time = time()
 
     values = sorting_function(network, **kwargs)
 
     time_spent = time() - start_time
-    logger.debug("Heuristics returned. Took {}".format(timedelta(seconds=(time_spent))))
+    logger.debug(f"Heuristics returned. Took {timedelta(seconds=(time_spent))}")
 
     return values, time_spent
 
 
+def check_dependencies(heuristics: List[str],
+                       logger: logging.Logger = logging.getLogger("dummy"),
+                       ):
+    # Reverse the list to check the dependencies in the correct order
+    # TODO cyclic dependencies are not detected
+    heuristics = heuristics[::-1]
+    for i, heuristic in enumerate(heuristics):
+        dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
+        display_name: str = dismantling_method.name
+        display_name_short: str = dismantling_method.short_name
+
+        depends_on = dismantling_method.depends_on
+        logger.debug(f"Dismantling method {display_name} depends on {depends_on}")
+        if depends_on is not None:
+            if isinstance(depends_on, str):
+                depends_on = dismantling_methods.get(depends_on.key, None)
+
+                if depends_on is None:
+                    logger.error(f"Dependency {dismantling_method.depends_on} not found for heuristic {display_name}")
+                    continue
+
+            if depends_on.key not in heuristics:
+                heuristics.insert(i + 1, depends_on.key)
+                logger.info(f"Added dependency {depends_on.name} for heuristic {display_name}")
+
+            elif heuristics.index(depends_on.key) < i:
+                heuristics.remove(depends_on.key)
+                heuristics.insert(i, depends_on.key)
+                logger.debug(f"Moved dependency {depends_on.name} for heuristic {display_name}")
+
+    # Reverse the list to run the heuristics in the correct order
+    heuristics = heuristics[::-1]
+
+    logger.debug(f"Final heuristics list: {heuristics}")
+
+    return heuristics
+
+
 def main(args, logger=logging.getLogger("dummy")):
+    from multiprocessing.managers import SyncManager
+
     try:
         from deadpool import Deadpool as ProcessPoolExecutor
 
@@ -143,7 +185,6 @@ def main(args, logger=logging.getLogger("dummy")):
 
     # Create the Multiprocessing Manager
     mp_context: multiprocessing.context = multiprocessing.get_context("spawn")
-    from multiprocessing.managers import SyncManager
 
     mp_manager: multiprocessing.Manager = SyncManager(ctx=mp_context)
     mp_manager.start()
@@ -257,110 +298,164 @@ def main(args, logger=logging.getLogger("dummy")):
                 # Get the rows of the dataframe with the same network name
                 # Note that the network is a categorical column
                 # Avoid .loc for performance reasons
-
                 network_df = df[df["network"] == name]
-                # network_df = df.loc[(df["network"] == name)]
 
-                networks_provider = None
-                network_size = None
-                generator_args = None
+                logger.debug(f"Network {name} has {len(network_df)} rows in the dataframe\n{network_df}")
+                networks_provider: Union[Dict, None] = None
+                network_size: int = None
+                generator_args: Union[Dict, None] = None
 
-                # Iterate over the heuristics
-                for heuristic in args.heuristics:
-                    dismantling_method = dismantling_methods[heuristic]
+                with tqdm(args.heuristics,
+                            desc="Heuristics",
+                            position=1,
+                            ) as tqdm_heuristics:
+                    # Iterate over the heuristics
+                    for heuristic in tqdm_heuristics:
+                        dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
 
-                    df_filter = {
-                        "heuristic": heuristic,
-                    }
+                        logger.debug(f"Running heuristic {dismantling_method.display_name}")
+                        df_filtered = network_df[network_df["heuristic"] == dismantling_method.key]
 
-                    df_filtered = network_df.loc[
-                        (
-                                network_df[list(df_filter.keys())]
-                                == list(df_filter.values())
-                        ).all(axis="columns"),
-                        ["network"],
-                    ]
-
-                    # TODO also check if all the requested metrics are present?
-                    if len(df_filtered) != 0:
-                        # Nothing to do. The network was already tested
-                        continue
-
-                    if networks_provider is None:
-                        # Delay the network loading until the heuristic is actually run
-                        # (to avoid loading the network if it is not needed, e.g., the heuristics have been already run)
-
-                        logger.debug(f"Loading network: {name}")
-
-                        networks_provider = init_network_provider(
-                            location=network_path.parent,
-                            filter=f"{name}",
-                            logger=logger,
-                        )
-
-                        if len(networks_provider) == 0:
-                            logger.error(f"Network {name} not found!")
+                        # TODO also check if all the requested metrics are present?
+                        if len(df_filtered) != 0:
+                            # Nothing to do. The network was already tested
                             continue
 
-                        elif len(networks_provider) > 1:
-                            logger.error(f"More than one network found for {name}!")
-                            continue
+                        if networks_provider is None:
+                            # Delay the network loading until the heuristic is actually run
+                            # (to avoid loading the network if it is not needed, e.g., the heuristics have been already run)
 
-                        network_name, network = networks_provider[0]
+                            logger.debug(f"Loading network: {name}")
 
-                        if network_name != name:
-                            logger.error(
-                                f"Loaded network with filename {network_name} does not match the expected filename {name}!"
+                            networks_provider = init_network_provider(
+                                location=network_path.parent,
+                                filter=f"{name}",
+                                logger=logger,
                             )
-                            continue
 
-                        network_size = network.num_vertices()
+                            if len(networks_provider) == 0:
+                                logger.error(f"Network {name} not found!")
+                                continue
 
-                        # Compute stop condition
-                        stop_condition = np.ceil(network_size * args.threshold)
+                            elif len(networks_provider) > 1:
+                                logger.error(f"More than one network found for {name}!")
+                                continue
 
-                        generator_args = {
-                            "network_name": name,
-                            "stop_condition": int(stop_condition),
-                            "threshold": args.threshold,
-                        }
+                            network_name, network = networks_provider[0]
 
-                    logger.debug(
-                        f"Dismantling {name} according to {display_name}. "
-                        f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
-                    )
+                            if network_name != name:
+                                logger.error(
+                                    f"Loaded network with filename {network_name} does not match the expected filename {name}!"
+                                )
+                                continue
 
-                    try:
-                        # TODO REMOVE THE COPY OF THE NETWORK, and move where its actually needed
-                        runs = dismantling_method(
-                            network=network.copy(),
-                            stop_condition=stop_condition,
-                            generator_args=generator_args,
-                            executor=executor,
-                            pool_size=args.jobs,
-                            mp_manager=mp_manager,
-                            logger=logger,
+                            network_size = network.num_vertices()
+
+                            # Compute stop condition
+                            stop_condition = np.ceil(network_size * args.threshold)
+
+                            generator_args = {
+                                "network_name": name,
+                                "stop_condition": int(stop_condition),
+                                "threshold": args.threshold,
+                            }
+
+                        dismantling_method_kwargs = {}
+
+                        if dismantling_method.depends_on is not None:
+                            # Check if the dependency was already tested
+                            df_dependency_filtered = network_df[
+                                network_df["heuristic"] == dismantling_method.depends_on.key
+                                ]
+
+                            if len(df_dependency_filtered) == 0:
+                                logger.error(
+                                    f"Dependency {dismantling_method.depends_on.display_name} not found "
+                                    f"for heuristic {dismantling_method.display_name}"
+                                )
+                                continue
+
+                            if len(df_dependency_filtered) > 1:
+                                logger.error(
+                                    f"More than one dependency {dismantling_method.depends_on.display_name} found for heuristic {dismantling_method.display_name}"
+                                )
+                                continue
+
+                            # Get the removals from the dependency
+                            df_dependency_filtered = df_dependency_filtered.iloc[0]
+                            df_dependency_filtered = df_reader(df_dependency_filtered["file"],
+                                                               expected_columns=args.output_df_columns,
+                                                               read_index=df_dependency_filtered["idx"],
+                                                               include_removals=True,
+                                                               **reader_kwargs,
+                                                               )
+
+                            if df_dependency_filtered is None or len(df_dependency_filtered) == 0:
+                                logger.error(
+                                    f"Dependency {dismantling_method.depends_on.display_name} not found "
+                                    f"for heuristic {dismantling_method.display_name}"
+                                )
+                                continue
+
+                            dependency_run = df_dependency_filtered.iloc[0]
+                            dependency_removals = literal_eval(dependency_run.pop("removals"))
+                            if not df_dependency_filtered.eq(dependency_run):
+                                logger.error(
+                                    f"Dependency {dismantling_method.depends_on.display_name} mismatch "
+                                    f"for heuristic {dismantling_method.display_name}: \n"
+                                    f"Original:\n{df_dependency_filtered}\nRead:\n{dependency_run}"
+                                )
+                                continue
+                            logger.debug(f"Dependency {dismantling_method.depends_on.display_name} "
+                                         f"found for heuristic {dismantling_method.display_name}:\n"
+                                         f"{df_dependency_filtered}")
+
+                            dependency_removals = list(map(itemgetter(1), dependency_removals))
+                            dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals
+
+                        logger.debug(
+                            f"Dismantling {name} according to {display_name}. "
+                            f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
                         )
 
-                        runs["network"] = name
+                        generator_args["executor"] = executor
+                        generator_args["pool_size"] = args.jobs
+                        generator_args["mp_manager"] = mp_manager
 
-                        if not isinstance(runs, pd.DataFrame):
-                            runs_dataframe = pd.DataFrame(
-                                data=[runs],
-                                columns=args.output_df_columns,
+                        try:
+                            # TODO REMOVE THE COPY OF THE NETWORK, and move where its actually needed
+                            run = dismantling_method(
+                                network=network.copy(),
+                                stop_condition=stop_condition,
+                                generator_args=generator_args,
+                                executor=executor,
+                                pool_size=args.jobs,
+                                mp_manager=mp_manager,
+                                logger=logger,
                             )
-                        else:  # isinstance(runs, pd.DataFrame):
-                            runs_dataframe = runs[args.output_df_columns]
 
-                        df_queue.put(runs_dataframe)
+                            run["network"] = name
+                            logger.info(f"Run for {name} with {dismantling_method.short_name}:\n"
+                                        f"{run['rem_num']} removals, AUC {run['r_auc']:.3f}")
 
-                    except Exception as e:
-                        logger.exception(
-                            f"Error while dismantling network {network_name}: {e}",
-                            exc_info=True,
-                        )
+                            if not isinstance(run, pd.DataFrame):
+                                runs_dataframe = pd.DataFrame(
+                                    data=[run],
+                                    columns=args.output_df_columns,
+                                )
+                            else:  # isinstance(run, pd.DataFrame):
+                                runs_dataframe = run[args.output_df_columns]
 
-                        continue
+                            df_queue.put(runs_dataframe)
+
+                        except Exception as e:
+                            logger.exception(
+                                f"Error while dismantling network {network_name} with {dismantling_method.short_name}:\n"
+                                f"{e}",
+                                exc_info=True,
+                            )
+
+                            continue
 
         # Close the pool
         executor.shutdown(
@@ -391,14 +486,13 @@ def get_df_columns():
 
 
 if __name__ == "__main__":
-    from network_dismantling import dismantling_methods
+    from network_dismantling import dismantling_methods, DismantlingMethod
 
     # Create the logger
-
     logging.basicConfig(
         format="%(asctime)s :: %(levelname)-8s :: %(processName)s :: %(message)s",
         # stream=sys.stdout,
-        level=logging.INFO,
+        level=logging.DEBUG,
         handlers=[TqdmLoggingHandler()],
         datefmt="%Y-%m-%d %H:%M:%S",
     )
@@ -415,7 +509,7 @@ if __name__ == "__main__":
         default=None,
         nargs="*",
         required=False,
-        help="Heuristics input file. Will be used to filter the algorithms already tested.",
+        help="Heuristics input file. Will be used to skip already tested algorithms.",
     )
 
     parser.add_argument(
@@ -537,11 +631,14 @@ if __name__ == "__main__":
 
     logger.info(f"Running the following heuristics: {', '.join(args.heuristics)}")
 
-    for heuristic in args.heuristics:
-        dismantling_method = dismantling_methods[heuristic]
-        display_name = dismantling_method.name
-        display_name_short = dismantling_method.short_name
+    # Check the dependencies of the heuristics
+    args.heuristics = check_dependencies(args.heuristics, logger=logger)
 
+    # Show the citation for the heuristics
+    for heuristic in args.heuristics:
+        dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
+        display_name: str = dismantling_method.name
+        display_name_short: str = dismantling_method.short_name
         logger.info(
             f"\n"
             f"==================================\n"
@@ -550,4 +647,6 @@ if __name__ == "__main__":
             f"==================================\n"
         )
 
-    main(args, logger=logger)
+    main(args=args,
+         logger=logger,
+         )

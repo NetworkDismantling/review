@@ -98,7 +98,7 @@ def reinsert(
 
     with (
         NamedTemporaryFile("w+") as broken_fd,
-        NamedTemporaryFile("w+") as output_fd
+        NamedTemporaryFile("w+") as output_fd,
     ):
 
         broken_path = broken_fd.name

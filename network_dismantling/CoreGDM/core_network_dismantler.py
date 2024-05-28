@@ -74,7 +74,7 @@ def tree_breaker(network: Graph, stop_condition: int, logger=logging.getLogger("
 
 
 def get_predictions(network, model, lock, device=None, data=None, features=None, logger=logging.getLogger("dummy")):
-    logger.debug("Sorting the predictions...")
+    logger.debug("Converting the graph and computing the predictions...")
     start_time = time()
 
     if data is None:

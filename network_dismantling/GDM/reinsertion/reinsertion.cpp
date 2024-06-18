@@ -22,7 +22,6 @@
 #include <boost/random/linear_congruential.hpp>
 #include <boost/graph/erdos_renyi_generator.hpp>
 #include <boost/program_options.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/pending/disjoint_sets.hpp>
 
 
@@ -43,7 +42,7 @@ namespace params {
     string FILE_NET;                 // input format of each line: id1 id2
     string FILE_ID;                  // output the id of the removed nodes in order
     string FILE_OUTPUT;                  // output the id of the removed nodes in order
-    int TARGET_SIZE;                // If the gcc size is smaller than TARGET_SIZE, the dismantling will stop. Default value can be 0.01*NODE_NUM  OR  1000
+    unsigned TARGET_SIZE;                // If the gcc size is smaller than TARGET_SIZE, the dismantling will stop. Default value can be 0.01*NODE_NUM  OR  1000
     int SORT_STRATEGY;                   // removing order
 }
 
@@ -65,24 +64,24 @@ typedef Vertex *Parent;
 
 Graph g;
 unsigned N = 0;
-vector<int> seed;
+vector<unsigned> seed;
 int nseed = 0;
 
 void read_graph() {
     ifstream rd(FILE_NET.c_str());
-    if (!rd) std::cout << "Error opening network file\n";
+    if (!rd) cout << "Error opening network file\n";
 
     ifstream rd2(FILE_ID.c_str());
-    if (!rd2) std::cout << "Error opening ID file\n";
+    if (!rd2) cout << "Error opening ID file\n";
 
-    int id1 = 0, id2 = 0;
+    unsigned id1 = 0, id2 = 0;
     while (rd >> id1 >> id2) {
         add_edge(id1, id2, g);
     }
     rd.close();
 
     while (rd2 >> id1) {
-        seed.resize(max(id1 + 1, int(seed.size())));
+        seed.resize(max(id1 + 1, unsigned(seed.size())));
         seed[id1] = 1; // here is not id1-1
         nseed++;
     }
@@ -90,17 +89,18 @@ void read_graph() {
 
     N = num_vertices(g);
     seed.resize(N);
-    std::cout << num_edges(g) << " edges, " << N << " vertices" << endl;
+    cout << num_edges(g) << " edges, " << N << " vertices" << endl;
+    cout << "Seed size: " << nseed << endl;
 }
 
-pair<long, int> compute_comp(unsigned i, vector<int> const &present,
-                             vector<int> const &size_comp, disjoint_sets<Rank, Parent> &ds) {
-    static vector<int> mask(N);
+pair<long, unsigned> compute_comp(unsigned i, vector<int> const &present,
+                                  vector<unsigned> const &size_comp, disjoint_sets<Rank, Parent> &ds) {
+    static vector<unsigned> mask(N);
 
-    vector<int> compos;
+    vector<unsigned> compos;
     edge_iterator eit, eend;
-    long nc = 1;
-    int ncomp = 0;
+    unsigned long nc = 1;
+    unsigned ncomp = 0;
     for (tie(eit, eend) = out_edges(i, g); eit != eend; ++eit) {
         unsigned long j = target(*eit, g);
         if (present[j]) {
@@ -113,30 +113,33 @@ pair<long, int> compute_comp(unsigned i, vector<int> const &present,
             }
         }
     }
-    for (int compo : compos)
+    for (unsigned compo: compos)
         mask[compo] = 0;
 
     return make_pair(nc, ncomp);
 }
 
-void run_greedy(vector<int> &nodes) {
+void run_greedy(vector<unsigned> &nodes) {
     vector<VertexIndex> rank(N);
     vector<Vertex> parent(N);
     vector<int> handle(N);
     vector<int> present(N); // flag: the node in the network or not
-    vector<int> size_comp(N);
+    vector<unsigned> size_comp(N);
     disjoint_sets<Rank, Parent> ds(&rank[0], &parent[0]);
-    long ngiant = 0;
+
+    unsigned long ngiant = 0;
     for (unsigned i = 0; i < N; ++i)
         ds.make_set(i);
+
     edge_iterator eit, eend;
-    long num_comp = N;
-    int nedges = 0;
+    unsigned long num_comp = N;
+    unsigned nedges = 0;
+
     for (unsigned i = 0; i < N; ++i) {
         if (seed[i])
             continue;
-        long nc;
-        long ncomp;
+        unsigned long nc;
+        unsigned long ncomp;
         tie(nc, ncomp) = compute_comp(i, present, size_comp, ds);
         present[i] = 1;
         num_comp += 1 - ncomp;
@@ -152,16 +155,16 @@ void run_greedy(vector<int> &nodes) {
             ngiant = nc;
     }
 
-    vector<int> compos;
+    vector<unsigned> compos;
     for (unsigned t = nseed; --t;) { // not a seed?
-        long nbest = N;  // the new size after this reinsertion? see line 212
+        unsigned long nbest = N;  // the new size after this reinsertion? see line 212
         unsigned ibest = 0;
-        int ncompbest = 0;
+        unsigned ncompbest = 0;
         for (unsigned i = 0; i < N; ++i) {
             if (present[i]) // node i is in the network
                 continue;
-            long nc;
-            int ncomp;
+            unsigned long nc;
+            unsigned ncomp;
             tie(nc, ncomp) = compute_comp(i, present, size_comp, ds);
             if (nc < nbest) {
                 ibest = i;
@@ -210,15 +213,28 @@ po::variables_map parse_command_line(int ac, char **av) {
             ("NetworkFile,NF", po::value(&FILE_NET), "File containing the network")
             ("IDFile,IF", po::value(&FILE_ID), "File containing the network")
             ("OutFile,OF", po::value(&FILE_OUTPUT), "File containing the network")
-            ("TargetSize,t", po::value(&TARGET_SIZE), "Target component size")
-            ("SortStrategy,S", po::value(&SORT_STRATEGY), "Removal strategy");
+            ("TargetSize,t", po::value(&TARGET_SIZE), "Target component size (int)")
+            ("SortStrategy,S", po::value(&SORT_STRATEGY),
+             "Removal strategy (0: keep the original order; 1: ascending; 2: descending)");
 
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc), vm);
     po::notify(vm);
 
+    if (!vm.count("NetworkFile") || !vm.count("IDFile") || !vm.count("OutFile") || !vm.count("TargetSize") ||
+        !vm.count("SortStrategy")) {
+        cout << desc << "\n";
+        exit(1);
+    }
+
+    printf("NetworkFile: %s\n", FILE_NET.c_str());
+    printf("IDFile: %s\n", FILE_ID.c_str());
+    printf("OutFile: %s\n", FILE_OUTPUT.c_str());
+    printf("TargetSize: %d\n", TARGET_SIZE);
+    printf("SortStrategy: %d\n", SORT_STRATEGY);
+
     if (vm.count("help")) {
-        std::cout << desc << "\n";
+        cout << desc << "\n";
         exit(1);
     }
 
@@ -226,14 +242,15 @@ po::variables_map parse_command_line(int ac, char **av) {
 }
 
 // sort the nodes according to their weights
-vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
-    if (SORT_STRATEGY == 0) {  // 0: keep the original order; 1: ascending; 2: descending
+vector<unsigned> sort_nodes_Weights(vector<unsigned> W, vector<unsigned> nodes) {
+    // 0: keep the original order; 1: ascending; 2: descending
+    if (SORT_STRATEGY == 0) {
         return nodes;
     }
 
-    vector<int> newlist;
-    int target = 0; // the target node in 'nodes'
-    for (int i = 0; i < int(nodes.size()); i++) { // set the target as the first removed node
+    vector<unsigned> newlist;
+    unsigned target = 0; // the target node in 'nodes'
+    for (unsigned i = 0; i < nodes.size(); i++) { // set the target as the first removed node
         if (nodes[i] != 0) {
             target = i;
             break;
@@ -242,7 +259,7 @@ vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
 
     if (SORT_STRATEGY == 1) { // 1: ascending
         while (newlist.size() != nodes.size()) {
-            for (int i = 0; i < int(nodes.size()); i++) {
+            for (unsigned i = 0; i < nodes.size(); i++) {
                 if (nodes[i] != 0 && W[nodes[target] - 1] > W[nodes[i] - 1]) { // select the node with smaller degree
                     target = i;
                 }
@@ -250,7 +267,7 @@ vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
             newlist.push_back(nodes[target]);
             nodes[target] = 0;
 
-            for (int i = 0; i < int(nodes.size()); i++) { // set the target as the first removed node
+            for (unsigned i = 0; i < nodes.size(); i++) { // set the target as the first removed node
                 if (nodes[i] != 0) {
                     target = i;
                     break;
@@ -259,7 +276,7 @@ vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
         }
     } else if (SORT_STRATEGY == 2) { // 2: descending
         while (newlist.size() != nodes.size()) {
-            for (int i = 0; i < int(nodes.size()); i++) {
+            for (unsigned i = 0; i < nodes.size(); i++) {
                 if (nodes[i] != 0 && W[nodes[target] - 1] < W[nodes[i] - 1]) { // select the node with larger degree
                     target = i;
                 }
@@ -267,7 +284,7 @@ vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
             newlist.push_back(nodes[target]);
             nodes[target] = 0;
 
-            for (int i = 0; i < int(nodes.size()); i++) { // set the target as the first removed node
+            for (unsigned i = 0; i < nodes.size(); i++) { // set the target as the first removed node
                 if (nodes[i] != 0) {
                     target = i;
                     break;
@@ -279,13 +296,16 @@ vector<int> sort_nodes_Weights(vector<double> W, vector<int> nodes) {
     return newlist;
 }
 
-void write(const vector<int>& nodes_id) {
+void write(const vector<unsigned> &nodes_id) {
     ofstream wt2(FILE_OUTPUT.c_str());
-    if (!wt2) std::cout << "error creating file...\n";
+    if (!wt2) {
+        cout << "error creating file...\n";
+        exit(-1);
+    }
 
     if (SORT_STRATEGY != 0) {
-        for (int i : nodes_id)
-//		std::cout << nodes_id[i] << endl;
+        for (unsigned i: nodes_id)
+//		cout << nodes_id[i] << endl;
             wt2 << i << endl;
         wt2.close();
     }
@@ -295,16 +315,35 @@ int main(int ac, char **av) {
     po::variables_map vm = parse_command_line(ac, av);
     read_graph();
 
-    vector<int> nodes, nodes_ordered; // store the nodes that should be removed after reinsertion
+
+    vector<unsigned> nodes, nodes_ordered; // store the nodes that should be removed after reinsertion
+
+    cout << "Running greedy reinsertion algorithm..." << endl;
     run_greedy(nodes); // reinsertion
 
-    vector<double> Weights(int(N), 0); // store the weights of each node
+//    cout << "Greedy output:" << endl;
+//    for (unsigned i: nodes) {
+//        cout << i << endl;
+//    }
 
-    for (int i = 0; i < int(N); i++) {
+    // store the weights of each node
+    vector<unsigned> Weights(N, 0);
+
+    for (unsigned int i = 0; i < N; i++) {
         Weights[i] = degree(i + 1, g); // the latter one is i+1
     }
 
+//    cout << "Degree:" << endl;
+//    for (unsigned int i: nodes) {
+//        cout << Weights[i] << endl;
+//    }
+
     nodes_ordered = sort_nodes_Weights(Weights, nodes); // sort the nodes in the set nodes
+
+//    cout << "Ordered nodes:" << endl;
+//    for (unsigned int i: nodes_ordered) {
+//        cout << i << endl;
+//    }
     write(nodes_ordered);
 
     return 0;

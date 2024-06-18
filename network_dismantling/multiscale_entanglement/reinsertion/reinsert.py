@@ -22,9 +22,10 @@ from errno import ENOSPC
 from operator import itemgetter
 from os import remove, close
 from pathlib import Path
-from subprocess import check_output
+from subprocess import run, CalledProcessError
 from tempfile import NamedTemporaryFile
 from time import time
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -55,19 +56,20 @@ run_columns = [
     "average_dmg",
     "rem_num",
     "idx",
+    "file",
 ]
 
 lcc_threshold_dismantler
 threshold_dismantler
 
-cached_networks = {}
+cached_networks: Dict[Path, str] = {}
 
 
 def get_predictions(
         network,
         removals,
         stop_condition,
-        logger=logging.getLogger("dummy"),
+        logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs
 ):
     start_time = time()
@@ -95,7 +97,9 @@ def reinsert(
     network_path = get_network_file(network)
 
     nodes = []
-
+    output = np.zeros(network.num_vertices(),
+                      dtype=int,
+                      )
     with (
         NamedTemporaryFile("w+") as broken_fd,
         NamedTemporaryFile("w+") as output_fd,
@@ -103,6 +107,11 @@ def reinsert(
 
         broken_path = broken_fd.name
         output_path = output_fd.name
+
+        for removal in removals:
+            broken_fd.write(f"{removal}\n")
+
+        broken_fd.flush()
 
         cmds = [
             # 'make clean && make',
@@ -113,57 +122,58 @@ def reinsert(
             # Run the reinsertion algorithm
             f"./{reinsertion_executable} "
             f"--NetworkFile {network_path} "
-            f'--IDFile "{broken_path}" '
-            f'--OutFile "{output_path}" '
+            f"--IDFile \"{broken_path}\" "
+            f"--OutFile \"{output_path}\" "
             f"--TargetSize {stop_condition} "
             f"--SortStrategy {reinsertion_strategy} ",
         ]
 
-        for removal in removals:
-            broken_fd.write(f"{removal}\n")
-
         with LogPipe(logger=logger,
-                     level=logging.ERROR,
-                     ) as stderr_pipe:
+                     level=logging.INFO,
+                     ) as stdout_pipe, \
+                LogPipe(logger=logger,
+                        level=logging.ERROR,
+                        ) as stderr_pipe:
 
             for cmd in cmds:
                 try:
                     logger.debug(f"Running command: {cd_cmd + cmd}")
-                    check_output(cd_cmd + cmd,
-                                 shell=True,
-                                 stderr=stderr_pipe,
-                                 # stderr=STDOUT,
-                                 text=True,
-                                 )
+                    run(cd_cmd + cmd,
+                        shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
+                        text=True,
+                        check=True,
+                        )
+                except CalledProcessError as e:
+                    logger.error(f"ERROR while running reinsertion algorithm: {e}", exc_info=True)
+                    raise RuntimeError(f"ERROR! {e}")
                 except Exception as e:
                     raise RuntimeError("ERROR! {}".format(e))
 
-        with open(output_path, "r+") as tmp:
-            num_lines = sum(1 for _ in tmp.readlines())
+        with open(output_path, "r") as output_fd:
+            # Read the output file
+            # Count the number of lines
+            num_removals = 0
+            for _ in output_fd.readlines():
+                num_removals += 1
 
-        for line in output_fd.readlines():
-            num_lines -= 1
-            node = int(line.strip())
+            assert num_removals > 0
 
-            nodes.append(node)
+            output_fd.seek(0)
+            for i, line in enumerate(output_fd.readlines(), start=0):
+                node = int(line.strip())
+                # node -= 1
 
-        assert num_lines == 0
+                nodes.append(node)
 
-    output = np.zeros(network.num_vertices())
+                output[node] = num_removals - i
 
-    filtered_removals = []
-    removed_removals = []
-    for x in removals:
-        if x in nodes:
-            filtered_removals.append(x)
-        else:
-            removed_removals.append(x)
+                assert output[node] > 0
 
-    nodes = filtered_removals + removed_removals
-
-    # TODO improve this loop
-    for n, p in zip(nodes, list(reversed(range(1, len(nodes) + 1)))):
-        output[n] = p
+    logger.debug("Reinsertion algorithm finished")
+    logger.debug(f"Original number of removals: {len(removals)}")
+    logger.debug(f"Number of final removals: {num_removals}")
 
     return output
 
@@ -194,6 +204,8 @@ def get_network_file(network: Graph) -> str:
                 for edge in network.edges():
                     tmp.write(f"{static_id[edge.source()]} {static_id[edge.target()]}\n")
 
+                tmp.flush()
+
             if network_file_path is not None:
                 cached_networks[network_file_path] = network_path
 
@@ -223,6 +235,7 @@ def main(
         predictor=get_predictions,
         # dismantler=lcc_threshold_dismantler,
         dismantler=threshold_dismantler,
+        threshold: float = None,
         logger=logging.getLogger("dummy"),
 ):
     logger.info(f"Using dismantler {dismantler.__name__}")
@@ -272,14 +285,22 @@ def main(
         ) as runs_iterable:
             runs_iterable.set_description(network_name)
 
+            run: pd.Series
             for _, run in runs_iterable:
                 network = test_networks[network_name]
 
-                removals = literal_eval(run.pop("removals"))
-
                 run.drop(run_columns, inplace=True, errors="ignore")
+                # Get the removals
+                removals = run.pop("removals")
+                removals = literal_eval(removals)
 
-                run = run.to_dict()
+                # Remove the columns that are not needed
+                run.drop(run_columns,
+                         inplace=True,
+                         errors="ignore",
+                         )
+
+                run: dict = run.to_dict()
 
                 run["heuristic"] += "_reinsertion"
 
@@ -294,8 +315,12 @@ def main(
                     # Nothing to do. The network was already tested
                     continue
 
-                stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
+                if threshold is None:
+                    threshold = run.get("threshold",
+                                        removals[-1][3],
+                                        )
 
+                stop_condition = int(np.ceil(threshold * network.num_vertices()))
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
@@ -322,6 +347,7 @@ def main(
                     "slcc_size_at_peak": peak_slcc[4],
                     "r_auc": simpson(list(r[3] for r in removals), dx=1),
                     "rem_num": len(removals),
+                    "threshold": threshold,
                 }
 
                 for key, value in _run.items():
@@ -329,14 +355,24 @@ def main(
 
                 # Check if something is wrong with the removals
                 if removals[-1][2] == 0:
-                    for removal in removals:
-                        logger.info(
-                            "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
-                                *removal
-                            )
-                        )
 
-                    raise RuntimeError
+                    # for removal in removals:
+                    #     logger.info(
+                    #         "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
+                    #             *removal
+                    #         )
+                    #     )
+
+                    logger.error(f"Had to remove too many nodes ({len(removals)})")
+                    last_valid_index = 0
+                    for i, removal in enumerate(removals):
+                        if removal[2] > 0:
+                            last_valid_index = i
+                        else:
+                            break
+
+                    logger.error(f"Last valid index: {last_valid_index}: {removals[last_valid_index]}")
+                    raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
 
                 all_runs.append(run)
 
@@ -449,12 +485,15 @@ if __name__ == "__main__":
 
     args = parse_parameters()
 
+    logger.setLevel(logging.getLevelName(args.verbose))
+
     networks_provider = init_network_provider(
         location=args.location_test,
         filter=args.test_filter,
         logger=logger,
     )
     test_networks = dict(networks_provider)
+
     main(
         args,
         test_networks=test_networks,

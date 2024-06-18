@@ -62,15 +62,15 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
         with open(network_fd, "w+") as tmp:
             # for node in network.vertices():
             for node, node_id in network.iter_vertices(
-                vprops=[network.vp["static_id"]]
+                    vprops=[network.vp["static_id"]]
             ):
                 # node_id = static_id[node]
                 node_id = node_id_mapping[node_id]
                 tmp.write(f"{node_id}")
 
                 for out_neighbor, out_neighbor_id in sorted(
-                    network.iter_out_neighbors(node, vprops=[network.vp["static_id"]]),
-                    key=itemgetter(1),
+                        network.iter_out_neighbors(node, vprops=[network.vp["static_id"]]),
+                        key=itemgetter(1),
                 ):
                     # out_neighbor_id = static_id[out_neighbor]
                     out_neighbor_id = node_id_mapping[out_neighbor_id]
@@ -130,7 +130,6 @@ method_info = {
     # "authors": "",
     # "citation": "",
     "includes_reinsertion": True,
-    "plot_color": "#d62728",
 }
 
 
@@ -138,6 +137,7 @@ method_info = {
     name=r"Collective Influence $\ell-1$",
     # display_name="GND",
     short_name=r"CI $\ell-1$",
+    plot_color="#eb6434",
     **method_info,
 )
 @dismantler_wrapper
@@ -151,6 +151,7 @@ def CollectiveInfluenceL1(network, stop_condition, **kwargs):
     name=r"Collective Influence $\ell-2$",
     # display_name="GND",
     short_name=r"CI $\ell-2$",
+    plot_color="#d62728",
     **method_info,
 )
 @dismantler_wrapper
@@ -164,6 +165,7 @@ def CollectiveInfluenceL2(network, stop_condition, **kwargs):
     name=r"Collective Influence $\ell-3$",
     # display_name="GND",
     short_name=r"CI $\ell-3$",
+    plot_color="#eb3434",
     **method_info,
 )
 @dismantler_wrapper

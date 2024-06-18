@@ -55,6 +55,7 @@ run_columns = [
     "average_dmg",
     "rem_num",
     "idx",
+    "file",
 ]
 
 cached_networks = {}
@@ -223,6 +224,7 @@ def main(
         test_networks=None,
         predictor=get_predictions,
         dismantler=lcc_threshold_dismantler,
+        threshold: float = None,
         logger=logging.getLogger("dummy"),
 ):
     from scipy.integrate import simpson
@@ -299,10 +301,15 @@ def main(
             for _, run in runs_iterable:
                 network = test_networks[network_name]
 
-                removals = literal_eval(run.pop("removals"))
+                # Get the removals
+                removals = run.pop("removals")
+                removals = literal_eval(removals)
 
-                run.drop(run_columns, inplace=True, errors="ignore")
-
+                # Remove the columns that are not needed
+                run.drop(run_columns,
+                         inplace=True,
+                         errors="ignore",
+                         )
                 run = run.to_dict()
 
                 reinserted_run_df = output_df.loc[
@@ -316,12 +323,17 @@ def main(
                     # Nothing to do. The network was already tested
                     continue
 
-                stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
+                if threshold is None:
+                    threshold = run.get("threshold",
+                                        removals[-1][3],
+                                        )
+
+                stop_condition = int(np.ceil(threshold * network.num_vertices()))
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
-                    # "logger": logger,
                     "network_name": network_name,
+                    "logger": logger,
                 }
 
                 removals, _, _ = dismantler(
@@ -343,6 +355,7 @@ def main(
                     "slcc_size_at_peak": peak_slcc[4],
                     "r_auc": simpson(list(r[3] for r in removals), dx=1),
                     "rem_num": len(removals),
+                    "threshold": threshold,
                 }
 
                 for key, value in _run.items():
@@ -472,6 +485,7 @@ if __name__ == "__main__":
         logger=logger,
     )
     test_networks = dict(networks_provider)
+
     main(
         args,
         test_networks=test_networks,

@@ -162,9 +162,10 @@ def df_reader(
                     file=file,
                     df=df,
                 )
-        df["idx"] = df.index
-        df["file"] = f"{file}"
 
+        df["idx"] = df.index
+
+        df["file"] = f"{file}"
         df["file"] = df["file"].astype("category")
 
         df_buffer.append(df)
@@ -191,7 +192,6 @@ def df_reader(
     #     df["network"] = df["network"].astype(str)
 
     return df
-
 
 # def read_index(file,
 #                index_col="idx",

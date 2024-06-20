@@ -69,10 +69,10 @@ void multiplyByLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<dou
     // y = L^tilda * x
     // y_i = sum_j L^tilda_{i,j} * x_j
     // y_i = sum_j (d_max - (d_i - A_ij)) * x_j
-    for (int i = 0; int(i < A->size()); ++i) {
+    for (unsigned int i = 0; i < A->size(); ++i) {
         y->at(i) = 0;
         // y_i = sum_j A_ij * x_j
-        for (int j = 0; j < int(A->at(i)->size()); ++j) {
+        for (unsigned int j = 0; j < A->at(i)->size(); ++j) {
             y->at(i) = y->at(i) + x->at(A->at(i)->at(j) - 1);
         }
         // y_i = (dmax - d_i)*x_j  + y_i
@@ -87,10 +87,10 @@ multiplyByWeightLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<do
     // y_i = sum_j (c-L_ij) * x_j
 
     // y_i = sum_j { A_ij*(di-1)*x_j }
-    for (int i = 0; i < A->size(); ++i) {
+    for (unsigned int i = 0; i < A->size(); ++i) {
         y->at(i) = 0;
         // y_i = A_ij * x_j
-        for (int j = 0; j < A->at(i)->size(); ++j) {
+        for (unsigned int j = 0; j < A->at(i)->size(); ++j) {
             y->at(i) = y->at(i) + x->at(A->at(i)->at(j) - 1);  // y_i = sum x_j
         }
         // y_i = (d_i - 1) * y_i
@@ -98,8 +98,8 @@ multiplyByWeightLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<do
     }
 
     //
-    for (int i = 0; i < A->size(); ++i) {
-        for (int j = 0; j < A->at(i)->size(); ++j) {
+    for (unsigned int i = 0; i < A->size(); ++i) {
+        for (unsigned int j = 0; j < A->at(i)->size(); ++j) {
             y->at(i) = y->at(i) +
                        x->at(A->at(i)->at(j) - 1) * ((double) A->at(A->at(i)->at(j) - 1)->size());
         }
@@ -109,18 +109,18 @@ multiplyByWeightLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<do
 
 void orthonormalize(vector<double> *x) {
     double inner = 0;
-    int n = int(x->size());
-    for (int no = 0; no < n; ++no) {
+    unsigned int n = x->size();
+    for (unsigned int no = 0; no < n; ++no) {
         inner = inner + x->at(no) / sqrt(n);
     }
 
     double norm = 0;
-    for (int no = 0; no < n; ++no) {
+    for (unsigned int no = 0; no < n; ++no) {
         x->at(no) = x->at(no) - inner / sqrt(n);
         norm = norm + x->at(no) * x->at(no);
     }
     norm = sqrt(norm);
-    for (int no = 0; no < n; ++no) {
+    for (unsigned int no = 0; no < n; ++no) {
         x->at(no) = x->at(no) / norm;
     }
 }
@@ -221,23 +221,23 @@ vector<double> power_iterationB(vector<vector<int> *> *adj) {
     vector<double> x(adj->size());
     vector<double> y(adj->size());
     vector<int> db(adj->size());
-    int n = int(adj->size());
+    unsigned int n = adj->size();
 
     srand(time(nullptr));
 
-    for (int i = 0; i < n; ++i) {
+    for (unsigned int i = 0; i < n; ++i) {
         x.at(i) = distribution(generator);
         y.at(i) = distribution(generator);
     }
 
     int dmax = 0;
     int dmax2 = 0;
-    for (int i = 0; i < n; ++i) {
+    for (unsigned int i = 0; i < n; ++i) {
         db.at(i) = int(adj->at(i)->size()) * int((adj->at(i)->size() - 1));
-        for (int j = 0; j < adj->at(i)->size(); ++j) {
+        for (unsigned int j = 0; j < adj->at(i)->size(); ++j) {
             db.at(i) = db.at(i) + int(adj->at(adj->at(i)->at(j) - 1)->size());
         }
-        if (adj->at(i)->size() > dmax) {
+        if (int(adj->at(i)->size()) > dmax) {
             dmax = int(adj->at(i)->size());
         }
         if (db.at(i) > dmax2) {
@@ -485,10 +485,10 @@ po::variables_map parse_command_line(int ac, char **av) {
     return vm;
 }
 
-vector<vector<int> *> *getMatrix(int n) {
+vector<vector<int> *> *getMatrix(unsigned int n) {
     auto *A = new vector<vector<int> *>(n);
 
-    for (int i = 0; i < n; i++)
+    for (unsigned int i = 0; i < n; i++)
         A->at(i) = new vector<int>();
 
     return A;
@@ -498,9 +498,6 @@ int main(int argc, char **argv) {
     po::variables_map vm = parse_command_line(argc, argv);
 
     //**** read adjacency matrix from file  ****
-//    auto *A = new vector<vector<int> *>(NODE_NUM);
-//    for (int i = 0; i < int(A->size()); ++i)
-//        A->at(i) = new vector<int>();
     auto *A = getMatrix(NODE_NUM);
 
     rdata(A);
@@ -515,9 +512,8 @@ int main(int argc, char **argv) {
             node_size++;
 
     // define A_new as the gcc of A
-//    auto *A_new = new vector<vector<int> *>(NODE_NUM);
     auto *A_new = A;
-
+//  auto *A_new = new vector<vector<int> *>(NODE_NUM);
 //	for (int i = 0; i < NODE_NUM; i++)
 //		A_new->at(i) = new vector<int>();
 //	for (int i = 0; i < int(transfer_initial.size()); i++)
@@ -530,14 +526,13 @@ int main(int argc, char **argv) {
 //	link_size = link_size / 2;
 // 	std::cerr << "total nodes: " << node_size << " total links: " << link_size << endl;
 
-
-    //**** partation the network to subnets ****
+    //**** partition the network to subnets ****
     auto *nodes_id = new vector<int>(); // store the nodes that should be removed
     int gcc_size = int(A->size());
     while (gcc_size > TARGET_SIZE) {
         vector<int> transfer = get_gcc(A_new); // the elements' number of transfer equals the number of nodes in A
-        // if transter[i] = 0 then this node doesn't belong to the gcc
-        // if transter[i] != 0 then transter[i] is the new id of this node in A_new_gcc
+        // if transfer[i] = 0 then this node doesn't belong to the gcc
+        // if transfer[i] != 0 then transfer[i] is the new id of this node in A_new_gcc
         gcc_size = 0;
         for (int i = 0; i < int(A_new->size()); i++)
             if (transfer[i] != 0)
@@ -600,6 +595,7 @@ int main(int argc, char **argv) {
             }
 
             release_memory(&A_new_gcc_cover);
+            release_memory(&A_new_gcc);
         }
 
         // remove nodes
@@ -612,7 +608,7 @@ int main(int argc, char **argv) {
 
         transfer = get_gcc(A_new);
         gcc_size = 0;
-        for (int i = 0; i < int(A_new->size()); i++)
+        for (unsigned int i = 0; i < A_new->size(); i++)
             if (transfer[i] != 0)
                 gcc_size++;
     }

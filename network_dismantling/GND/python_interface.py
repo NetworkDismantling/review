@@ -46,6 +46,8 @@ def _generalized_network_dismantling(
                     )
                 )
 
+            tmp.flush()
+
         cmds = [
             # TODO move build to setup.py?
             # 'make clean && make',

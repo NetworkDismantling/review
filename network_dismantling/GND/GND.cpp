@@ -26,8 +26,6 @@
 #include <fstream>
 #include <set>
 #include <vector>
-//#include <stdio.h>
-//#include <stdlib.h>
 #include <cmath>
 #include <random>
 #include <cstdlib>
@@ -51,6 +49,8 @@ namespace params {
 
 using namespace params;
 
+void release_memory(vector<vector<int> *> **adj);
+
 // read the links of the network, return A
 void rdata(vector<vector<int> *> *A) {
     ifstream rd(FILE_NET.c_str());
@@ -69,7 +69,7 @@ void multiplyByLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<dou
     // y = L^tilda * x
     // y_i = sum_j L^tilda_{i,j} * x_j
     // y_i = sum_j (d_max - (d_i - A_ij)) * x_j
-    for (int i = 0; i < A->size(); ++i) {
+    for (int i = 0; int(i < A->size()); ++i) {
         y->at(i) = 0;
         // y_i = sum_j A_ij * x_j
         for (int j = 0; j < int(A->at(i)->size()); ++j) {
@@ -94,13 +94,14 @@ multiplyByWeightLaplacian(vector<vector<int> *> *A, vector<double> *x, vector<do
             y->at(i) = y->at(i) + x->at(A->at(i)->at(j) - 1);  // y_i = sum x_j
         }
         // y_i = (d_i - 1) * y_i
-        y->at(i) = (A->at(i)->size() - 1) * y->at(i);
+        y->at(i) = ((double) (A->at(i)->size() - 1)) * y->at(i);
     }
 
     //
     for (int i = 0; i < A->size(); ++i) {
         for (int j = 0; j < A->at(i)->size(); ++j) {
-            y->at(i) = y->at(i) + x->at(A->at(i)->at(j) - 1) * A->at(A->at(i)->at(j) - 1)->size();
+            y->at(i) = y->at(i) +
+                       x->at(A->at(i)->at(j) - 1) * ((double) A->at(A->at(i)->at(j) - 1)->size());
         }
         y->at(i) = y->at(i) + (dmax - db->at(i)) * x->at(i);
     }
@@ -260,8 +261,8 @@ vector<int> vertex_cover(vector<vector<int> *> *A_cover, vector<int> degree) {
     int remove = 0;
     int total_edge = 0;
 
-    for (int i = 0; i < int(A_cover->size()); i++)
-        total_edge += int(A_cover->at(i)->size());
+    for (auto &i: *A_cover)
+        total_edge += int(i->size());
 
     while (total_edge > 0) {
         vector<int> degree_cover(int(A_cover->size()), 0);
@@ -284,18 +285,17 @@ vector<int> vertex_cover(vector<vector<int> *> *A_cover, vector<int> degree) {
             }
         flag[min_sub] = ++remove;
         A_cover->at(min_sub)->clear();
-        for (int i = 0; i < int(A_cover->size()); i++)
-            for (auto it = A_cover->at(i)->begin(); it != A_cover->at(i)->end(); ) {
+        for (auto &i: *A_cover)
+            for (auto it = i->begin(); it != i->end();) {
                 if (*it == min_sub + 1) {
-                    A_cover->at(i)->erase(it);
-                    it = A_cover->at(i)->begin();
-                }
-                else it++;
+                    i->erase(it);
+                    it = i->begin();
+                } else it++;
             }
         degree_cover[min_sub] = 0;
         total_edge = 0;
-        for (int i = 0; i < int(A_cover->size()); i++)
-            total_edge += int(A_cover->at(i)->size());
+        for (auto &i: *A_cover)
+            total_edge += int(i->size());
     }
     return flag;
 }
@@ -305,8 +305,10 @@ vector<int> vertex_cover(vector<vector<int> *> *A_cover, vector<int> degree) {
 // return the removing order of the nodes: 1,2,3,... The node with flag=0 will not be removed
 vector<int> vertex_cover_2(vector<vector<int> *> *A_cover, vector<vector<int> *> *A_new_gcc) {
     auto *A_new_gcc_copy = new vector<vector<int> *>(int(A_new_gcc->size()));
+
     for (int i = 0; i < int(A_new_gcc->size()); i++) {
-        A_new_gcc_copy->at(i) = new vector<int>(int(A_new_gcc->at(i)->size()));
+        A_new_gcc_copy->at(i) = new vector<int>(A_new_gcc->at(i)->size());
+
         for (int j = 0; j < int(A_new_gcc->at(i)->size()); j++) {
             A_new_gcc_copy->at(i)->at(j) = A_new_gcc->at(i)->at(j);
         }
@@ -315,8 +317,8 @@ vector<int> vertex_cover_2(vector<vector<int> *> *A_cover, vector<vector<int> *>
     vector<int> flag(int(A_cover->size()), 0); // store the cover (removal) order of each node: 1,2,3...
     int remove = 0;
     int total_edge = 0;  // the total number of edges in A_cover
-    for (int i = 0; i < int(A_cover->size()); i++)
-        total_edge += int(A_cover->at(i)->size());
+    for (auto &i: *A_cover)
+        total_edge += int(i->size());
 
     while (total_edge > 0) {
         vector<int> degree(int(A_new_gcc_copy->size()), 0);
@@ -344,29 +346,30 @@ vector<int> vertex_cover_2(vector<vector<int> *> *A_cover, vector<vector<int> *>
         flag[min_sub] = ++remove;
         A_cover->at(min_sub)->clear();
         A_new_gcc_copy->at(min_sub)->clear();
-        for (int i = 0; i < int(A_cover->size()); i++)
-            for (auto it = A_cover->at(i)->begin(); it != A_cover->at(i)->end(); ) {
+        for (auto &i: *A_cover)
+            for (auto it = i->begin(); it != i->end();) {
                 if (*it == min_sub + 1) {
-                    A_cover->at(i)->erase(it);
-                    it = A_cover->at(i)->begin();
-                }
-                else it++;
+                    i->erase(it);
+                    it = i->begin();
+                } else it++;
             }
 
-        for (int i = 0; i < int(A_new_gcc_copy->size()); i++)
-            for (auto it = A_new_gcc_copy->at(i)->begin(); it != A_new_gcc_copy->at(i)->end(); ) {
+        for (auto &i: *A_new_gcc_copy)
+            for (auto it = i->begin(); it != i->end();) {
                 if (*it == min_sub + 1) {
-                    A_new_gcc_copy->at(i)->erase(it);
-                    it = A_new_gcc_copy->at(i)->begin();
-                }
-                else it++;
+                    i->erase(it);
+                    it = i->begin();
+                } else it++;
             }
 
         // degree_cover[min_sub] = 0;
         total_edge = 0;
-        for (int i = 0; i < int(A_cover->size()); i++)
-            total_edge += int(A_cover->at(i)->size());
+        for (auto &i: *A_cover)
+            total_edge += int(i->size());
     }
+
+    release_memory(&A_new_gcc_copy);
+
     return flag;
 }
 
@@ -402,13 +405,12 @@ void remove_nodes(vector<vector<int> *> *A_new, vector<int> flag, vector<int> *n
             nodes_id->push_back(i + 1);
             A_new->at(i)->clear();
 
-            for (int j = 0; j < int(A_new->size()); j++) {
-                for (auto it = A_new->at(j)->begin(); it != A_new->at(j)->end(); ) {
+            for (auto &j: *A_new) {
+                for (auto it = j->begin(); it != j->end();) {
                     if (*it == i + 1) {
-                        A_new->at(j)->erase(it);
-                        it = A_new->at(j)->begin();
-                    }
-                    else it++;
+                        j->erase(it);
+                        it = j->begin();
+                    } else it++;
                 }
             }
         }
@@ -422,15 +424,15 @@ void remove_nodes(vector<vector<int> *> *A_new, vector<int> flag, vector<int> *n
             }
         }
 
-        if (!flag_size) { // reach the end of this round
-            vector<int> transfer = get_gcc(A_new); // transfer has the same with A_new
-            int gcc_size = 0;
-            for (int i = 0; i < int(A_new->size()); i++)
-                if (transfer[i] != 0)
-                    gcc_size++;
-
-// 			std::cerr << "gcc size after this round's partition - " << gcc_size << "\n";
-        }
+//        if (!flag_size) { // reach the end of this round
+//            vector<int> transfer = get_gcc(A_new); // transfer has the same with A_new
+//            int gcc_size = 0;
+//            for (int k = 0; k < int(A_new->size()); k++)
+//                if (transfer[k] != 0)
+//                    gcc_size++;
+//
+//// 			std::cerr << "gcc size after this round's partition - " << gcc_size << "\n";
+//        }
     }
 }
 
@@ -439,17 +441,23 @@ void write(vector<int> *nodes_id) {
     ofstream wt_file(FILE_ID.c_str());
     if (!wt_file) std::cout << "error creating file...\n";
 
-    for (int i = 0; i<int(nodes_id->size()); i++)
+    for (int i: *nodes_id)
 //        std::cout << nodes_id->at(i) << endl;
-        wt_file << nodes_id->at(i) << endl;
+        wt_file << i << endl;
     // wt_file << "S " << nodes_id->at(i) << endl;
     wt_file.close();
 }
 
-void release_memory(vector<vector<int> *> *adj) {
-    for (int i = 0; i < adj->size(); ++i) {
-        delete adj->at(i);
-    }
+void release_memory(vector<vector<int> *> **adj) {
+    if (*adj == nullptr)
+        return;
+
+    for (auto &i: **adj)
+        delete i;
+
+    delete (*adj);
+
+    *adj = nullptr;
 }
 
 po::variables_map parse_command_line(int ac, char **av) {
@@ -477,27 +485,38 @@ po::variables_map parse_command_line(int ac, char **av) {
     return vm;
 }
 
-int main(int argc, char** argv) {
+vector<vector<int> *> *getMatrix(int n) {
+    auto *A = new vector<vector<int> *>(n);
+
+    for (int i = 0; i < n; i++)
+        A->at(i) = new vector<int>();
+
+    return A;
+}
+
+int main(int argc, char **argv) {
     po::variables_map vm = parse_command_line(argc, argv);
 
-    //**** read adjacecy matrix from file  ****
-    auto *A = new vector<vector<int> *>(NODE_NUM);
-    for (int i = 0; i<int(A->size()); ++i)
-        A->at(i) = new vector<int>();
+    //**** read adjacency matrix from file  ****
+//    auto *A = new vector<vector<int> *>(NODE_NUM);
+//    for (int i = 0; i < int(A->size()); ++i)
+//        A->at(i) = new vector<int>();
+    auto *A = getMatrix(NODE_NUM);
 
     rdata(A);
 
-    vector<int> transfer_initial = get_gcc(
-            A); // the elements' number of transfer_initial equals the number of nodes in A
+    // the elements' number of transfer_initial equals the number of nodes in A
+    vector<int> transfer_initial = get_gcc(A);
+
     double node_size = 0;
 //    double link_size = 0;
-    for (int i = 0; i<int(transfer_initial.size()); i++)
-        if (transfer_initial[i] != 0)
+    for (int i: transfer_initial)
+        if (i != 0)
             node_size++;
 
     // define A_new as the gcc of A
-    auto *A_new = new vector<vector<int> *>(NODE_NUM);
-    A_new = A;
+//    auto *A_new = new vector<vector<int> *>(NODE_NUM);
+    auto *A_new = A;
 
 //	for (int i = 0; i < NODE_NUM; i++)
 //		A_new->at(i) = new vector<int>();
@@ -533,9 +552,7 @@ int main(int argc, char** argv) {
             }
 
         // define A_new_gcc as the gcc of A_new
-        auto *A_new_gcc = new vector<vector<int> *>(gcc_size);
-        for (int i = 0; i < gcc_size; i++)
-            A_new_gcc->at(i) = new vector<int>();
+        vector<vector<int> *> *A_new_gcc = getMatrix(gcc_size);
         for (int i = 0; i < int(transfer.size()); i++) {
             if (transfer[i] != 0) {
                 for (int j = 0; j < int(A_new->at(i)->size()); j++) {
@@ -545,7 +562,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        // compute the eigenvector and seperate set
+        // compute the eigenvector and separate set
         vector<double> eigenvector;
         if (REMOVE_STRATEGY == 1)
             eigenvector = power_iterationB(A_new_gcc);  // L = D_B -B where B = AW + WA - A
@@ -554,12 +571,16 @@ int main(int argc, char** argv) {
 
         vector<int> flag; // mark all the nodes that should be removed to partition the network into subnet
         // flag: 0: do not remove; 1,2,3.. removal order
-        if (REMOVE_STRATEGY == 1 || REMOVE_STRATEGY == 3) {  // Weighted Vertex Cover
-            auto *A_new_gcc_cover = new vector<vector<int> *>(int(A_new_gcc->size()));
+        if (REMOVE_STRATEGY == 1 || REMOVE_STRATEGY == 3) {
+            // Weighted Vertex Cover
+//            auto *A_new_gcc_cover = new vector<vector<int> *>(int(A_new_gcc->size()));
+//            for (int i = 0; i < gcc_size; i++) {
+//                A_new_gcc_cover->at(i) = new vector<int>(); // the subnet that all the links in it should be covered
+//            }
 
-            for (int i = 0; i < gcc_size; i++) {
-                A_new_gcc_cover->at(i) = new vector<int>(); // the subnet that all the links in it should be covered
-            }
+            // the subnet that all the links in it should be covered
+            auto *A_new_gcc_cover = getMatrix(A_new_gcc->size());
+
             for (int i = 0; i < int(A_new_gcc->size()); i++)
                 for (int j = 0; j < int(A_new_gcc->at(i)->size()); j++) {
                     if ((i + 1) < A_new_gcc->at(i)->at(j) &&  // Prevention of repeated calculation
@@ -577,15 +598,17 @@ int main(int argc, char** argv) {
                 flag = vertex_cover(A_new_gcc_cover,
                                     degree_one); // flag marks all the nodes that should be removed to partition the network into subnet
             }
+
+            release_memory(&A_new_gcc_cover);
         }
 
         // remove nodes
-        vector<int> flag_orginal(int(A_new->size()), 0);
+        vector<int> flag_original(A_new->size(), 0);
         for (int i = 0; i < int(flag.size()); i++)
             if (flag[i] != 0)
-                flag_orginal[transfer_back[i] - 1] = flag[i];
+                flag_original[transfer_back[i] - 1] = flag[i];
 
-        remove_nodes(A_new, flag_orginal, nodes_id);
+        remove_nodes(A_new, flag_original, nodes_id);
 
         transfer = get_gcc(A_new);
         gcc_size = 0;
@@ -596,11 +619,11 @@ int main(int argc, char** argv) {
 
     write(nodes_id); // output the nodes that should be removed
 
-    release_memory(A);
-    A->clear();
-
-    release_memory(A_new);
-    A_new->clear();
+//    release_memory(&A);
+//
+//    release_memory(&A_new);
+//
+//    delete nodes_id;
 
     return 0;
 }

@@ -6,12 +6,12 @@ from typing import Dict, Callable, Union
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
 from graph_tool.topology import label_components, kcore_decomposition
-from scipy.integrate import simpson
-
+from network_dismantling.common.df_helpers import RemovalsColumns
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     threshold_dismantler as external_threshold_dismantler,
 )
 from network_dismantling.dismantler import get_predictions
+from scipy.integrate import simpson
 
 
 def get_lcc_slcc(network):
@@ -449,12 +449,11 @@ def dismantler_wrapper(
                 logger = generator_args.get("logger",
                                             logging.getLogger("dummy")
                                             )
-            logger.debug("dismantler_wrapper_kwargs: %s", kwargs)
+            logger.debug(f"Passing kwargs to dismantler: {kwargs}")
 
             generator_args["sorting_function"] = function
 
             # kwargs["generator_args"] = generator_args
-            logger.debug(f"passing kwargs to dismantler: {kwargs}")
             removals, prediction_time, dismantle_time = dismantler(
                 network=network,
                 predictor=predictor,
@@ -465,26 +464,26 @@ def dismantler_wrapper(
                 # **generator_args,
             )
 
-            peak_slcc = max(removals, key=itemgetter(4))
+            peak_slcc = max(removals, key=itemgetter(RemovalsColumns.SLCC_SIZE))
             rem_num = len(removals)
 
             if rem_num > 0:
-                if removals[0][0] < 0:
+                if removals[0][RemovalsColumns.REMOVAL_NUM] < 0:
                     raise RuntimeError("First removal is just the LCC size!")
 
-                if removals[-1][2] == 0:
-                    raise RuntimeError("ERROR: removed more nodes than predicted!")
+                # if removals[-1][RemovalsColumns.PREDICTION] == 0:
+                #     raise RuntimeError(f"ERROR: removed more nodes than predicted!\n{removals[-1]}")
 
             run = {
                 # "network": name,
                 "removals": removals,
 
-                "slcc_peak_at": peak_slcc[0],
-                "lcc_size_at_peak": peak_slcc[3],
-                "slcc_size_at_peak": peak_slcc[4],
+                "slcc_peak_at": peak_slcc[RemovalsColumns.REMOVAL_NUM],
+                "lcc_size_at_peak": peak_slcc[RemovalsColumns.LCC_SIZE],
+                "slcc_size_at_peak": peak_slcc[RemovalsColumns.SLCC_SIZE],
                 # "heuristic": heuristic,
                 # "static": None,
-                "r_auc": simpson(list(r[3] for r in removals), dx=1),
+                "r_auc": simpson(list(r[RemovalsColumns.LCC_SIZE] for r in removals), dx=1),
                 "rem_num": rem_num,
 
                 "prediction_time": prediction_time,

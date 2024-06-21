@@ -95,6 +95,12 @@ class DismantlingMethod:
 
         self.key = self.function.__name__
 
+        if self.short_name is None:
+            raise RuntimeError(f"Short name not defined for {self.key}")
+        if not isinstance(self.short_name, str):
+            raise RuntimeError(f"Short name not a string for {self.key}")
+
+
     def __call__(self, *args, **kwargs):
         output = self.function(*args, **kwargs)
 

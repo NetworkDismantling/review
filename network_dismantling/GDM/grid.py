@@ -195,8 +195,12 @@ def process_parameters_wrapper(
                     all_runs += runs
 
                     runs_dataframe = pd.DataFrame(
-                        data=runs, columns=args.output_df_columns
+                        data=runs,
+                        columns=args.output_df_columns
                     )
+
+                    if "file" in runs_dataframe.columns:
+                        runs_dataframe = runs_dataframe.drop(columns=["file"])
 
                 except RuntimeError as e:
                     logger.error(f"Runtime error: {e}", exc_info=True)

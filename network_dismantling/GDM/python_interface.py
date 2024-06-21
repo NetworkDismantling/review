@@ -10,9 +10,8 @@ import logging
 from pathlib import Path
 
 from graph_tool import Graph
-from torch import multiprocessing
-
 from network_dismantling._sorters import dismantling_method
+from torch import multiprocessing
 
 try:
     from deadpool import as_completed, Executor
@@ -47,7 +46,8 @@ default_gdm_params = (
     "--features_min 4 "
     "--features_max 4 "
     "--target t_0.18 "
-    "--threshold 0.10 "
+    # "--threshold 0.10 "
+    "--threshold {threshold} "
     "--simultaneous_access 1 "
     "--static_dismantling "
     "--lcc_only "
@@ -79,15 +79,15 @@ df = None
 
 
 def grid(
-    df,
-    args,
-    nn_model,
-    test_networks_provider,
-    executor: Executor,
-    pool_size: int,
-    mp_manager: multiprocessing.Manager,
-    logger=logging.getLogger("dummy"),
-    **kwargs,
+        df,
+        args,
+        nn_model,
+        test_networks_provider,
+        executor: Executor,
+        pool_size: int,
+        mp_manager: multiprocessing.Manager,
+        logger: logging.Logger = logging.getLogger("dummy"),
+        **kwargs,
 ):
     import threading
     from queue import Queue
@@ -263,12 +263,13 @@ def grid(
 
 
 def _GDM(
-    network: Graph,
-    stop_condition: int,
-    reinsertion: bool,
-    parameters=default_gdm_params,
-    logger=logging.getLogger("dummy"),
-    **kwargs,
+        network: Graph,
+        stop_condition: int,
+        reinsertion: bool,
+        threshold: float,
+        parameters=default_gdm_params,
+        logger=logging.getLogger("dummy"),
+        **kwargs,
 ):
     import pandas as pd
 
@@ -286,6 +287,7 @@ def _GDM(
     from network_dismantling.common.helpers import extend_filename
 
     global df
+    parameters = parameters.replace("{threshold}", str(threshold))
 
     # Run the grid script
     args, nn_model = parse_parameters(
@@ -296,7 +298,9 @@ def _GDM(
     # Prepare the network for GDM
     network_name = network.graph_properties["filename"]
     args.output_file = extend_filename(args.output_file, f"_{network_name}")
-    args.threshold = stop_condition / network.num_vertices()
+
+    # args.threshold = stop_condition / network.num_vertices()
+    args.threshold = threshold
 
     # Prepare the network for GDM
     networks_provider = {}

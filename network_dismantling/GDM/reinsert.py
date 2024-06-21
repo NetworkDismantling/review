@@ -92,7 +92,7 @@ def reinsert(
         network,
         removals,
         stop_condition,
-        logger=logging.getLogger("dummy"),
+        logger: logging.Logger = logging.getLogger("dummy"),
 ):
     network_path = get_network_file(network)
 
@@ -167,7 +167,8 @@ def reinsert(
 
                 output[node] = num_removals - i
 
-                assert output[node] > 0
+                if output[node] <= 0:
+                    raise RuntimeError(f"Node {node} was not removed: {output[node]}")
 
     logger.debug("Reinsertion algorithm finished")
     logger.debug(f"Original number of removals: {len(removals)}")
@@ -250,7 +251,11 @@ def main(
     df_columns = df.columns
 
     if args.output_file.exists():
-        output_df = pd.read_csv(args.output_file)
+        try:
+            output_df = pd.read_csv(args.output_file)
+        except Exception as e:
+            logger.error(f"Error while reading the output file {args.output_file}: {e}", exc_info=True)
+            raise e
     else:
         output_df = pd.DataFrame(columns=df.columns)
 
@@ -356,7 +361,7 @@ def main(
                     #         )
                     #     )
 
-                    logger.error(f"Had to remove too many nodes ({len(removals)})")
+                    logger.error(f"Had to remove too many nodes ({len(removals)}): {removals[-1]}")
                     last_valid_index = 0
                     for i, removal in enumerate(removals):
                         if removal[2] > 0:

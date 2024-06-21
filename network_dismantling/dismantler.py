@@ -437,7 +437,6 @@ def main(args, logger=logging.getLogger("dummy")):
                             else:
                                 dependency_removals = df_dependency_filtered["removals"]
 
-                            dependency_removals = literal_eval(dependency_removals)
                             dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
 
                             dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals

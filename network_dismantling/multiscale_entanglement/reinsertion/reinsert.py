@@ -103,6 +103,12 @@ def reinsert(
     with (
         NamedTemporaryFile("w+") as broken_fd,
         NamedTemporaryFile("w+") as output_fd,
+        LogPipe(logger=logger,
+                level=logging.INFO,
+                ) as stdout_pipe,
+        LogPipe(logger=logger,
+                level=logging.ERROR,
+                ) as stderr_pipe
     ):
 
         broken_path = broken_fd.name
@@ -128,28 +134,21 @@ def reinsert(
             f"--SortStrategy {reinsertion_strategy} ",
         ]
 
-        with LogPipe(logger=logger,
-                     level=logging.INFO,
-                     ) as stdout_pipe, \
-                LogPipe(logger=logger,
-                        level=logging.ERROR,
-                        ) as stderr_pipe:
-
-            for cmd in cmds:
-                try:
-                    logger.debug(f"Running command: {cd_cmd + cmd}")
-                    run(cd_cmd + cmd,
-                        shell=True,
-                        stdout=stdout_pipe,
-                        stderr=stderr_pipe,
-                        text=True,
-                        check=True,
-                        )
-                except CalledProcessError as e:
-                    logger.error(f"ERROR while running reinsertion algorithm: {e}", exc_info=True)
-                    raise RuntimeError(f"ERROR! {e}")
-                except Exception as e:
-                    raise RuntimeError("ERROR! {}".format(e))
+        for cmd in cmds:
+            try:
+                logger.debug(f"Running command: {cd_cmd + cmd}")
+                run(cd_cmd + cmd,
+                    shell=True,
+                    stdout=stdout_pipe,
+                    stderr=stderr_pipe,
+                    text=True,
+                    check=True,
+                    )
+            except CalledProcessError as e:
+                logger.error(f"ERROR while running reinsertion algorithm: {e}", exc_info=True)
+                raise RuntimeError(f"ERROR! {e}")
+            except Exception as e:
+                raise RuntimeError("ERROR! {}".format(e))
 
         with open(output_path, "r") as output_fd:
             # Read the output file
@@ -158,7 +157,8 @@ def reinsert(
             for _ in output_fd.readlines():
                 num_removals += 1
 
-            assert num_removals > 0
+            if num_removals <= 0:
+                raise RuntimeError("No removals found!")
 
             output_fd.seek(0)
             for i, line in enumerate(output_fd.readlines(), start=0):
@@ -169,7 +169,9 @@ def reinsert(
 
                 output[node] = num_removals - i
 
-                assert output[node] > 0
+                if output[node] <= 0:
+                    logger.error(f"Node {node} has a non-positive value: {output[node]}")
+                    raise RuntimeError(f"Node {node} has a non-positive value: {output[node]}")
 
     logger.debug("Reinsertion algorithm finished")
     logger.debug(f"Original number of removals: {len(removals)}")

@@ -613,7 +613,8 @@ int main(int argc, char **argv) {
                 gcc_size++;
     }
 
-    write(nodes_id); // output the nodes that should be removed
+    // output the nodes that should be removed
+    write(nodes_id);
 
 //    release_memory(&A);
 //

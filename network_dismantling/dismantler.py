@@ -596,9 +596,11 @@ if __name__ == "__main__":
         "--heuristics",
         type=str,
         choices=sorted(dismantling_methods.keys()) + ["all"],
-        default="all",
+        # default="all",
+        required=True,
         nargs="+",
-        help="Dismantling heuristics to run. Default: all. See the repository README for more information.",
+        help="Dismantling heuristics to run. "
+             "See the repository README for more information.",
     )
 
     parser.add_argument(

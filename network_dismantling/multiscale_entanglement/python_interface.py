@@ -35,11 +35,11 @@ def network_entanglement_small(network: Graph, **kwargs):
     includes_reinsertion=True,
     plot_color="#ebae07",
 
-    depends_on=entanglement_small,
+    depends_on=network_entanglement_small,
     **method_info,
 )
 @dismantler_wrapper
-def entanglement_small_reinsertion(network: Graph,
+def network_entanglement_small_reinsertion(network: Graph,
                                    stop_condition: int,
                                    entanglement_small: Union[list, np.ndarray],
                                    logger: Logger = getLogger("dummy"),
@@ -66,7 +66,7 @@ def entanglement_small_reinsertion(network: Graph,
     **method_info,
 )
 @dismantler_wrapper
-def entanglement_mid(network: Graph, **kwargs):
+def network_entanglement_mid(network: Graph, **kwargs):
     return entanglement(G=network, beta=beta_mid, **kwargs)
 
 
@@ -77,11 +77,11 @@ def entanglement_mid(network: Graph, **kwargs):
     includes_reinsertion=True,
     plot_color="#34e8eb",
 
-    depends_on=entanglement_mid,
+    depends_on=network_entanglement_mid,
     **method_info,
 )
 @dismantler_wrapper
-def entanglement_mid_reinsertion(network: Graph,
+def network_entanglement_mid_reinsertion(network: Graph,
                                  stop_condition: int,
                                  entanglement_mid: Union[list, np.ndarray],
                                  logger: Logger = getLogger("dummy"),
@@ -108,7 +108,7 @@ def entanglement_mid_reinsertion(network: Graph,
     **method_info,
 )
 @dismantler_wrapper
-def entanglement_large(network: Graph, **kwargs):
+def network_entanglement_large(network: Graph, **kwargs):
     return entanglement(G=network, beta=beta_large, **kwargs)
 
 
@@ -119,11 +119,11 @@ def entanglement_large(network: Graph, **kwargs):
     includes_reinsertion=True,
     plot_color="#ed02e9",
 
-    depends_on=entanglement_large,
+    depends_on=network_entanglement_large,
     **method_info,
 )
 @dismantler_wrapper
-def entanglement_large_reinsertion(network: Graph,
+def network_entanglement_large_reinsertion(network: Graph,
                                    stop_condition: int,
                                    entanglement_large: Union[list, np.ndarray],
                                    logger: Logger = getLogger("dummy"),
@@ -139,7 +139,7 @@ def entanglement_large_reinsertion(network: Graph,
 
     return predictions
 
-# def entanglement_reinsertion(network: Graph,
+# def network_entanglement_reinsertion(network: Graph,
 #                              stop_condition: int,
 #                              entanglement_function: Callable,
 #                              logger: Logger = getLogger("dummy"),
@@ -170,7 +170,7 @@ def entanglement_large_reinsertion(network: Graph,
 #     **method_info,
 # )
 # @dismantler_wrapper
-# def entanglement_small_reinsertion(network: Graph,
+# def network_entanglement_small_reinsertion(network: Graph,
 #                                    stop_condition: int,
 #                                    logger: Logger = getLogger("dummy"),
 #                                    **kwargs):
@@ -187,7 +187,7 @@ def entanglement_large_reinsertion(network: Graph,
 #     **method_info,
 # )
 # @dismantler_wrapper
-# def entanglement_mid_reinsertion(network: Graph,
+# def network_entanglement_mid_reinsertion(network: Graph,
 #                                  stop_condition: int,
 #                                  logger: Logger = getLogger("dummy"),
 #                                  **kwargs):
@@ -204,7 +204,7 @@ def entanglement_large_reinsertion(network: Graph,
 #     **method_info,
 # )
 # @dismantler_wrapper
-# def entanglement_large_reinsertion(network: Graph,
+# def network_entanglement_large_reinsertion(network: Graph,
 #                                    stop_condition: int,
 #                                    logger: Logger = getLogger("dummy"),
 #                                    **kwargs):

@@ -4,7 +4,7 @@ import os
 
 from tqdm.auto import tqdm
 
-from network_dismantling.vertex_entanglement.reinsertion import reinsertion, get_gcc
+from network_dismantling.vertex_entanglement.reinsertion.reinsertion import reinsertion, get_gcc
 from network_dismantling.vertex_entanglement.utils import fileUtils
 from network_dismantling.vertex_entanglement.utils.graphUtils import *
 

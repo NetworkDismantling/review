@@ -40,7 +40,7 @@ from network_dismantling.common.multiprocessing import TqdmLoggingHandler
 from scipy.integrate import simpson
 from tqdm import tqdm
 
-folder = "network_dismantling/multiscale_entanglement/reinsertion/"
+folder = "network_dismantling/vertex_entanglement/reinsertion/"
 cd_cmd = r"cd {} && ".format(folder)
 reinsertion_strategy = 2
 reinsertion_executable = "reinsertion"

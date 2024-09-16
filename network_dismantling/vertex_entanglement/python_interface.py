@@ -1,14 +1,12 @@
 from copy import deepcopy
 from logging import Logger, getLogger
-from typing import Dict
+from typing import Union
 
 import numpy as np
 from graph_tool import Graph
+
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
-from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
-    lcc_threshold_dismantler as lcc_external_threshold_dismantler,
-)
 from network_dismantling.vertex_entanglement.VE import new_generate_beta
 
 method_info = {

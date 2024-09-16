@@ -4,25 +4,16 @@ from typing import Dict
 
 import numpy as np
 from graph_tool import Graph
-
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
-# from network_dismantling.vertex_entanglement.VE import VertexEnt, new_generate_beta
-from network_dismantling.vertex_entanglement.VE import new_generate_beta
-
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     lcc_threshold_dismantler as lcc_external_threshold_dismantler,
 )
+from network_dismantling.vertex_entanglement.VE import new_generate_beta
 
 method_info = {
-    "source": "",
-    # "authors": "",
-    # "citation": "",
-    # "includes_reinsertion": False,
-    # "plot_color": "#d62728",
-    # 1f77b4
-    # 9e1309
-    # ebae07
+    "source": "https://github.com/Yiminghh/VertexEntanglement",
+    "citation": "Huang, Y., Wang, H., Ren, XL. et al. Identifying key players in complex networks via network entanglement. Commun Phys 7, 19 (2024). https://doi.org/10.1038/s42005-023-01483-8",
 }
 
 
@@ -106,7 +97,6 @@ def VertexEnt(G: Graph, belta=None,
         logger.debug(f"VE There are {num_components} components.")
         belta = new_generate_beta(eigValue[num_components])
 
-    # %%
     S = np.zeros(len(belta))
     for i in range(0, len(belta)):
         b = belta[i]
@@ -118,7 +108,6 @@ def VertexEnt(G: Graph, belta=None,
     if printLog:
         print(S)
 
-    # %%
     lambda_ral = np.zeros((N, N))
     if perturb_strategy == 'default':
         for v_id in tqdm(range(0, N),
@@ -167,7 +156,6 @@ def VertexEnt(G: Graph, belta=None,
             for j in range(0, N):
                 lambda_ral[v_id, j] = eigValue[j] + (eigVector[neibour, j].T @ dL @ eigVector[neibour, j])[0, 0]
 
-    # %%
     E = np.zeros((len(belta), N))
     for x in tqdm(range(0, N),
                   desc="Searching minium entanglement",
@@ -190,9 +178,11 @@ def VertexEnt(G: Graph, belta=None,
 @dismantling_method(
     name=r"Vertex Entanglement",
     short_name=r"$\mathrm{VE}$",
+
     includes_reinsertion=False,
     plot_color="#34eb46",
-    # **method_info,
+
+    **method_info,
 )
 @dismantler_wrapper(
     # dismantler=lcc_external_threshold_dismantler,
@@ -223,16 +213,33 @@ def vertex_entanglement(network: Graph,
 
     return VE_cent
 
+
 @dismantling_method(
     name=r"Vertex Entanglement + Reinsertion",
     short_name=r"$\mathrm{VE}$ + R",
+
     includes_reinsertion=True,
     plot_color="#34eb46",
-    # **method_info,
+
+    depends_on=vertex_entanglement,
+
+    **method_info,
 )
 @dismantler_wrapper
 def vertex_entanglement_reinsertion(network: Graph,
                                     stop_condition: int,
+
+                                    vertex_entanglement: Union[list, np.ndarray],
+
                                     logger: Logger = getLogger("dummy"),
                                     **kwargs):
-    raise NotImplementedError
+    from network_dismantling.vertex_entanglement.reinsertion import reinsert
+
+    predictions = reinsert(
+        network=network,
+        removals=vertex_entanglement,
+        stop_condition=stop_condition,
+        logger=logger,
+    )
+
+    return predictions

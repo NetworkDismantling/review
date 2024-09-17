@@ -267,8 +267,7 @@ DOI [10.1073/pnas.1605083113](https://doi.org/10.1073/pnas.1605083113)
 > Braunstein, A., Dall’Asta, L., Semerjian, G., Zdeborová, L.: Network dismantling. Proceedings of the National Academy of Sciences 113(44), 12368–12373 (2016). https://doi.org/10.1073/pnas.1605083113
 
 ```bibtex
-@article{
-    doi:10.1073/pnas.1605083113,
+@article{doi:10.1073/pnas.1605083113,
     author = {Alfredo Braunstein  and Luca Dall’Asta  and Guilhem Semerjian  and Lenka Zdeborová },
     title = {Network dismantling},
     journal = {Proceedings of the National Academy of Sciences},
@@ -282,6 +281,54 @@ DOI [10.1073/pnas.1605083113](https://doi.org/10.1073/pnas.1605083113)
     abstract = {We study the network dismantling problem, which consists of determining a minimal set of vertices in which removal leaves the network broken into connected components of subextensive size. For a large class of random graphs, this problem is tightly connected to the decycling problem (the removal of vertices, leaving the graph acyclic). Exploiting this connection and recent works on epidemic spreading, we present precise predictions for the minimal size of a dismantling set in a large random graph with a prescribed (light-tailed) degree distribution. Building on the statistical mechanics perspective, we propose a three-stage Min-Sum algorithm for efficiently dismantling networks, including heavy-tailed ones for which the dismantling and decycling problems are not equivalent. We also provide additional insights into the dismantling problem, concluding that it is an intrinsically collective problem and that optimal dismantling sets cannot be viewed as a collection of individually well-performing nodes.}
 }
 ```
+
+### Network Entanglement (NE)
+Multi-scale network entanglement for network dismantling.
+
+DOI [10.1038/s42005-021-00633-0](https://doi.org/10.1038/s42005-021-00633-0)
+```bibtex
+
+@article{Ghavasieh2021unraveling,
+	abstract = {Complex systems are large collections of entities that organize themselves into non-trivial structures, represented as networks. One of their key emergent properties is robustness against random failures or targeted attacks ---i.e., the networks maintain their integrity under removal of nodes or links. Here, we introduce network entanglement to study network robustness through a multiscale lens, encoded by the time required for information diffusion through the system. Our measure's foundation lies upon a recently developed statistical field theory for information dynamics within interconnected systems. We show that at the smallest temporal scales, the node-network entanglement reduces to degree, whereas at extremely large scales, it measures the direct role played by each node in keeping the network connected. At the meso-scale, entanglement plays a more important role, measuring the importance of nodes for the transport properties of the system. We use entanglement as a centrality measure capturing the role played by nodes in keeping the overall diversity of the information flow. As an application, we study the disintegration of empirical social, biological and transportation systems, showing that the nodes central for information dynamics are also responsible for keeping the network integrated.},
+	author = {Ghavasieh, Arsham and Stella, Massimo and Biamonte, Jacob and De Domenico, Manlio},
+	date = {2021/06/10},
+	doi = {10.1038/s42005-021-00633-0},
+	id = {Ghavasieh2021},
+	isbn = {2399-3650},
+	journal = {Communications Physics},
+	number = {1},
+	pages = {129},
+	title = {Unraveling the effects of multiscale network entanglement on empirical systems},
+	url = {https://doi.org/10.1038/s42005-021-00633-0},
+	volume = {4},
+	year = {2021},
+	bdsk-url-1 = {https://doi.org/10.1038/s42005-021-00633-0}}
+```
+
+### Vertex Entanglement (VE)
+
+DOI [10.1038/s42005-023-01483-8](https://doi.org/10.1038/s42005-023-01483-8)
+
+```bibtex
+
+@article{Huang2024empirical,
+	abstract = {Empirical networks exhibit significant heterogeneity in node connections, resulting in a few vertices playing critical roles in various scenarios, including decision-making, viral marketing, and population immunization. Thus, identifying key vertices is a fundamental research problem in Network Science. In this paper, we introduce vertex entanglement (VE), an entanglement-based metric capable of quantifying the perturbations caused by individual vertices on spectral entropy, residing at the intersection of quantum information and network science. Our analytical analysis reveals that VE is closely related to network robustness and information transmission ability. As an application, VE offers an approach to the challenging problem of optimal network dismantling, and empirical experiments demonstrate its superiority over state-of-the-art algorithms. Furthermore, VE also contributes to the diagnosis of autism spectrum disorder (ASD), with significant distinctions in hub disruption indices based on VE between ASD and typical controls, promising a diagnostic role for VE in ASD assessment.},
+	author = {Huang, Yiming and Wang, Hao and Ren, Xiao-Long and L{\"u}, Linyuan},
+	date = {2024/01/08},
+	doi = {10.1038/s42005-023-01483-8},
+	id = {Huang2024},
+	isbn = {2399-3650},
+	journal = {Communications Physics},
+	number = {1},
+	pages = {19},
+	title = {Identifying key players in complex networks via network entanglement},
+	url = {https://doi.org/10.1038/s42005-023-01483-8},
+	volume = {7},
+	year = {2024},
+	bdsk-url-1 = {https://doi.org/10.1038/s42005-023-01483-8}}
+```
+
+
 ### Node heuristics
 TODO
 

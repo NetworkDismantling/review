@@ -3,10 +3,11 @@ from typing import Union
 
 import numpy as np
 from graph_tool import Graph
+
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
-from network_dismantling.multiscale_entanglement.entanglement_functions import entanglement_small, entanglement_mid, \
-    entanglement_large, entanglement, beta_small, beta_mid, beta_large
+from network_dismantling.multiscale_entanglement.entanglement_functions import (entanglement,
+                                                                                beta_small, beta_mid, beta_large)
 
 method_info = {
     # "source": "",
@@ -40,10 +41,10 @@ def network_entanglement_small(network: Graph, **kwargs):
 )
 @dismantler_wrapper
 def network_entanglement_small_reinsertion(network: Graph,
-                                   stop_condition: int,
-                                   entanglement_small: Union[list, np.ndarray],
-                                   logger: Logger = getLogger("dummy"),
-                                   **kwargs):
+                                           stop_condition: int,
+                                           entanglement_small: Union[list, np.ndarray],
+                                           logger: Logger = getLogger("dummy"),
+                                           **kwargs):
     from network_dismantling.multiscale_entanglement.reinsertion import reinsert
 
     predictions = reinsert(
@@ -82,10 +83,10 @@ def network_entanglement_mid(network: Graph, **kwargs):
 )
 @dismantler_wrapper
 def network_entanglement_mid_reinsertion(network: Graph,
-                                 stop_condition: int,
-                                 entanglement_mid: Union[list, np.ndarray],
-                                 logger: Logger = getLogger("dummy"),
-                                 **kwargs):
+                                         stop_condition: int,
+                                         entanglement_mid: Union[list, np.ndarray],
+                                         logger: Logger = getLogger("dummy"),
+                                         **kwargs):
     from network_dismantling.multiscale_entanglement.reinsertion import reinsert
 
     predictions = reinsert(
@@ -124,10 +125,10 @@ def network_entanglement_large(network: Graph, **kwargs):
 )
 @dismantler_wrapper
 def network_entanglement_large_reinsertion(network: Graph,
-                                   stop_condition: int,
-                                   entanglement_large: Union[list, np.ndarray],
-                                   logger: Logger = getLogger("dummy"),
-                                   **kwargs):
+                                           stop_condition: int,
+                                           entanglement_large: Union[list, np.ndarray],
+                                           logger: Logger = getLogger("dummy"),
+                                           **kwargs):
     from network_dismantling.multiscale_entanglement.reinsertion import reinsert
 
     predictions = reinsert(

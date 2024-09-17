@@ -82,8 +82,8 @@ This library integrates and provides a common interface to the following algorit
 - Generalized Network Dismantling (GND): [reference](CITATIONS.md#generalized-network-dismantling-gnd)
 - [Graph Dismantling Machine (GDM)](https://github.com/renxiaolong/Generalized-Network-Dismantling): [reference](CITATIONS.md#graph-dismantling-machine-gdm)
 - [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
-- NetworkEntanglement: [reference](CITATIONS.md#network-entanglement)
-- [VertexEntanglement](https://github.com/Yiminghh/VertexEntanglement): [reference](CITATIONS.md#vertex-entanglement)
+- NetworkEntanglement: [reference](CITATIONS.md#network-entanglement-ne)
+- [VertexEntanglement](https://github.com/Yiminghh/VertexEntanglement): [reference](CITATIONS.md#vertex-entanglement-ve)
 - Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)
     - Degree
     - Betweenness

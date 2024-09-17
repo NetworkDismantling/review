@@ -367,6 +367,18 @@ if __name__ == "__main__":
     )
     args, cmdline_args = parser.parse_known_args()
 
-    logger.warning(f"Unknown arguments: {cmdline_args}")
+    if args.output is not None:
+        args.output = args.output.resolve()
+
+        if args.output.exists() and not args.output.is_dir():
+            raise RuntimeError(f"Output path {args.output} is not a directory!")
+
+        if not args.output.exists():
+            args.output.mkdir(parents=True)
+
+        args.plot = True
+
+    if cmdline_args:
+        logger.warning(f"Unknown arguments: {cmdline_args}")
 
     FUNCTION_MAP[args.command](args)

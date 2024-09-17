@@ -182,9 +182,7 @@ def VertexEnt(G: Graph, belta=None,
 
     **method_info,
 )
-@dismantler_wrapper(
-    # dismantler=lcc_external_threshold_dismantler,
-)
+@dismantler_wrapper
 def vertex_entanglement(network: Graph,
                         logger: Logger = getLogger("dummy"),
                         **kwargs):

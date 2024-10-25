@@ -22,24 +22,26 @@ from errno import ENOSPC
 from operator import itemgetter
 from os import remove, close
 from pathlib import Path
-from subprocess import check_output
+from subprocess import run, CalledProcessError
 from tempfile import NamedTemporaryFile
 from time import time
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
-from scipy.integrate import simps
+from network_dismantling.common.dataset_providers import init_network_provider
+from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler, \
+    threshold_dismantler
+from network_dismantling.common.helpers import extend_filename
+from network_dismantling.common.logging.pipe import LogPipe
+from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from scipy.integrate import simpson
 from tqdm import tqdm
 
-from network_dismantling.GDM.dataset_providers import list_files
-from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler
-from network_dismantling.common.helpers import extend_filename
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler
-
 folder = "network_dismantling/GDM/reinsertion/"
-cd_cmd = "cd {} && ".format(folder)
+cd_cmd = r"cd {} && ".format(folder)
 reinsertion_strategy = 2
 reinsertion_executable = "reinsertion"
 
@@ -51,19 +53,28 @@ run_columns = [
     "slcc_size_at_peak",
     "r_auc",
     # TODO
-    "seed",
     "average_dmg",
     "rem_num",
     "idx",
+    "file",
 ]
 
-cached_networks = {}
+lcc_threshold_dismantler
+threshold_dismantler
+
+cached_networks: Dict[Path, str] = {}
 
 
 def get_predictions(
-    network, removals, stop_condition, logger=logging.getLogger("dummy"), **kwargs
+        network,
+        removals,
+        stop_condition,
+        logger: logging.Logger = logging.getLogger("dummy"),
+        **kwargs
 ):
     start_time = time()
+
+    logger.debug("Running reinsertion algorithm")
 
     predictions = reinsert(
         network=network,
@@ -78,93 +89,90 @@ def get_predictions(
 
 
 def reinsert(
-    network,
-    removals,
-    stop_condition,
-    logger=logging.getLogger("dummy"),
+        network,
+        removals,
+        stop_condition,
+        logger: logging.Logger = logging.getLogger("dummy"),
 ):
     network_path = get_network_file(network)
 
-    # broken_fd, broken_path = tempfile.mkstemp()
-    # output_fd, output_path = tempfile.mkstemp()
-    #
-    # tmp_file_handles = [broken_fd, output_fd]
-    # tmp_file_paths = [broken_path, output_path]
-
     nodes = []
-
+    output = np.zeros(network.num_vertices(),
+                      dtype=int,
+                      )
     with (
         NamedTemporaryFile("w+") as broken_fd,
-        NamedTemporaryFile("w+") as output_fd
+        NamedTemporaryFile("w+") as output_fd,
     ):
 
         broken_path = broken_fd.name
         output_path = output_fd.name
 
+        for removal in removals:
+            broken_fd.write(f"{removal}\n")
+
+        broken_fd.flush()
+
         cmds = [
-            # 'make clean && make',
+            # Build the reinsertion program, if necessary
             "make",
+
+            # Run the reinsertion algorithm
             f"./{reinsertion_executable} "
             f"--NetworkFile {network_path} "
-            f'--IDFile "{broken_path}" '
-            f'--OutFile "{output_path}" '
+            f"--IDFile \"{broken_path}\" "
+            f"--OutFile \"{output_path}\" "
             f"--TargetSize {stop_condition} "
             f"--SortStrategy {reinsertion_strategy} ",
         ]
 
-        # try:
-        # with open(broken_fd, "w+") as tmp:
-        for removal in removals:
-            broken_fd.write(f"{removal}\n")
+        with LogPipe(logger=logger,
+                     level=logging.INFO,
+                     ) as stdout_pipe, \
+                LogPipe(logger=logger,
+                        level=logging.ERROR,
+                        ) as stderr_pipe:
 
-        for cmd in cmds:
-            try:
-                check_output(cd_cmd + cmd, shell=True, text=True)  # , stderr=STDOUT))
-            except Exception as e:
-                raise RuntimeError("ERROR! {}".format(e))
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running command: {cd_cmd + cmd}")
+                    run(cd_cmd + cmd,
+                        shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
+                        text=True,
+                        check=True,
+                        )
+                except CalledProcessError as e:
+                    logger.error(f"ERROR while running reinsertion algorithm: {e}", exc_info=True)
+                    raise RuntimeError(f"ERROR! {e}")
+                except Exception as e:
+                    raise RuntimeError("ERROR! {}".format(e))
 
-        with open(output_path, "r+") as tmp:
-            num_lines = sum(1 for _ in tmp.readlines())
+        with open(output_path, "r") as output_fd:
+            # Read the output file
+            # Count the number of lines
+            num_removals = 0
+            for _ in output_fd.readlines():
+                num_removals += 1
 
-        # output_fd.rewind()
+            assert num_removals > 0
 
-        for line in output_fd.readlines():
-            num_lines -= 1
-            node = int(line.strip())
+            output_fd.seek(0)
+            for i, line in enumerate(output_fd.readlines(), start=0):
+                node = int(line.strip())
+                # node -= 1
 
-            nodes.append(node)
+                nodes.append(node)
 
-        assert num_lines == 0
+                output[node] = num_removals - i
 
-    # finally:
-    #     for fd, path in zip(tmp_file_handles, tmp_file_paths):
-    #         try:
-    #             close(fd)
-    #
-    #         except:
-    #             pass
-    #
-    #         try:
-    #             remove(path)
-    #
-    #         except:
-    #             pass
+                if output[node] <= 0:
+                    raise RuntimeError(f"Node {node} was not removed: {output[node]}")
 
-    output = np.zeros(network.num_vertices())
-
-    filtered_removals = []
-    removed_removals = []
-    for x in removals:
-        if x in nodes:
-            filtered_removals.append(x)
-        else:
-            removed_removals.append(x)
-
-    nodes = filtered_removals + removed_removals
-
-    # TODO improve this loop
-    for n, p in zip(nodes, list(reversed(range(1, len(nodes) + 1)))):
-        output[n] = p
+    logger.debug("Reinsertion algorithm finished")
+    logger.debug(f"Original number of removals: {len(removals)}")
+    logger.debug(f"Number of final removals: {num_removals}")
 
     return output
 
@@ -189,9 +197,12 @@ def get_network_file(network: Graph) -> str:
 
                     network_fd, network_path = mkstemp()
 
+                else:
+                    raise e
+
             static_id = network.vertex_properties["static_id"]
 
-            with open(network_fd, "w+") as tmp:
+            with open(network_path, "w+") as tmp:
                 for edge in network.edges():
                     tmp.write(f"{static_id[edge.source()]} {static_id[edge.target()]}\n")
 
@@ -218,12 +229,13 @@ def cleanup_cache():
 
 
 def main(
-    args,
-    df=None,
-    test_networks=None,
-    predictor=get_predictions,
-    dismantler=lcc_threshold_dismantler,
-    logger=logging.getLogger("dummy"),
+        args,
+        df=None,
+        test_networks=None,
+        predictor=get_predictions,
+        dismantler=lcc_threshold_dismantler,
+        threshold: float = None,
+        logger=logging.getLogger("dummy"),
 ):
     if df is None:
         # Load the runs dataframe...
@@ -239,31 +251,13 @@ def main(
     df_columns = df.columns
 
     if args.output_file.exists():
-        output_df = pd.read_csv(args.output_file)
+        try:
+            output_df = pd.read_csv(args.output_file)
+        except Exception as e:
+            logger.error(f"Error while reading the output file {args.output_file}: {e}", exc_info=True)
+            raise e
     else:
         output_df = pd.DataFrame(columns=df.columns)
-
-    if test_networks is None:
-        # TODO defer the loading of the networks
-        # Get the list of networks in the folder
-        test_networks_list = list_files(
-            args.location_test,
-            filter=args.test_filter,
-        )
-        test_networks_list = np.intersect1d(
-            [file.stem for file in test_networks_list],
-            df["network"].unique(),
-        )
-
-        # TODO create the mapping preserving the file location
-        # that was lost in the previous step
-
-        # # Load the networks
-        # test_networks = dict(
-        #     storage_provider(args.location_test,
-        #                      filter=args.test_filter,
-        #                      )
-        # )
 
     # Filter the networks in the folder
     df = df.loc[(df["network"].isin(test_networks.keys()))]
@@ -284,42 +278,53 @@ def main(
     all_runs = []
     groups = df.groupby("network")
     for network_name, network_df in groups:
-        network_df = network_df.head(args.reinsert_first)
-
         with tqdm(
-            network_df.iterrows(),
-            ascii=False,
-            desc="Reinserting",
-            leave=False,
+                network_df.iterrows(),
+                ascii=False,
+                desc="Reinserting",
+                leave=False,
         ) as runs_iterable:
             runs_iterable.set_description(network_name)
 
+            run: pd.Series
             for _, run in runs_iterable:
                 network = test_networks[network_name]
 
-                removals = literal_eval(run.pop("removals"))
-
                 run.drop(run_columns, inplace=True, errors="ignore")
+                # Get the removals
+                removals = run.pop("removals")
+                removals = literal_eval(removals)
 
-                run = run.to_dict()
+                # Remove the columns that are not needed
+                run.drop(run_columns,
+                         inplace=True,
+                         errors="ignore",
+                         )
+
+                run: dict = run.to_dict()
 
                 reinserted_run_df = output_df.loc[
                     (output_df[list(run.keys())] == list(run.values())).all(
                         axis="columns"
                     ),
-                    ["network", "seed"],
+                    ["network"],
                 ]
 
                 if len(reinserted_run_df) != 0:
                     # Nothing to do. The network was already tested
                     continue
 
-                stop_condition = int(np.ceil(removals[-1][3] * network.num_vertices()))
+                if threshold is None:
+                    threshold = run.get("threshold",
+                                        removals[-1][3],
+                                        )
+
+                stop_condition = int(np.ceil(threshold * network.num_vertices()))
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
-                    # "logger": logger,
                     "network_name": network_name,
+                    "logger": logger,
                 }
 
                 removals, _, _ = dismantler(
@@ -339,8 +344,9 @@ def main(
                     "slcc_peak_at": peak_slcc[0],
                     "lcc_size_at_peak": peak_slcc[3],
                     "slcc_size_at_peak": peak_slcc[4],
-                    "r_auc": simps(list(r[3] for r in removals), dx=1),
+                    "r_auc": simpson(list(r[3] for r in removals), dx=1),
                     "rem_num": len(removals),
+                    "threshold": threshold,
                 }
 
                 for key, value in _run.items():
@@ -348,14 +354,23 @@ def main(
 
                 # Check if something is wrong with the removals
                 if removals[-1][2] == 0:
-                    for removal in removals:
-                        logger.info(
-                            "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
-                                *removal
-                            )
-                        )
+                    # for removal in removals:
+                    #     logger.info(
+                    #         "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
+                    #             *removal
+                    #         )
+                    #     )
 
-                    raise RuntimeError
+                    logger.error(f"Had to remove too many nodes ({len(removals)}): {removals[-1]}")
+                    last_valid_index = 0
+                    for i, removal in enumerate(removals):
+                        if removal[2] > 0:
+                            last_valid_index = i
+                        else:
+                            break
+
+                    logger.error(f"Last valid index: {last_valid_index}: {removals[last_valid_index]}")
+                    raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
 
                 all_runs.append(run)
 
@@ -418,14 +433,6 @@ def parse_parameters(parse_string=None, logger=logging.getLogger("dummy")):
         help="Query the dataframe",
     )
     parser.add_argument(
-        "-rf",
-        "--reinsert_first",
-        type=int,
-        default=15,
-        required=False,
-        help="Show first N dismantligs",
-    )
-    parser.add_argument(
         "-s",
         "--sort_column",
         type=str,
@@ -441,7 +448,19 @@ def parse_parameters(parse_string=None, logger=logging.getLogger("dummy")):
         action="store_true",
         help="Descending sorting",
     )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        type=str.upper,
+        choices=["INFO", "DEBUG", "WARNING", "ERROR"],
+        default="info",
+        help="Verbosity level (case insensitive)",
+    )
+
     args, cmdline_args = parser.parse_known_args(parse_string)
+
+    logger.setLevel(logging.getLevelName(args.verbose))
 
     if not args.location_test.is_absolute():
         args.location_test = args.location_test.resolve()
@@ -464,7 +483,17 @@ if __name__ == "__main__":
 
     args = parse_parameters()
 
+    logger.setLevel(logging.getLevelName(args.verbose))
+
+    networks_provider = init_network_provider(
+        location=args.location_test,
+        filter=args.test_filter,
+        logger=logger,
+    )
+    test_networks = dict(networks_provider)
+
     main(
         args,
+        test_networks=test_networks,
         logger=logger,
     )

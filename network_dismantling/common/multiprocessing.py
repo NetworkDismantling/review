@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 from pathlib import Path
 
 from parse import compile
@@ -90,6 +91,21 @@ def apply_async(pool, func, args=None, kwargs=None, callback=None, error_callbac
     payload = dill.dumps((func, args, kwargs))
     return pool.apply_async(
         run_dill_encoded, (payload,), callback=callback, error_callback=error_callback
+    )
+
+
+def map(pool: multiprocessing.Pool, func, args=None, kwargs=None, callback=None, error_callback=None):
+    import dill
+
+    if args is None:
+        args = ()
+
+    if kwargs is None:
+        kwargs = {}
+
+    payload = dill.dumps((func, args, kwargs))
+    return pool.map(
+        run_dill_encoded, (payload,)
     )
 
 

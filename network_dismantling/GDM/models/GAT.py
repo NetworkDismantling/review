@@ -21,9 +21,9 @@
 import torch
 from torch.nn import functional as F
 
-from network_dismantling.GDM.common import dotdict, DefaultDict
 from network_dismantling.GDM.models.base import BaseModel
 from network_dismantling.GDM.models.layers.gat_conv import GATConv
+from network_dismantling.common.data_structures import dotdict, DefaultDict
 
 
 # from torch_geometric.graphgym import GATConv

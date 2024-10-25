@@ -201,3 +201,5 @@ dataset.tar.gz
 
 # CMakelists
 network_dismantling/CI/CI
+CMakeLists.txt
+network_dismantling/vertex_entanglement/reinsertion/reinsertion

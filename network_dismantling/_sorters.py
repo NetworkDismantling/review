@@ -19,17 +19,19 @@
 import inspect
 from functools import wraps
 from pathlib import Path
+from typing import Union, List, Callable
 
 from network_dismantling import DismantlingMethod, dismantling_methods
 
 
-def dismantling_method(name=None,
-                       short_name=None,
-                       includes_reinsertion=False,
-                       description=None,
-                       citation=None,
-                       authors=None,
-                       source=None,
+def dismantling_method(name: str = None,
+                       short_name: str = None,
+                       includes_reinsertion: bool = False,
+                       description: str = None,
+                       citation: str = None,
+                       authors: Union[str, List[str]] = None,
+                       source: str = None,
+                       depends_on: Union[str, Callable] = None,
                        # plot_color: str = None,
                        # plot_marker: str = None,
                        **kwargs,
@@ -87,12 +89,14 @@ def dismantling_method(name=None,
                                    source=source,
                                    license_file=license_file,
                                    citation_file=citation_file,
+                                   depends_on=depends_on,
                                    **kwargs,
                                    )
 
         dismantling_methods[key] = method
 
-        return funct
+        # return funct
+        return method
 
     return wrapper
 

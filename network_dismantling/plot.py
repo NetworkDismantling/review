@@ -67,53 +67,6 @@ replace_labels = {
     "Degree (Dynamic)": "AD",
 }
 
-color_mapping = {
-    "CoreGDM": "#3080bd",
-    "GDM": "#3080bd",
-    "GDM +R": "#084488",
-    "GDM AUC": "#3080bd",
-    "GDM +R AUC": "#084488",
-    "GDM #Removals": "#3080bd",
-    "GDM +R #Removals": "#084488",
-    "GND +R": "#ff7f0e",
-    "GND": "#ffbb78",
-    "MS +R": "#2ca02c",
-    "MS": "#98df8a",
-    "BC": "#8c564b",
-    "D": "#9467bd",
-    r"CI $\ell-2$": "#d62728",
-    r"CI $\ell-3$": "#d62728",
-    "PR": "#ff9896",
-    "FINDER": "#9467bd",
-    "CoreHD": "#ff9896",
-}
-
-marker_mapping = {
-    "CoreGDM": "o",
-    "GDM": "o",
-    "GDM +R": "o",
-    "GDM AUC": "o",
-    "GDM +R AUC": "o",
-    "GDM #Removals": "o",
-    "GDM +R #Removals": "o",
-
-    "GND +R": "s",
-    "GND": "s",
-
-    "MS +R": "v",
-    "MS": "v",
-
-    "BC": "D",
-    "PR": "+",
-    "D": "*",
-
-    r"CI $\ell-2$": "X",
-    r"CI $\ell-3$": "X",
-
-    "FINDER": "H",
-    "CoreHD": "^",
-}
-
 # Define run columns to match the runs
 run_columns = [
     # "removals",
@@ -186,6 +139,8 @@ def prepare_df(df, args):
 def display_df(df, args):
     prepare_df(df, args)
 
+    print(f"Storing to {args.output}")
+
     groups = df.groupby("network")
     for network_name, group_df in groups:
 
@@ -249,7 +204,7 @@ def display_df(df, args):
                 num_removals = len(removals)
                 max_num_removals = max(max_num_removals, num_removals)
 
-                color = dismantling_method.plot_color or color_mapping.get(heuristic_name, None)
+                color = dismantling_method.plot_color # or color_mapping.get(heuristic_name, None)
                 # marker = dismantling_method.plot_marker or marker_mapping[heuristic_name]
                 marker = "o" if dismantling_method.includes_reinsertion else "s"
 
@@ -372,7 +327,7 @@ if __name__ == "__main__":
         "--output",
         type=Path,
         default=None,
-        required=False,
+        required=True,
         help="Output plot location",
     )
 
@@ -411,5 +366,19 @@ if __name__ == "__main__":
         choices=["paper", "talk", "poster"],
     )
     args, cmdline_args = parser.parse_known_args()
+
+    if args.output is not None:
+        args.output = args.output.resolve()
+
+        if args.output.exists() and not args.output.is_dir():
+            raise RuntimeError(f"Output path {args.output} is not a directory!")
+
+        if not args.output.exists():
+            args.output.mkdir(parents=True)
+
+        args.plot = True
+
+    if cmdline_args:
+        logger.warning(f"Unknown arguments: {cmdline_args}")
 
     FUNCTION_MAP[args.command](args)

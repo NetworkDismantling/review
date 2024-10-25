@@ -29,10 +29,10 @@ import logging
 from pathlib import Path
 
 from graph_tool import Graph
-
-from network_dismantling.GDM.common import dotdict
+from network_dismantling.GDM.models import BaseModel
 from network_dismantling.GDM.python_interface import models_folder_path
 from network_dismantling._sorters import dismantling_method
+from network_dismantling.common.data_structures import dotdict, product_dict
 
 folder = 'network_dismantling/CoreGDM/'
 cd_cmd = f'cd {folder} && '
@@ -48,29 +48,29 @@ folder_path = folder_path.resolve()
 dataframe_folder_path = folder_path / output_folder / dataframes_folder
 # models_folder_path = folder_path / output_folder / models_folder
 
-default_gdm_params = '--epochs 50 ' \
-                     '--weight_decay 1e-5 ' \
-                     '--learning_rate 0.003 ' \
-                     '--features degree clustering_coefficient kcore chi_degree ' \
-                     '--features_min 4 ' \
-                     '--features_max 4 ' \
-                     '--target t_0.18 ' \
-                     '--threshold 0.10 ' \
-                     '--simultaneous_access 1 ' \
-                     '--static_dismantling ' \
-                     '--lcc_only ' \
-                     '--location_train GDM/dataset/synth_train_NEW/ ' \
-                     '--location_test NONE ' \
-                     '--model GAT_Model ' \
-                     f'--models_location {models_folder_path} ' \
-                     '--jobs 1 ' \
-                     '--seed 0 ' \
-                     '--dont_train ' \
-                     '-CL 5 -CL 10 -CL 20 -CL 50 -CL 5 5 -CL 10 10 -CL 20 20 -CL 50 50 -CL 100 100 -CL 5 5 5 -CL 10 10 10 -CL 20 20 20 -CL 20 10 5 ' \
-                     '-CL 30 20 -CL 30 20 10 -CL 40 30 -CL 5 5 5 5 -CL 10 10 10 10 -CL 20 20 20 20 -CL 40 30 20 10 ' \
-                     '-FCL 100 -FCL 40 40 40 -FCL 50 30 30 -FCL 100 100 -FCL 40 30 20 -FCL 50 30 30 30 ' \
-                     '-H 1 -H 5 -H 10 -H 15 -H 20 -H 30 -H 1 1 -H 5 5 -H 10 10 -H 15 15 -H 20 20 -H 30 30 -H 1 1 1 -H 10 10 10 -H 20 20 20 -H 30 30 30 -H 1 1 1 1 -H 5 5 5 5 -H 10 10 10 10 -H 20 20 20 20 '
-
+default_gdm_params = (f'--epochs 50 '
+                      f'--weight_decay 1e-5 '
+                      f'--learning_rate 0.003 '
+                      f'--features degree clustering_coefficient kcore chi_degree '
+                      f'--features_min 4 '
+                      f'--features_max 4 '
+                      f'--target t_0.18 '
+                      f'--simultaneous_access 1 '
+                      f'--static_dismantling '
+                      f'--lcc_only '
+                      f'--location_train GDM/dataset/synth_train_NEW/ '
+                      f'--location_test NONE '
+                      f'--model GAT_Model '
+                      f'--models_location {models_folder_path} '
+                      f'--jobs 1 '
+                      f'--seed 0 '
+                      f'--dont_train '
+                      f'-CL 5 -CL 10 -CL 20 -CL 50 -CL 5 5 -CL 10 10 -CL 20 20 -CL 50 50 -CL 100 100 -CL 5 5 5 -CL 10 10 10 -CL 20 20 20 -CL 20 10 5 '
+                      f'-CL 30 20 -CL 30 20 10 -CL 40 30 -CL 5 5 5 5 -CL 10 10 10 10 -CL 20 20 20 20 -CL 40 30 20 10 '
+                      f'-FCL 100 -FCL 40 40 40 -FCL 50 30 30 -FCL 100 100 -FCL 40 30 20 -FCL 50 30 30 30 '
+                      f'-H 1 -H 5 -H 10 -H 15 -H 20 -H 30 -H 1 1 -H 5 5 -H 10 10 -H 15 15 -H 20 20 -H 30 30 -H 1 1 1 -H 10 10 10 -H 20 20 20 -H 30 30 30 -H 1 1 1 1 -H 5 5 5 5 -H 10 10 10 10 -H 20 20 20 20 '
+                      "--threshold {threshold} "
+                      )
 default_reinsertion_params = '--file NONE ' \
                              '--location_test NONE ' \
                              '--test_filter "*" ' \
@@ -89,9 +89,9 @@ df = None
 
 def grid(df,
          args,
-         nn_model,
-         network,
-         logger=logging.getLogger("dummy")
+         nn_model: BaseModel,
+         network: Graph,
+         logger: logging.Logger = logging.getLogger("dummy"),
          ):
     import threading
     from collections import defaultdict
@@ -107,7 +107,6 @@ def grid(df,
 
     import network_dismantling
     from network_dismantling.CoreGDM.core_grid import process_parameters_wrapper
-    from network_dismantling.GDM.common import product_dict
     from network_dismantling.GDM.dataset_providers import init_network_provider
     from network_dismantling.GDM.dataset_providers import prepare_graph
     # from network_dismantling.GDM.models import models_mapping
@@ -194,7 +193,9 @@ def grid(df,
 
         def storage_provider_callback(filename, network):
             network_size = network.num_vertices()
+
             stop_condition = int(np.ceil(network_size * float(args.threshold)))
+
             logger.info(f"Dismantling {filename} according to the predictions. "
                         f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
                         )
@@ -288,8 +289,12 @@ def grid(df,
     return new_df_runs
 
 
-def _CoreGDM(network: Graph, stop_condition: int, parameters=default_gdm_params,
-             logger=logging.getLogger("dummy"), **kwargs):
+def _CoreGDM(network: Graph,
+             stop_condition: int,
+             threshold: float,
+             parameters=default_gdm_params,
+             logger: logging.Logger = logging.getLogger("dummy"),
+             **kwargs):
     import pandas as pd
 
     from network_dismantling.CoreGDM.core_grid import parse_parameters
@@ -297,6 +302,8 @@ def _CoreGDM(network: Graph, stop_condition: int, parameters=default_gdm_params,
     from network_dismantling.GDM.reinsert import main as reinsert, parse_parameters as reinsert_parse_parameters
     from network_dismantling.common.df_helpers import df_reader
     from network_dismantling.common.helpers import extend_filename
+
+    parameters = parameters.replace("{threshold}", str(threshold))
 
     global df
 
@@ -309,7 +316,9 @@ def _CoreGDM(network: Graph, stop_condition: int, parameters=default_gdm_params,
     # Prepare the network for GDM
     network_name = network.graph_properties["filename"]
     args.output_file = extend_filename(args.output_file, f"_{network_name}")
-    args.threshold = stop_condition / network.num_vertices()
+
+    # args.threshold = stop_condition / network.num_vertices()
+    args.threshold = threshold
 
     if df is None:
         if (args.output_file.exists()) and (args.output_file.is_file()):

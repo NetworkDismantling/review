@@ -24,22 +24,19 @@ from itertools import combinations
 from pathlib import Path
 from queue import Queue
 
+import network_dismantling
 import numpy as np
 import pandas as pd
 from graph_tool.all import remove_parallel_edges, remove_self_loops
-from torch import multiprocessing, cuda
-from tqdm import tqdm
-
-import network_dismantling
 from network_dismantling.CoreGDM.core_network_dismantler import get_df_columns
-from network_dismantling.GDM.common import product_dict
-from network_dismantling.GDM.config import all_features, threshold
+from network_dismantling.GDM.config import all_features
 from network_dismantling.GDM.config import base_models_path
 from network_dismantling.GDM.dataset_providers import init_network_provider
 from network_dismantling.GDM.models import models_mapping
 from network_dismantling.GDM.network_dismantler import ModelWeightsNotFoundError
 from network_dismantling.GDM.training_data_extractor import training_data_extractor
 from network_dismantling.common.config import output_path, base_dataframes_path
+from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dataset_providers import list_files
 from network_dismantling.common.multiprocessing import (
     dataset_writer,
@@ -47,19 +44,21 @@ from network_dismantling.common.multiprocessing import (
     progressbar_thread,
     TqdmLoggingHandler,
 )
+from torch import multiprocessing, cuda
+from tqdm import tqdm
 
 
 def process_parameters_wrapper(
-    args,
-    df,
-    nn_model,
-    params_queue,
-    train_networks,
-    test_networks,
-    df_queue,
-    iterations_queue,
-    early_stopping_dict,
-    logger=logging.getLogger("dummy"),
+        args,
+        df,
+        nn_model,
+        params_queue,
+        train_networks,
+        test_networks,
+        df_queue,
+        iterations_queue,
+        early_stopping_dict,
+        logger=logging.getLogger("dummy"),
 ):
     import logging
 
@@ -152,9 +151,9 @@ def process_parameters_wrapper(
 
         # noinspection PyTypeChecker
         for name, network, data in tqdm(
-            test_networks[key],
-            desc="Networks",
-            leave=False,
+                test_networks[key],
+                desc="Networks",
+                leave=False,
         ):
             network_df = df_filtered.loc[(df_filtered["network"] == name)]
 
@@ -202,8 +201,18 @@ def process_parameters_wrapper(
 
                 runs_dataframe = pd.DataFrame(data=runs, columns=args.output_df_columns)
 
+                if "file" in runs_dataframe.columns:
+                    runs_dataframe = runs_dataframe.drop(columns=["file"])
+
                 df_queue.put(runs_dataframe)
 
+                # runs_dataframe["idx"] = range(len(runs_dataframe))
+                #
+                # pd.concat(objs=[network_df,
+                #                 runs_dataframe,
+                #                 ],
+                #           axis=1,
+                #           )
                 clean_up_the_pool()
 
         # TODO fix OOM
@@ -294,7 +303,9 @@ def main(args, nn_model):
 
     # Create and start the Dataset Writer Thread
     dp = threading.Thread(
-        target=dataset_writer, args=(df_queue, args.output_file), daemon=True
+        target=dataset_writer,
+        args=(df_queue, args.output_file),
+        daemon=True,
     )
     dp.start()
 
@@ -324,12 +335,12 @@ def main(args, nn_model):
     args.locks = locks
 
     for network_name in tqdm(
-        test_networks_list,
-        desc="Networks",
+            test_networks_list,
+            desc="Networks",
     ):
         for features in tqdm(
-            args.features,
-            desc="Features",
+                args.features,
+                desc="Features",
         ):
             logger.info(f"Loading network: {network_name} with features: {features}")
 
@@ -372,14 +383,14 @@ def main(args, nn_model):
 
             # Create the pool
             with multiprocessing.Pool(
-                processes=args.jobs,
-                initializer=tqdm.set_lock,
-                initargs=(multiprocessing.Lock(),),
+                    processes=args.jobs,
+                    initializer=tqdm.set_lock,
+                    initargs=(multiprocessing.Lock(),),
             ) as p:
                 with tqdm(
-                    total=len(params_list),
-                    leave=False,
-                    desc="Parameters",
+                        total=len(params_list),
+                        leave=False,
+                        desc="Parameters",
                 ) as pb:
                     # Create and start the ProgressBar Thread
                     pbt = threading.Thread(
@@ -430,10 +441,10 @@ def main(args, nn_model):
 
 
 def parse_parameters(
-    parse_args=None,
-    base_dataframes_path=base_dataframes_path,
-    base_models_path=base_models_path,
-    logger=logging.getLogger("dummy"),
+        parse_args=None,
+        base_dataframes_path=base_dataframes_path,
+        base_models_path=base_models_path,
+        logger=logging.getLogger("dummy"),
 ):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -529,7 +540,7 @@ def parse_parameters(
         "-T",
         "--threshold",
         type=float,
-        default=float(threshold["test"]),
+        default=None,
         required=False,
         help="The target threshold",
     )
@@ -727,10 +738,10 @@ def parse_parameters(
     logger.debug(f"Simultaneous access to PyTorch device {args.simultaneous_access}")
 
     base_dataframes_path = (
-        base_dataframes_path
-        / args.location_train.name
-        / args.target
-        / "T_{}".format(float(args.threshold) if not args.peak_dismantling else "PEAK")
+            base_dataframes_path
+            / args.location_train.name
+            / args.target
+            / "T_{}".format(float(args.threshold) if not args.peak_dismantling else "PEAK")
     )
 
     if not base_dataframes_path.exists():

@@ -6,12 +6,12 @@ from typing import Dict, Callable, Union
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
 from graph_tool.topology import label_components, kcore_decomposition
-from scipy.integrate import simps
-
+from network_dismantling.common.df_helpers import RemovalsColumns
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     threshold_dismantler as external_threshold_dismantler,
 )
 from network_dismantling.dismantler import get_predictions
+from scipy.integrate import simpson
 
 
 def get_lcc_slcc(network):
@@ -77,7 +77,7 @@ def threshold_dismantler(
         if local_network_lcc_size <= stop_condition:
             break
 
-        current_auc = simps(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
             removals.append((-1, -1, -1, -1, -1))
@@ -176,7 +176,7 @@ def kcore_lcc_threshold_dismantler(
             generator.close()
             break
 
-        current_auc = simps(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
 
@@ -206,14 +206,6 @@ def lcc_threshold_dismantler(
     # Get static and dynamic vertex IDs
     static_id = network.vertex_properties["static_id"].get_array()
     dynamic_id = np.arange(start=0, stop=network_size, dtype=np.int64)[static_id]
-
-    # dynamic_id = np.empty(shape=network_size, dtype=np.int64)
-    # for v in network.get_vertices():
-    #     dynamic_id[static_id[v]] = network.vertex_index[v]
-    #     assert dynamic_id[static_id[v]] == v
-
-    # # Init last valid vertex
-    # last_vertex = network_size - 1
 
     # Compute connected component sizes
     (
@@ -336,17 +328,6 @@ def lcc_peak_dismantler(
 
             v_gt = network.vertex(v_i_dynamic, use_index=True, add_missing=False)
 
-            # try:
-            #     assert static_id[v_i_dynamic] == v_i_static
-            #     # assert dynamic_id[static_id[v_i_dynamic]] == v_i_dynamic
-            #
-            # except Exception as e:
-            #     print("ASSERT FAILED: static_id", static_id[v_i_dynamic], "==", "v_i_static", v_i_static)
-            #     # print("A2", dynamic_id[static_id[v_i_dynamic]], "==", v_i_dynamic)
-            #     raise e
-
-            # dynamic_id[static_id[last_vertex]] = v_i_dynamic
-            # network.remove_vertex(v_gt, fast=True)
             last_vertex -= 1
             network.clear_vertex(v_gt)
 
@@ -402,62 +383,119 @@ def lcc_peak_dismantler(
     return removals, None, None  # prediction_time, dismantle_time
 
 
-def dismantler_wrapper(function: Callable):
-    @wraps(function)
-    def wrapper(
-            network: Graph,
-            predictor: Callable = get_predictions,
-            dismantler: Callable = external_threshold_dismantler,
-            **kwargs
-    ):
-        generator_args = kwargs.pop("generator_args")
-        try:
-            logger = kwargs.get("logger")
+def enqueued(original_function=None,
+             *,
+             kwarg_name: str = "jobs_semaphore",
+             ):
+    """
+    https://stackoverflow.com/questions/3888158/making-decorators-with-optional-arguments
+    """
 
-            generator_args.setdefault("logger", logger)
-        except KeyError:
-            logger = generator_args.get("logger",
-                                        logging.getLogger("dummy")
-                                        )
+    def _decorate(function):
+        @wraps(function)
+        def wrapped_function(*args, **kwargs):
+            # logger = kwargs.get("logger")
+            # process_queue: Queue = kwargs.pop("process_queue")
+            semaphore = kwargs.pop(kwarg_name)
+            with semaphore:
+                try:
+                    return function(*args, **kwargs)
 
-        logger: logging.Logger
-        generator_args["sorting_function"] = function
+                except Exception as e:
+                    raise e
+                finally:
+                    pass
 
-        removals, prediction_time, dismantle_time = dismantler(
-            network=network,
-            predictor=predictor,
-            generator_args=generator_args,
-            # stop_condition=stop_condition,
-            # *args,
-            **kwargs
-        )
+        return wrapped_function
 
-        peak_slcc = max(removals, key=itemgetter(4))
-        rem_num = len(removals)
+    if original_function:
+        return _decorate(original_function)
 
-        if rem_num > 0:
-            if removals[0][0] < 0:
-                raise RuntimeError("First removal is just the LCC size!")
+    return _decorate
 
-            if removals[-1][2] == 0:
-                raise RuntimeError("ERROR: removed more nodes than predicted!")
 
-        run = {
-            # "network": name,
-            "removals": removals,
+def dismantler_wrapper(
+        original_function=None,
+        dynamic: bool = False,
+        predictor: Callable = get_predictions,
+        dismantler: Callable = external_threshold_dismantler,
+):
+    """
+    https://stackoverflow.com/questions/3888158/making-decorators-with-optional-arguments
+    """
 
-            "slcc_peak_at": peak_slcc[0],
-            "lcc_size_at_peak": peak_slcc[3],
-            "slcc_size_at_peak": peak_slcc[4],
-            # "heuristic": heuristic,
-            # "static": None,
-            "r_auc": simps(list(r[3] for r in removals), dx=1),
-            "rem_num": rem_num,
+    if dynamic:
+        # This will be SLOW. We use the python dismantler...
+        # Register the dynamic method using a function instead of the decorator
+        pass
 
-            "prediction_time": prediction_time,
-            "dismantle_time": dismantle_time,
-        }
+    def _decorate(function):
+        @wraps(function)
+        def wrapper(
+                network: Graph,
+                predictor: Callable = predictor,
+                dismantler: Callable = dismantler,
+                **kwargs
+        ):
+            generator_args = kwargs.pop("generator_args", {})
 
-        return run
+            logger: logging.Logger
 
-    return wrapper
+            try:
+                logger = kwargs.get("logger")
+
+                generator_args.setdefault("logger", logger)
+            except KeyError:
+                logger = generator_args.get("logger",
+                                            logging.getLogger("dummy")
+                                            )
+            logger.debug(f"Passing kwargs to dismantler: {kwargs}")
+
+            generator_args["sorting_function"] = function
+
+            # kwargs["generator_args"] = generator_args
+            removals, prediction_time, dismantle_time = dismantler(
+                network=network,
+                predictor=predictor,
+                generator_args=generator_args,
+                # stop_condition=stop_condition,
+                # *args,
+                **kwargs,
+                # **generator_args,
+            )
+
+            peak_slcc = max(removals, key=itemgetter(RemovalsColumns.SLCC_SIZE))
+            rem_num = len(removals)
+
+            if rem_num > 0:
+                if removals[0][RemovalsColumns.REMOVAL_NUM] < 0:
+                    raise RuntimeError("First removal is just the LCC size!")
+
+                # if removals[-1][RemovalsColumns.PREDICTION] == 0:
+                #     raise RuntimeError(f"ERROR: removed more nodes than predicted!\n{removals[-1]}")
+
+            run = {
+                # "network": name,
+                "removals": removals,
+
+                "slcc_peak_at": peak_slcc[RemovalsColumns.REMOVAL_NUM],
+                "lcc_size_at_peak": peak_slcc[RemovalsColumns.LCC_SIZE],
+                "slcc_size_at_peak": peak_slcc[RemovalsColumns.SLCC_SIZE],
+                # "heuristic": heuristic,
+                # "static": None,
+                "r_auc": simpson(list(r[RemovalsColumns.LCC_SIZE] for r in removals), dx=1),
+                "rem_num": rem_num,
+
+                "prediction_time": prediction_time,
+                "dismantle_time": dismantle_time,
+            }
+
+            return run
+
+        return wrapper
+
+    if original_function:
+        return _decorate(original_function)
+
+    return _decorate
+

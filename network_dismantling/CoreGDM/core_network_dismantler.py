@@ -26,7 +26,7 @@ import numpy as np
 import torch
 from graph_tool import Graph, GraphView, VertexPropertyMap
 from graph_tool.topology import kcore_decomposition, label_largest_component
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from torch_geometric import seed_everything
 from tqdm.auto import tqdm
 
@@ -41,8 +41,11 @@ get_df_columns
 train_wrapper
 
 
-def tree_breaker(network: Graph, stop_condition: int, logger=logging.getLogger("dummy")) -> np.ndarray:
-    print("Running tree breaker!")
+def tree_breaker(network: Graph,
+                 stop_condition: int,
+                 logger: logging.Logger=logging.getLogger("dummy"),
+                 ) -> np.ndarray:
+    logger.debug("Running tree breaker!")
     from network_dismantling.CoreGDM.treebreaker import Graph, tree_breaker as minsum_tree_breaker, \
         CyclesError
 
@@ -74,7 +77,7 @@ def tree_breaker(network: Graph, stop_condition: int, logger=logging.getLogger("
 
 
 def get_predictions(network, model, lock, device=None, data=None, features=None, logger=logging.getLogger("dummy")):
-    logger.debug("Sorting the predictions...")
+    logger.debug("Converting the graph and computing the predictions...")
     start_time = time()
 
     if data is None:
@@ -322,7 +325,7 @@ def test(args, model, early_stopping_dict: dict = None, networks_provider=None, 
 
         best_dismantling = removals[-1]
 
-        r_auc = simps(list(r[3] for r in removals), dx=1)
+        r_auc = simpson(list(r[3] for r in removals), dx=1)
         rem_num = best_dismantling[0]
         # rem_num = len(removals)
         min_lcc_size = best_dismantling[3]

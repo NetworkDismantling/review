@@ -19,7 +19,11 @@ import importlib
 import logging
 import pkgutil
 from pathlib import Path
+from typing import Union, List
 
+import pandas as pd
+
+from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dismantlers import dismantler_wrapper
 
 dismantling_methods = {}
@@ -41,23 +45,25 @@ class DismantlingMethod:
     name: str = None
     short_name: str = None
 
-    doi = None
-    citation = None
-    description = None
-    authors = None
+    _depends_on: str = None
+
+    doi: str = None
+    citation: str = None
+    description: str = None
+    authors: Union[str, List[str]] = None
 
     function = None
     dynamic = None
 
-    display_name = None
-    short_display_name = None
+    display_name: str = None
+    short_display_name: str = None
 
     plot_color: str = None
     plot_marker: str = None
 
     # reinsertion: ReinsertionSupport = None
-    includes_reinsertion = False
-    optional_reinsertion = False
+    includes_reinsertion: bool = False
+    optional_reinsertion: bool = False
     reinsertion_function = None
     reinsertion_display_name = None
     reinsertion_short_display_name = None
@@ -76,6 +82,8 @@ class DismantlingMethod:
                  # authors=None,
                  # source=None,
                  # return_type=None,
+                 # depends_on: Union[str, Callable] = None,
+
                  **kwargs
                  ):
 
@@ -86,6 +94,12 @@ class DismantlingMethod:
             setattr(self, key, value)
 
         self.key = self.function.__name__
+
+        if self.short_name is None:
+            raise RuntimeError(f"Short name not defined for {self.key}")
+        if not isinstance(self.short_name, str):
+            raise RuntimeError(f"Short name not a string for {self.key}")
+
 
     def __call__(self, *args, **kwargs):
         output = self.function(*args, **kwargs)
@@ -104,6 +118,35 @@ class DismantlingMethod:
 
         return output
 
+    def _format_input(self, input: pd.DataFrame):
+        return input
+
+    def _filter_input(self, input: pd.DataFrame):
+        return input
+
+    def handle_parameters(self, **kwargs):
+        return product_dict(kwargs)
+
+    @property
+    def depends_on(self):
+        if self._depends_on is None:
+            return None
+
+        return dismantling_methods[self._depends_on]
+
+    @depends_on.setter
+    def depends_on(self, value):
+        if value is None:
+            self._depends_on = None
+        else:
+
+            if isinstance(value, str):
+                self._depends_on = value
+            elif isinstance(value, DismantlingMethod):
+                self._depends_on = value.key
+            else:
+                self._depends_on = value.__name__
+
 
 __all__ = []
 
@@ -117,12 +160,12 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
         try:
             _module = importlib.import_module(module_name)
         except Exception as e:
-            logger.debug(f"Exception: {e}\n", exc_info=True)
+            logger.warning(f"Exception: {e}\n", exc_info=True)
 
             try:
                 _module = loader.find_module(module_name).load_module(module_name)
             except Exception as e:
-                logger.debug(f"Exception: {e}\n", exc_info=True)
+                logger.warning(f"Exception: {e}\n", exc_info=True)
 
         if _module is None:
             # print("Error importing:", module_name, e)

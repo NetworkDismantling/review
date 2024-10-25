@@ -11,6 +11,7 @@ BOOST_LIB_FILE := boost_python$(BOOST_LIB_VERSION)
 CXX=g++
 
 FLAGS=-fPIC -Wall -O3 -march=native -std=gnu++11 -g -Wno-deprecated -fpermissive
+DEBUG_FLAGS=-fPIC -Wall -O0 -march=native -std=gnu++11 -g -Wno-deprecated -fpermissive
 CInc := -I. -I$(BOOST_INC) -I$(PYTHON_INC)
 CLinkFlags=-L$(BOOST_LIB_LOCATION)
 LIBS= -lboost_program_options
@@ -32,10 +33,17 @@ all: $(BIN)
 
 # -Wl, -soname,$@
 GND: GND.cpp
-	${CXX} ${FLAGS} ${CInc} $(LDFLAGS)  GND.cpp -o $@ ${CLinkFlags} ${LIBS}
+	${CXX} ${FLAGS} ${CInc} $(LDFLAGS) GND.cpp -o $@ ${CLinkFlags} ${LIBS}
+
+
+debug: GND.cpp
+	${CXX} ${DEBUG_FLAGS} ${CInc} $(LDFLAGS) GND.cpp -o GND ${CLinkFlags} ${LIBS}
+
 
 # -Wl, -soname,$@
 reinsertion: reinsertion.cpp
 	${CXX} ${FLAGS} ${CInc} $(LDFLAGS) reinsertion.cpp -o $@ ${CLinkFlags} ${LIBS}
+
+
 clean:
 	rm -f $(BIN) *.o

@@ -388,13 +388,19 @@ def main(args, logger=logging.getLogger("dummy")):
                             # Get the removals from the dependency
                             df_dependency_filtered = df_dependency_filtered.iloc[0]
 
-                            if ("removals" not in df_dependency_filtered or
-                                    len(df_dependency_filtered["removals"]) == 0):
+                            logger.debug(f"df_dependency_filtered: {df_dependency_filtered}")
+                            if ("removals" not in df_dependency_filtered or # missing column
+                                    df_dependency_filtered["removals"] is None or # None
+                                    df_dependency_filtered["removals"] == "" or # empty string
+                                    df_dependency_filtered["removals"] == "[]" or # empty list
+                                    not isinstance(df_dependency_filtered["removals"], list) or # not a list
+                                    len(df_dependency_filtered["removals"]) == 0 # empty list
+                            ):
 
                                 try:
                                     df_dependency_row = df_reader(df_dependency_filtered["file"],
                                                                   expected_columns=args.output_df_columns,
-                                                                  read_index=df_dependency_filtered["idx"],
+                                                                  read_index=int(df_dependency_filtered["idx"]),
                                                                   include_removals=True,
                                                                   **reader_kwargs,
                                                                   )
@@ -437,7 +443,28 @@ def main(args, logger=logging.getLogger("dummy")):
                             else:
                                 dependency_removals = df_dependency_filtered["removals"]
 
-                            dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
+                            if dependency_removals is None:
+                                logger.error(
+                                    f"Dependency {dismantling_method.depends_on.short_name} not found "
+                                    f"for heuristic {dismantling_method.short_name}"
+                                )
+                                continue
+
+                            try:
+
+                                if isinstance(dependency_removals, str):
+                                    dependency_removals = literal_eval(dependency_removals)
+
+                                dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
+                            except Exception as e:
+                                logger.error(
+                                    f"Error while parsing the removals for the dependency {dismantling_method.depends_on.short_name} "
+                                    f"for heuristic {dismantling_method.short_name}:\n"
+                                    f"{e}"
+                                    f"Dependency removals: {dependency_removals}",
+                                    exc_info=True,
+                                )
+                                continue
 
                             dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals
                             generator_args[dismantling_method.depends_on.key] = dependency_removals

@@ -10,8 +10,8 @@ BOOST_LIB_FILE := boost_python$(BOOST_LIB_VERSION)
 
 CXX=g++
 
-FLAGS=-fPIC -Wall -O3 -march=native -std=gnu++11 -g -Wno-deprecated -fpermissive
-DEBUG_FLAGS=-fPIC -Wall -O0 -march=native -std=gnu++11 -g -Wno-deprecated -fpermissive
+FLAGS=-fPIC -Wall -O3 -march=native -std=gnu++17 -g -Wno-deprecated -fpermissive
+DEBUG_FLAGS=-fPIC -Wall -O0 -march=native -std=gnu++17 -g -Wno-deprecated -fpermissive
 CInc := -I. -I$(BOOST_INC) -I$(PYTHON_INC)
 CLinkFlags=-L$(BOOST_LIB_LOCATION)
 LIBS= -lboost_program_options

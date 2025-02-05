@@ -37,7 +37,7 @@ endif
 
 #--verbose
 %.o: %.cpp
-	$(CXX) $(CFLAGS) $(CInc) $^ $(CLinkFlags)
+	$(CXX) $(CFLAGS) $(CInc) $^
 
 clean:
 	rm -f $(BIN) *.o *.so

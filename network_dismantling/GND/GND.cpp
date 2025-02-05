@@ -33,33 +33,31 @@
 
 #include <boost/program_options.hpp>
 
+#include "GND.h"
+
 using namespace boost;
 using namespace std;
 
 namespace po = boost::program_options;
 
 namespace params {
-    unsigned int NODE_NUM;                   // the number of nodes
+    unsigned int NODE_NUM;           // the number of nodes
     string FILE_NET;                 // input format of each line: id1 id2
     string FILE_ID;                  // output the id of the removed nodes in order
-    unsigned int TARGET_SIZE;                // If the gcc size is smaller than TARGET_SIZE, the dismantling will stop. Default value can be 0.01*NODE_NUM  OR  1000
-    int REMOVE_STRATEGY;            // 1: weighted method: powerIterationB(); vertex_cover_2() -- remove the node with smaller degree first
-    int SEED = 1;                   // random seed (__s default value was 1. Made it explicit)
+    unsigned int TARGET_SIZE;        // If the gcc size is smaller than TARGET_SIZE, the dismantling will stop. Default value can be 0.01*NODE_NUM  OR  1000
+    int REMOVE_STRATEGY;             // 1: weighted method: powerIterationB(); vertex_cover_2() -- remove the node with smaller degree first
+    int SEED = 1;                    // random seed (__s default value was 1. Made it explicit)
 }
 
 using namespace params;
 
-typedef vector<vector<unsigned int> *>* Matrix;
-
-
-void release_memory(vector<vector<unsigned int> *> **adj);
 
 // read the links of the network, return A
-void rdata(vector<vector<unsigned int> *> *A) {
+void rdata(const Matrix A) {
     ifstream rd(FILE_NET.c_str());
     if (!rd) std::cerr << "Error opening network file\n";
 
-    int id1 = 0, id2 = 0;
+    unsigned int id1 = 0, id2 = 0;
     while (rd >> id1 >> id2) {
         A->at(id1 - 1)->push_back(id2);
         A->at(id2 - 1)->push_back(id1);
@@ -68,7 +66,7 @@ void rdata(vector<vector<unsigned int> *> *A) {
     rd.close();
 }
 
-void multiplyByLaplacian(vector<vector<unsigned int> *> *A, vector<double> *x, vector<double> *y, unsigned int dmax) {
+void multiplyByLaplacian(const Matrix A, const vector<double> *x, vector<double> *y, unsigned int dmax) {
     // y = L^tilda * x
     // y_i = sum_j L^tilda_{i,j} * x_j
     // y_i = sum_j (d_max - (d_i - A_ij)) * x_j
@@ -80,13 +78,14 @@ void multiplyByLaplacian(vector<vector<unsigned int> *> *A, vector<double> *x, v
         }
         // y_i = (dmax - d_i)*x_j  + y_i
         // y_i = x_i * (dmax - degree_i) + y_i
-        y->at(i) = x->at(i) * ((double) dmax - A->at(i)->size()) + y->at(i);
+        y->at(i) = x->at(i) * static_cast<double>(dmax - A->at(i)->size()) + y->at(i);
     }
 }
 
-void
-multiplyByWeightLaplacian(Matrix A, vector<double> *x, vector<double> *y, vector<unsigned int> *db,
-                          unsigned int dmax) {
+void multiplyByWeightLaplacian(const Matrix A,
+    const vector<double> *x, vector<double> *y,
+    const vector<unsigned int> *db, unsigned int dmax
+    ) {
     // y = L^tilda * x
     // y_i = sum_j (c-L_ij) * x_j
 
@@ -98,14 +97,14 @@ multiplyByWeightLaplacian(Matrix A, vector<double> *x, vector<double> *y, vector
             y->at(i) = y->at(i) + x->at(A->at(i)->at(j) - 1);  // y_i = sum x_j
         }
         // y_i = (d_i - 1) * y_i
-        y->at(i) = ((double) (A->at(i)->size() - 1)) * y->at(i);
+        y->at(i) = static_cast<double>(A->at(i)->size() - 1) * y->at(i);
     }
 
     //
     for (unsigned int i = 0; i < A->size(); ++i) {
         for (unsigned int j = 0; j < A->at(i)->size(); ++j) {
             y->at(i) = y->at(i) +
-                       x->at(A->at(i)->at(j) - 1) * ((double) A->at(A->at(i)->at(j) - 1)->size());
+                       x->at(A->at(i)->at(j) - 1) * static_cast<double>(A->at(A->at(i)->at(j) - 1)->size());
         }
         y->at(i) = y->at(i) + (dmax - db->at(i)) * x->at(i);
     }
@@ -130,18 +129,19 @@ void orthonormalize(vector<double> *x) {
 }
 
 // return a vector [transfer] that mark all the nodes belongs to gcc
-// if transter[i] = 0 then this node doesn't belong to the gcc
-// if transter[i] != 0 then transter[i] is the new id of this node
-vector<unsigned int> get_gcc(Matrix adj) {
-    unsigned int n = adj->size();
-    vector<unsigned> id(n, 0); // store the cluster id of each node
+// if transfer[i] = 0 then this node doesn't belong to the gcc
+// if transfer[i] != 0 then transfer[i] is the new id of this node
+vector<unsigned int> get_gcc(const Matrix adj) {
+    const unsigned int n = adj->size();
+    vector<unsigned int> id(n, 0); // store the cluster id of each node
 
     unsigned id_now = 0;
     for (unsigned int i = 0; i < n; i++) // wide-first search, assign each connected cluster an id
     {
         if (id[i] == 0 &&
-            !adj->at(i)->empty()) { // this node does not belong to any cluster yet && this node is not isolated
-            set<unsigned> set_nodes;
+            !adj->at(i)->empty()
+            ) { // this node does not belong to any cluster yet && this node is not isolated
+            set<unsigned int> set_nodes;
             set_nodes.insert(i + 1);
             id_now++;
             while (!set_nodes.empty()) {
@@ -188,13 +188,15 @@ vector<unsigned int> get_gcc(Matrix adj) {
 // return eigenvector
 vector<double> power_iteration(Matrix adj) {
     std::default_random_engine generator(SEED);
-    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
-
-    vector<double> x(int(adj->size()));
-    vector<double> y(int(adj->size()));
-    unsigned int n = adj->size();
+    std::uniform_real_distribution distribution(-1.0, 1.0);
 
     srand(time(nullptr));
+
+    unsigned int n = adj->size();
+
+    vector<double> x(n);
+    vector<double> y(n);
+
     for (unsigned int i = 0; i < n; ++i) {
         x.at(i) = distribution(generator);
         y.at(i) = distribution(generator);
@@ -222,7 +224,7 @@ vector<double> power_iteration(Matrix adj) {
 // return eigenvector B = WA+AW-A
 vector<double> power_iterationB(Matrix adj) {
     std::default_random_engine generator(SEED);
-    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
+    std::uniform_real_distribution distribution(-1.0, 1.0);
 
     vector<double> x(adj->size());
     vector<double> y(adj->size());
@@ -236,15 +238,18 @@ vector<double> power_iterationB(Matrix adj) {
         y.at(i) = distribution(generator);
     }
 
-    unsigned int dmax = 0;
-    unsigned int dmax2 = 0;
+    unsigned int dmax = 0,
+                 dmax2 = 0;
     for (unsigned int i = 0; i < n; ++i) {
-        db.at(i) = adj->at(i)->size() * (adj->at(i)->size() - 1);
-        for (unsigned int j = 0; j < adj->at(i)->size(); ++j) {
-            db.at(i) = db.at(i) + adj->at(adj->at(i)->at(j) - 1)->size();
+        auto node_i = adj->at(i);
+        auto size = node_i->size();
+        db.at(i) = node_i->size() * (size - 1);
+
+        for (unsigned int j = 0; j < size; ++j) {
+            db.at(i) = db.at(i) + adj->at(node_i->at(j) - 1)->size();
         }
-        if (adj->at(i)->size() > dmax) {
-            dmax = adj->at(i)->size();
+        if (size > dmax) {
+            dmax = node_i->size();
         }
         if (db.at(i) > dmax2) {
             dmax2 = db.at(i);
@@ -262,7 +267,7 @@ vector<double> power_iterationB(Matrix adj) {
 
 // return the removing order of the nodes: 1,2,3,... The node with flag=0 will not be removed
 // Clarkson's Greedy Algorithm for weighted set cover
-vector<unsigned int> vertex_cover(Matrix A_cover, vector<unsigned int> degree) {
+vector<unsigned int> vertex_cover(const Matrix A_cover, const vector<unsigned int> &degree) {
     vector<unsigned int> flag(A_cover->size(), 0);
     unsigned int remove = 0;
     unsigned int total_edge = 0;
@@ -270,7 +275,8 @@ vector<unsigned int> vertex_cover(Matrix A_cover, vector<unsigned int> degree) {
     for (auto &i: *A_cover)
         total_edge += i->size();
 
-    cout << "total_edge: " << total_edge << "before vertex cover" << endl;
+    cout << "total_edge: " << total_edge << " before vertex cover" << endl;
+
     while (total_edge > 0) {
         vector<unsigned int> degree_cover(A_cover->size(), 0);
         for (unsigned int i = 0; i < A_cover->size(); i++)
@@ -281,7 +287,7 @@ vector<unsigned int> vertex_cover(Matrix A_cover, vector<unsigned int> degree) {
             if (degree_cover[i] == 0)
                 value[i] = 999999;
             else
-                value[i] = double(degree[i]) / double(degree_cover[i]);
+                value[i] = static_cast<double>(degree[i]) / static_cast<double>(degree_cover[i]);
 
         double min_v = 999999;
         unsigned int min_sub = 0;
@@ -295,16 +301,17 @@ vector<unsigned int> vertex_cover(Matrix A_cover, vector<unsigned int> degree) {
         for (auto &i: *A_cover)
             for (auto it = i->begin(); it != i->end();) {
                 if (*it == min_sub + 1) {
-                    i->erase(it);
-                    it = i->begin();
-                } else it++;
+                    it = i->erase(it);
+                } else {
+                    ++it;
+                }
             }
         degree_cover[min_sub] = 0;
         total_edge = 0;
         for (auto &i: *A_cover)
             total_edge += i->size();
     }
-//    cout << "total_edge: " << total_edge << "after vertex cover" << endl;
+    cout << "total_edge: " << total_edge << " after vertex cover" << endl;
     return flag;
 }
 
@@ -315,10 +322,13 @@ vector<unsigned int> vertex_cover_2(Matrix A_cover, Matrix A_new_gcc) {
     auto *A_new_gcc_copy = new vector<vector<unsigned int> *>(A_new_gcc->size());
 
     for (unsigned int i = 0; i < A_new_gcc->size(); i++) {
-        A_new_gcc_copy->at(i) = new vector<unsigned int>(A_new_gcc->at(i)->size());
+        auto node_i = A_new_gcc->at(i);
+        auto node_i_size = node_i->size();
 
-        for (unsigned int j = 0; j < A_new_gcc->at(i)->size(); j++) {
-            A_new_gcc_copy->at(i)->at(j) = A_new_gcc->at(i)->at(j);
+        A_new_gcc_copy->at(i) = new vector<unsigned int>(node_i_size);
+
+        for (unsigned int j = 0; j < node_i_size; j++) {
+            A_new_gcc_copy->at(i)->at(j) = node_i->at(j);
         }
     }
 
@@ -342,7 +352,7 @@ vector<unsigned int> vertex_cover_2(Matrix A_cover, Matrix A_new_gcc) {
             if (degree_cover[i] == 0)
                 value[i] = 99999;
             else
-                value[i] = double(degree[i]) / double(degree_cover[i]);
+                value[i] = static_cast<double>(degree[i]) / static_cast<double>(degree_cover[i]);
 
         double min_v = 9999;
         unsigned int min_sub = 0;
@@ -359,7 +369,7 @@ vector<unsigned int> vertex_cover_2(Matrix A_cover, Matrix A_new_gcc) {
                 if (*it == min_sub + 1) {
                     i->erase(it);
                     it = i->begin();
-                } else it++;
+                } else ++it;
             }
 
         for (auto &i: *A_new_gcc_copy)
@@ -367,7 +377,7 @@ vector<unsigned int> vertex_cover_2(Matrix A_cover, Matrix A_new_gcc) {
                 if (*it == min_sub + 1) {
                     i->erase(it);
                     it = i->begin();
-                } else it++;
+                } else ++it;
             }
 
         // degree_cover[min_sub] = 0;
@@ -418,7 +428,7 @@ void remove_nodes(Matrix A_new, vector<unsigned int> flag, vector<unsigned int> 
                     if (*it == i + 1) {
                         j->erase(it);
                         it = j->begin();
-                    } else it++;
+                    } else ++it;
                 }
             }
         }
@@ -445,7 +455,7 @@ void remove_nodes(Matrix A_new, vector<unsigned int> flag, vector<unsigned int> 
 }
 
 // Output the list of nodes that should be removed in order
-void write(vector<unsigned int> *nodes_id) {
+void write(const vector<unsigned int> *nodes_id) {
     ofstream wt_file(FILE_ID.c_str());
     if (!wt_file) std::cout << "error creating file...\n";
 
@@ -493,7 +503,7 @@ po::variables_map parse_command_line(int ac, char **av) {
     return vm;
 }
 
-Matrix getMatrix(unsigned int n) {
+Matrix getMatrix(const unsigned int n) {
     auto *A = new vector<vector<unsigned int> *>(n);
 
     for (unsigned int i = 0; i < n; i++)
@@ -501,6 +511,7 @@ Matrix getMatrix(unsigned int n) {
 
     return A;
 }
+
 
 int main(int argc, char **argv) {
     po::variables_map vm = parse_command_line(argc, argv);
@@ -510,14 +521,14 @@ int main(int argc, char **argv) {
 
     rdata(A);
 
-    // the elements' number of transfer_initial equals the number of nodes in A
-    vector<unsigned int> transfer_initial = get_gcc(A);
+    // // the elements' number of transfer_initial equals the number of nodes in A
+    // vector<unsigned int> transfer_initial = get_gcc(A);
 
-    double node_size = 0;
-//    double link_size = 0;
-    for (auto i: transfer_initial)
-        if (i != 0)
-            node_size++;
+//     unsigned int node_size = 0;
+// //    double link_size = 0;
+//     for (auto i: transfer_initial)
+//         if (i != 0)
+//             node_size++;
 
     // define A_new as the gcc of A
     auto *A_new = A;
@@ -536,15 +547,20 @@ int main(int argc, char **argv) {
 
     //**** partition the network to subnets ****
     auto *nodes_id = new vector<unsigned int>(); // store the nodes that should be removed
-    unsigned int gcc_size = A->size();
+
+    // the elements' number of transfer equals the number of nodes in A
+    // if transfer[i] = 0 then this node doesn't belong to the gcc
+    // if transfer[i] != 0 then transfer[i] is the new id of this node in A_new_gcc
+    auto transfer = get_gcc(A_new);
+
+    unsigned int gcc_size = 0;
+    for (unsigned int i = 0; i < A_new->size(); i++) {
+        if (transfer[i] != 0) {
+            gcc_size++;
+        }
+    }
+
     while (gcc_size > TARGET_SIZE) {
-        auto transfer = get_gcc(A_new); // the elements' number of transfer equals the number of nodes in A
-        // if transfer[i] = 0 then this node doesn't belong to the gcc
-        // if transfer[i] != 0 then transfer[i] is the new id of this node in A_new_gcc
-        gcc_size = 0;
-        for (unsigned int i = 0; i < A_new->size(); i++)
-            if (transfer[i] != 0)
-                gcc_size++;
         vector<unsigned int> transfer_back(gcc_size, 0);
         for (unsigned int i = 0; i < gcc_size; i++)
             for (unsigned int j = 0; j < A_new->size(); j++) {
@@ -557,10 +573,11 @@ int main(int argc, char **argv) {
         // define A_new_gcc as the gcc of A_new
         auto A_new_gcc = getMatrix(gcc_size);
         for (unsigned int i = 0; i < transfer.size(); i++) {
-            if (transfer[i] != 0) {
-                for (unsigned int j = 0; j < A_new->at(i)->size(); j++) {
-                    if (transfer[A_new->at(i)->at(j) - 1] != 0)
-                        A_new_gcc->at(transfer[i] - 1)->push_back(transfer[A_new->at(i)->at(j) - 1]);
+            if (transfer[i] > 0) {
+                auto node_i = A_new->at(i);
+                for (unsigned int j : *node_i) {
+                    if (transfer[j - 1] > 0)
+                        A_new_gcc->at(transfer[i] - 1)->push_back(transfer[j - 1]);
                 }
             }
         }
@@ -573,7 +590,7 @@ int main(int argc, char **argv) {
             eigenvector = power_iteration(A_new_gcc);   // L = D_B -B where B = A
 
         vector<unsigned int> flag; // mark all the nodes that should be removed to partition the network into subnet
-        // flag: 0: do not remove; 1,2,3.. removal order
+        // flag: 0: do not remove; 1,2,3... removal order
         if (REMOVE_STRATEGY == 1 || REMOVE_STRATEGY == 3) {
             // Weighted Vertex Cover
 //            auto *A_new_gcc_cover = new vector<vector<int> *>(int(A_new_gcc->size()));
@@ -584,19 +601,25 @@ int main(int argc, char **argv) {
             // the subnet that all the links in it should be covered
             auto *A_new_gcc_cover = getMatrix(A_new_gcc->size());
 
-            for (unsigned int i = 0; i < A_new_gcc->size(); i++)
-                for (unsigned int j = 0; j < A_new_gcc->at(i)->size(); j++) {
-                    if ((i + 1) < A_new_gcc->at(i)->at(j) &&  // Prevention of repeated calculation
-                        eigenvector[i] * eigenvector[A_new_gcc->at(i)->at(j) - 1] <
-                        0) {// these two nodes do not in the same cluster
-                        A_new_gcc_cover->at(i)->push_back(A_new_gcc->at(i)->at(j));
-                        A_new_gcc_cover->at(A_new_gcc->at(i)->at(j) - 1)->push_back(i + 1);
-                    }
+            for (unsigned int i = 0; i < A_new_gcc->size(); i++) {
+                auto node_i = A_new_gcc->at(i);
+                for (unsigned int node_j : *node_i) {
+                    if ((i + 1) < node_j &&  // Prevention of repeated calculation
+                        eigenvector[i] * eigenvector[node_j - 1] < 0) {
+                        // these two nodes do not in the same cluster
+                        A_new_gcc_cover->at(i)->push_back(node_j);
+                        A_new_gcc_cover->at(node_j - 1)->push_back(i + 1);
+                        }
                 }
+            }
+
+            cout << "A_new_gcc_cover size: " << A_new_gcc_cover->size() << endl;
+            cout << "gcc_size: " << gcc_size << endl;
             if (REMOVE_STRATEGY == 1) {
                 flag = vertex_cover_2(A_new_gcc_cover,
                                       A_new_gcc); // flag marks all the nodes that should be removed to partition the network into subnet
-            } else if (REMOVE_STRATEGY == 3) {
+            }
+            else if (REMOVE_STRATEGY == 3) {
                 vector<unsigned int> degree_one(A_new_gcc->size(), 1);
                 flag = vertex_cover(A_new_gcc_cover,
                                     degree_one); // flag marks all the nodes that should be removed to partition the network into subnet
@@ -615,6 +638,7 @@ int main(int argc, char **argv) {
         remove_nodes(A_new, flag_original, nodes_id);
 
         transfer = get_gcc(A_new);
+
         gcc_size = 0;
         for (unsigned int i = 0; i < A_new->size(); i++)
             if (transfer[i] != 0)
@@ -624,11 +648,10 @@ int main(int argc, char **argv) {
     // output the nodes that should be removed
     write(nodes_id);
 
-//    release_memory(&A);
-//
-//    release_memory(&A_new);
-//
-//    delete nodes_id;
+    // release_memory(&A);
+    // release_memory(&A_new);
+    //
+    // delete nodes_id;
 
     return 0;
 }

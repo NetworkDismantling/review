@@ -39,14 +39,12 @@ def _generalized_network_dismantling(
 
     nodes = []
 
+    assert network.num_vertices() == len(static_id), "Number of vertices mismatch"
+    assert network.num_vertices() == static_id.a.max() + 1, "Node IDs are not consecutive"
     try:
         with open(network_fd, "w+") as tmp:
             for edge in network.edges():
-                tmp.write(
-                    "{} {}\n".format(
-                        static_id[edge.source()] + 1, static_id[edge.target()] + 1
-                    )
-                )
+                tmp.write(f"{static_id[edge.source()] + 1} {static_id[edge.target()] + 1}\n")
 
             tmp.flush()
 

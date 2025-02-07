@@ -86,7 +86,8 @@ def _generalized_network_dismantling(
                     )
                 )
             except Exception as e:
-                raise RuntimeError(f"ERROR! When running cmd: {cmd} {e}")
+                logger.exception(f"ERROR! When running cmd: {cmd}", exc_info=True)
+                raise e
 
         with open(output, "r+") as tmp:
             for line in tmp.readlines():

@@ -667,7 +667,7 @@ int main(int argc, char **argv) {
             // the subnet that all the links in it should be covered
             auto *A_new_gcc_cover = getMatrix(A_new_gcc->size());
 
-            // bool at_least_one_cc = false;
+            bool two_clusters = false;
             for (unsigned int i = 0; i < A_new_gcc->size(); i++) {
                 const auto node_i = A_new_gcc->at(i);
 
@@ -684,15 +684,15 @@ int main(int argc, char **argv) {
                         A_new_gcc_cover->at(i)->push_back(node_j);
                         A_new_gcc_cover->at(node_j - 1)->push_back(i + 1);
 
-                        // at_least_one_cc = true;
+                        two_clusters = true;
                     }
                 }
 
             }
-            // if (!at_least_one_cc) {
-            //     cerr << "No more connected components" << endl;
-            //     break;
-            // }
+            if (!two_clusters) {
+                cerr << "Partitioning failed" << endl;
+                break;
+            }
             cout << "A_new_gcc_cover size: " << A_new_gcc_cover->size() << endl;
             cout << "gcc_size: " << gcc_size << endl;
             if (REMOVE_STRATEGY == 1) {

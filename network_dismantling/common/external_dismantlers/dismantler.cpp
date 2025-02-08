@@ -2,16 +2,14 @@
 #include <fstream>
 #include <forward_list>
 #include <list>
-#include <utility>
 
 #include <Python.h>
 
 // #include "graph_tool.hh"
 
-#define BOOST 1
-
 #ifdef BOOST
 #include <boost/python.hpp>
+
 #endif
 
 #include "tsl/robin_map.h"
@@ -39,7 +37,7 @@ public:
     }
 
 #ifdef BOOST
-    Graph(boost::python::list pythonList): Graph(""){
+    Graph(boost::python::list pythonList): Graph("") {
         loadGraphFromPythonList(pythonList);
     }
 #endif
@@ -64,7 +62,7 @@ public:
         return first;
     }
 
-    void setFirst(bool val) {
+    void setFirst(const bool val) {
         first = val;
     }
 
@@ -73,7 +71,7 @@ public:
         return g.size();
     }
 
-    bool addNode(int nodeID) {
+    bool addNode(const unsigned int nodeID) {
         if (g.count(nodeID) > 0) {
             cout << "ERROR :" << nodeID << " already present in the graph: " << name << endl;
             return false;
@@ -83,7 +81,7 @@ public:
         }
     }
 
-    bool removeNode(unsigned int nodeID) {
+    bool removeNode(const unsigned int nodeID) {
         // forward_list<unsigned int>::iterator ite;
 
         if (g.count(nodeID) == 0) {
@@ -102,7 +100,7 @@ public:
         }
     }
 
-    bool addEdge(int srcNode, int dstNode) {
+    bool addEdge(const unsigned int srcNode, const unsigned int dstNode) {
         /*ite = find(g[srcNode].begin(), g[srcNode].end(), dstNode);
         if (ite != g[srcNode].end()){
             cout << "Parallel edge discovered: " << srcNode << " " << dstNode << endl;
@@ -114,7 +112,7 @@ public:
         return true;
     }
 
-    bool removeEdge(int srcNode, int dstNode) {
+    bool removeEdge(const unsigned int srcNode, const unsigned int dstNode) {
         g[srcNode].remove(dstNode);
         g[dstNode].remove(srcNode);
         return true;
@@ -140,7 +138,7 @@ public:
         return true;
     }
 
-    bool loadEdgeListFromList(const vector<pair<int, int> > &el) {
+    bool loadEdgeListFromList(const vector<pair<unsigned int, unsigned int> > &el) {
         for (auto &it: el) {
             addEdge(it.first, it.second);
         }
@@ -148,11 +146,14 @@ public:
     }
 
 #ifdef BOOST
-    bool loadGraphFromPythonList(boost::python::list &edgelist){
+    bool loadGraphFromPythonList(boost::python::list &edgelist) {
         boost::python::ssize_t elSize = boost::python::len(edgelist);
 
-        for (ssize_t i = 0; i < elSize; ++i) {
-            addEdge(boost::python::extract<int>(edgelist[i][0]), boost::python::extract<int>(edgelist[i][1]));
+        for (boost::python::ssize_t i = 0; i < elSize; ++i) {
+            auto edge = edgelist[i];
+            addEdge(boost::python::extract<unsigned int>(edge[0]),
+                    boost::python::extract<unsigned int>(edge[1])
+            );
         }
         return true;
     }
@@ -160,10 +161,10 @@ public:
 
     void print() {
         cout << "Graph: " << name << endl;
-        for (const auto &itn: g) {
-            cout << "node " << itn.first;
+        for (const auto &[fst, snd]: g) {
+            cout << "node " << fst;
             cout << "\t [ ";
-            for (unsigned int &ite: g[itn.first])
+            for (const unsigned int &ite: g[fst])
                 cout << ite << " ";
             cout << "]" << endl;
         }
@@ -179,7 +180,7 @@ public:
         for (itc = component.begin(), i = 0; itc != component.end(); ++itc, ++i) {
             cout << "CC:  " << itc->first;
             cout << "\t [ ";
-            for (unsigned int &itcc: *itc->second)
+            for (const unsigned int &itcc: *itc->second)
                 cout << itcc << " ";
             cout << "]" << endl;
         }
@@ -187,7 +188,7 @@ public:
 
 
     void prepareCC() {
-        unsigned long size = g.size();
+        const unsigned long size = g.size();
         vis.reserve(size);
         stack.reserve(size);
         node2comp.reserve(size);
@@ -207,8 +208,8 @@ public:
         component.clear();
         counterCC = -1;
 
-        for (const auto &current_node: g) {
-            vis[current_node.first] = false;
+        for (const auto &[fst, snd]: g) {
+            vis[fst] = false;
         }
         //        for (itm = g.begin(), mend = g.end(); itm != mend; ++itm) {
         //            vis[itm->first] = 0;
@@ -240,24 +241,20 @@ public:
         }
     }
 
-    void computeIncCC(unsigned int idC) {
+    void computeIncCC(const unsigned int idC) {
         forward_list<unsigned int>::iterator itl, lend;
-        vector<unsigned int>::iterator itv, vend;
-        vector<unsigned int> *pCom;
 
         unsigned int snode, node, nnode;
-        unsigned long sizeCC;
-        unsigned int i;
         unsigned int numberVisited = 0;
 
-        pCom = component[idC];
-        sizeCC = pCom->size();
+        vector<unsigned int> *pCom = component[idC];
+        unsigned long sizeCC = pCom->size();
 
-        for (itv = pCom->begin(), vend = pCom->end(); itv != vend; ++itv) {
-            vis[*itv] = false;
+        for (auto itv: *pCom) {
+            vis[itv] = false;
         }
 
-        for (i = 0; (i < sizeCC) && (numberVisited != sizeCC); ++i) {
+        for (unsigned int i = 0; (i < sizeCC) && (numberVisited != sizeCC); ++i) {
             snode = (*component[idC])[i];
             if (!vis[snode]) {
                 counterCC++;
@@ -283,14 +280,13 @@ public:
             }
         }
         delete component[idC];
-
         component.erase(idC);
     }
 
     void computeLCCandSLCC(unsigned int &lccID, unsigned int &slccID) {
         robin_map<unsigned int, vector<unsigned int> *>::iterator itc;
-        unsigned long max, tmpMax;
-        unsigned long smax;
+        unsigned int max, tmpMax;
+        unsigned int smax;
         unsigned int maxID, smaxID;
 
         itc = component.begin();
@@ -347,10 +343,8 @@ bool loadNodesFromFile(const string &fname, list<unsigned int> &nodes) {
 
 void lccThresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int stopCondition,
                             vector<tuple<unsigned int, unsigned int, unsigned int> > &removals) {
-    unsigned int nodeToRemove;
     vector<unsigned int> *pLCC;
     //    vector<int>::iterator result;
-    list<unsigned int>::iterator it;
     unsigned int lccID, slccID;
     unsigned long lccSize = 0, slccSize = 0;
 
@@ -358,9 +352,9 @@ void lccThresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int st
     g->computeCC();
     g->computeLCCandSLCC(lccID, slccID);
 
-    it = nodes.begin();
+    list<unsigned int>::iterator it = nodes.begin();
     while (it != nodes.end()) {
-        nodeToRemove = *it;
+        unsigned int nodeToRemove = *it;
 
         if (g->getNodeComp(nodeToRemove) != lccID) {
             ++it;
@@ -393,12 +387,9 @@ void lccThresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int st
 
 void thresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int stopCondition,
                          vector<tuple<unsigned int, unsigned int, unsigned int> > &removals) {
-    unsigned int nodeToRemove;
-    vector<unsigned int> *pLCC;
     //    vector<int>::iterator result;
-    list<unsigned int>::iterator it;
     unsigned int lccID, slccID;
-    unsigned long lccSize = 0, slccSize = 0;
+    unsigned int lccSize = 0, slccSize = 0;
 
     if (g->getFirst()) {
         g->prepareCC();
@@ -407,9 +398,9 @@ void thresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int stopC
         g->setFirst(false);
     }
 
-    it = nodes.begin();
+    list<unsigned int>::iterator it = nodes.begin();
     while (it != nodes.end()) {
-        nodeToRemove = *it;
+        unsigned int nodeToRemove = *it;
         g->removeNode(nodeToRemove);
 
         //nodeToRemove is still il lccID --> should be removed, but it is costly!!!
@@ -417,7 +408,7 @@ void thresholdDismantler(Graph *g, list<unsigned int> &nodes, unsigned int stopC
         g->computeIncCC(g->getNodeComp(nodeToRemove));
         g->computeLCCandSLCC(lccID, slccID);
 
-        pLCC = g->getComponent(lccID);
+        const vector<unsigned int> *pLCC = g->getComponent(lccID);
         lccSize = pLCC->size();
 
         if (slccID == -1)
@@ -446,58 +437,56 @@ void unwrapEdgeList(boost::python::list &edgelist, vector<pair<int, int> > &el){
     for (int i = 0; i < elSize; ++i){
         el.push_back(pair<int, int>(boost::python::extract<int>(edgelist[i][0]), boost::python::extract<int>(edgelist[i][1])));
     }
-}*/
+}
+*/
 
-void unwrapList(boost::python::list &nl, list<int> &l){
+void unwrapList(boost::python::list &nl, list<unsigned int> &l) {
+
     boost::python::ssize_t nlSize = boost::python::len(nl);
 
-    for (int i = 0; i < nlSize; ++i){
-        l.push_back(boost::python::extract<int>(nl[i]));
+    for (int i = 0; i < nlSize; ++i) {
+        l.push_back(boost::python::extract<unsigned int>(nl[i]));
     }
 }
 
-void wrap(vector<tuple<int, int, int> > &removals, boost::python::list &result){
-
-    for (vector<tuple<int, int, int> >::iterator it = removals.begin(); it != removals.end(); ++it){
+void wrap(vector<tuple<unsigned int, unsigned int, unsigned int> > &removals, boost::python::list &result) {
+    for (auto &removal: removals) {
         boost::python::list temp;
-        temp.append(get<0>(*it));
-        temp.append(get<1>(*it));
-        temp.append(get<2>(*it));
+        temp.append(get<0>(removal));
+        temp.append(get<1>(removal));
+        temp.append(get<2>(removal));
         result.append(temp);
     }
 }
 
-boost::python::list lcc_dismantler_wrapper(Graph *g, boost::python::list nodesToRemove, int stopLCC){
-
+boost::python::list lcc_dismantler_wrapper(Graph *g, boost::python::list nodesToRemove, unsigned int stopLCC) {
     boost::python::list result;
-    vector<tuple<int, int, int> > removals;
-    list<int> nodes;
-
+    vector<tuple<unsigned int, unsigned int, unsigned int> > removals;
+    list<unsigned int> nodes;
 
     unwrapList(nodesToRemove, nodes);
 
     lccThresholdDismantler(g, nodes, stopLCC, removals);
 
     wrap(removals, result);
-    return result;
 
+    return result;
 }
 
-boost::python::list dismantler_wrapper(Graph *g, boost::python::list nodesToRemove, int stopLCC){
+boost::python::list dismantler_wrapper(Graph *g, boost::python::list nodesToRemove, const unsigned int stopLCC) {
 
     boost::python::list result;
-    vector<tuple<int, int, int> > removals;
-    vector<pair<int, int> >el;
-    list<int> nodes;
-
+    vector<tuple<unsigned int, unsigned int, unsigned int> > removals;
+    // vector<pair<unsigned int, unsigned int> > el;
+    list<unsigned int> nodes;
 
     unwrapList(nodesToRemove, nodes);
 
     thresholdDismantler(g, nodes, stopLCC, removals);
 
     wrap(removals, result);
-    return result;
 
+    return result;
 }
 
 #endif
@@ -566,15 +555,16 @@ int main(int argc, char **argv) {
 
 
 #ifdef BOOST
-BOOST_PYTHON_MODULE(dismantler)
-{
+BOOST_PYTHON_MODULE (dismantler) {
     using namespace boost::python;
+
     class_<Graph>("Graph", init<string>())
-        .def(init<boost::python::list>())
-        .def(init<Graph*>())
-        .def("loadGraphFromPythonList", &Graph::loadGraphFromPythonList);
+            .def(init<boost::python::list>())
+            .def(init<Graph *>())
+            .def("loadGraphFromPythonList", &Graph::loadGraphFromPythonList);
 
     def("lccThresholdDismantler", lcc_dismantler_wrapper);
     def("thresholdDismantler", dismantler_wrapper);
+
 }
 #endif

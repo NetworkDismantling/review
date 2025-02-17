@@ -1,61 +1,82 @@
+import logging
+from subprocess import run
+from tempfile import NamedTemporaryFile
+from typing import List
+
+from graph_tool.all import Graph
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
+from network_dismantling.common.logging.pipe import LogPipe
 
 cd_cmd = "cd network_dismantling/decycler/ && "
 executable = "decycler"
 reverse_greedy_executable = "reverse-greedy"
 
-# TODO use tempfile.NamedTemporaryFile?
-# TODO use logger instead of print
 
+# TODO avoid re-running the same code for MS+R and use the dependency system
 
-@dismantler_wrapper
-def _decycler(network, stop_condition: int, reinsertion=True, **kwargs):
-    import tempfile
-    from os import close, remove
-    from subprocess import check_output, STDOUT
-
+def _decycler(network: Graph,
+              stop_condition: int,
+              reinsertion: bool,
+              logger: logging.Logger = logging.getLogger("dummy"),
+              **kwargs):
     import numpy as np
 
     network_type = "D" if network.is_directed() else "E"
 
     static_id = network.vertex_properties["static_id"]
 
-    network_fd, network_path = tempfile.mkstemp()
-    seeds_fd, seeds_path = tempfile.mkstemp()
-    broken_fd, broken_path = tempfile.mkstemp()
-    output_fd, output_path = tempfile.mkstemp()
-
-    tmp_file_handles = [network_fd, seeds_fd, broken_fd, output_fd]
-    tmp_file_paths = [network_path, seeds_path, broken_path, output_path]
-
     nodes = []
 
-    try:
-        with open(network_fd, "w+") as tmp:
-            for edge in network.edges():
-                if edge.source() != edge.target():
-                    tmp.write(
-                        "{} {} {}\n".format(
-                            network_type,
-                            static_id[edge.source()] + 1,
-                            static_id[edge.target()] + 1,
-                        )
-                    )
-            # for edge in network.get_edges():
-            #     if edge[0] != edge[1]:
-            #         tmp.write("{} {} {}\n".format(network_type, int(edge[0]) + 1, int(edge[1]) + 1))
+    with (
+        NamedTemporaryFile("w+",
+                           # delete=False,
+                           ) as network_fd,
+        NamedTemporaryFile("w+",
+                           # delete=False,
+                           ) as seeds_fd,
+        NamedTemporaryFile("w+",
+                           # delete=False,
+                           ) as broken_fd,
+        NamedTemporaryFile("w+",
+                           # delete=False,
+                           ) as output_fd,
+        LogPipe(logger=logger,
+                level=logging.INFO,
+                ) as stdout_pipe,
+        LogPipe(logger=logger,
+                level=logging.ERROR,
+                ) as stderr_pipe
+    ):
+
+        network_path = network_fd.name
+        seeds_path = seeds_fd.name
+        broken_path = broken_fd.name
+        output_path = output_fd.name
+
+        for edge in network.edges():
+            if edge.source() != edge.target():
+                network_fd.write(
+                    f"{network_type} "
+                    f"{static_id[edge.source()] + 1} "
+                    f"{static_id[edge.target()] + 1}\n"
+                )
+        network_fd.flush()
 
         cmds = [
             "make",
+
             f"cat {network_path} | ./{executable} -o > {seeds_path}",
-            f"(cat {network_path} {seeds_path}) | python treebreaker.py {stop_condition} > {broken_path}",
+
+            f"(cat {network_path} {seeds_path}) | "
+            f"python treebreaker.py {stop_condition} > {broken_path}",
         ]
 
+        output: List[NamedTemporaryFile]
         if reinsertion is True:
             cmds.append(
                 f"(cat {network_path} {seeds_path} {broken_path}) | "
-                f"./{reverse_greedy_executable} -t {stop_condition} > {output_path}"
+                f"./{reverse_greedy_executable} --threshold {stop_condition} > {output_path}"
             )
 
             output = [output_fd]
@@ -64,45 +85,42 @@ def _decycler(network, stop_condition: int, reinsertion=True, **kwargs):
 
         for cmd in cmds:
             try:
-                print(f"Running cmd: {cmd}")
-
-                print(
-                    check_output(
-                        cd_cmd + cmd,
-                        shell=True,
-                        text=True,
-                        stderr=STDOUT,
+                logger.debug(f"Running command: {cd_cmd + cmd}")
+                run(cd_cmd + cmd,
+                    shell=True,
+                    stdout=stdout_pipe,
+                    stderr=stderr_pipe,
+                    text=True,
+                    check=True,
                     )
-                )
+
+            # except CalledProcessError as e:
+            #     logger.error(f"ERROR while running cmd {cmd}: {e}", exc_info=True)
+            #     raise e
+
             except Exception as e:
-                raise RuntimeError(f"ERROR! When running cmd: {cmd} {e}")
+                logger.error(f"ERROR while running cmd {cmd}: {e}", exc_info=True)
+
+                # raise RuntimeError("ERROR! {}".format(e))
+                raise e
+
+        output_fd.seek(0)
+        logger.debug(f"Output: {output_fd.readlines()}")
 
         # Iterate over seeds
         for tmp_file in output:
-            with open(tmp_file, "r+") as tmp:
-                for line in tmp.readlines():
-                    line = line.strip().split(" ")
+            tmp_file.seek(0)
 
-                    node_type, seed = line[0], line[1]
+            for line in tmp_file.readlines():
+                line = line.strip().split(" ")
 
-                    if node_type != "S":
-                        continue
-                        # raise ValueError("Unexpected output: {}".format(line))
+                node_type, seed = line[0], line[1]
 
-                    nodes.append(seed)
-    finally:
-        for fd, path in zip(tmp_file_handles, tmp_file_paths):
-            try:
-                close(fd)
+                if node_type != "S":
+                    continue
+                    # raise ValueError("Unexpected output: {}".format(line))
 
-            except:
-                pass
-
-            try:
-                remove(path)
-
-            except:
-                pass
+                nodes.append(seed)
 
     output = np.zeros(network.num_vertices())
 
@@ -127,6 +145,7 @@ method_info = {
     includes_reinsertion=False,
     **method_info,
 )
+@dismantler_wrapper
 def MS(network, **kwargs):
     return _decycler(network, reinsertion=False, **kwargs)
 
@@ -138,5 +157,6 @@ def MS(network, **kwargs):
     includes_reinsertion=True,
     **method_info,
 )
+@dismantler_wrapper
 def MSR(network, **kwargs):
     return _decycler(network, reinsertion=True, **kwargs)

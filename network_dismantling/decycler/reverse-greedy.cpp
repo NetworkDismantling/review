@@ -16,12 +16,10 @@
 */
 
 
-
 /*
  * This code reinserts removed nodes (S vertices) in a greedy way.
  * The starting graph (once S vertices have been removed) must be acyclic.
  * */
-
 
 
 #include <boost/config.hpp>
@@ -61,13 +59,10 @@ using namespace boost;
 using namespace std;
 
 namespace params {
-
-real_t threshold;
-
+	real_t threshold;
 }
 
 using namespace params;
-
 
 
 typedef adjacency_list<vecS, vecS, undirectedS> Graph;
@@ -75,8 +70,8 @@ typedef graph_traits<Graph>::out_edge_iterator edge_iterator;
 typedef graph_traits<Graph>::edge_descriptor Edge;
 typedef graph_traits<Graph>::vertex_descriptor Vertex;
 typedef graph_traits<Graph>::vertices_size_type VertexIndex;
-typedef VertexIndex* Rank;
-typedef Vertex* Parent;
+typedef VertexIndex *Rank;
+typedef Vertex *Parent;
 
 
 Graph g;
@@ -85,15 +80,14 @@ unsigned N = 0;
 vector<int> seed;
 int nseed = 0;
 
-void read_graph(istream & file)
-{
+void read_graph(istream &file) {
 	string line;
 
 	while (getline(file, line)) {
 		istringstream iline(line.c_str());
 		string tok, tok2;
 		iline >> tok;
-		if (tok == "V" || tok == "#" ) {
+		if (tok == "V" || tok == "#") {
 			continue;
 		} else if (tok == "S") {
 			int i;
@@ -117,10 +111,8 @@ void read_graph(istream & file)
 }
 
 
-
-pair<long,int> compute_comp(unsigned i, vector<int> const & present,
-		vector<int> const & size_comp, disjoint_sets<Rank, Parent> & ds)
-{
+pair<long, int> compute_comp(unsigned i, vector<int> const &present,
+                             vector<int> const &size_comp, disjoint_sets<Rank, Parent> &ds) {
 	static vector<int> mask(N);
 
 	vector<int> compos;
@@ -128,7 +120,7 @@ pair<long,int> compute_comp(unsigned i, vector<int> const & present,
 	long nc = 1;
 	int ncomp = 0;
 	for (tie(eit, eend) = out_edges(i, g); eit != eend; ++eit) {
-		int j =  target(*eit, g);
+		int j = target(*eit, g);
 		if (present[j]) {
 			int c = ds.find_set(j);
 			if (!mask[c]) {
@@ -145,8 +137,7 @@ pair<long,int> compute_comp(unsigned i, vector<int> const & present,
 }
 
 
-void run_greedy()
-{
+void run_greedy() {
 	vector<VertexIndex> rank(N);
 	vector<Vertex> parent(N);
 	vector<int> handle(N);
@@ -154,7 +145,7 @@ void run_greedy()
 	vector<int> size_comp(N);
 	disjoint_sets<Rank, Parent> ds(&rank[0], &parent[0]);
 	int ngiant = 0;
-	for (unsigned i  = 0; i < N; ++i)
+	for (unsigned i = 0; i < N; ++i)
 		ds.make_set(i);
 	edge_iterator eit, eend;
 	int num_comp = N;
@@ -168,7 +159,7 @@ void run_greedy()
 		present[i] = 1;
 		num_comp += 1 - ncomp;
 		for (tie(eit, eend) = out_edges(i, g); eit != eend; ++eit) {
-			unsigned j =  target(*eit, g);
+			unsigned j = target(*eit, g);
 			if (present[j]) {
 				ds.union_set(i, j);
 				nedges++;
@@ -180,7 +171,7 @@ void run_greedy()
 	}
 
 	vector<int> compos;
-	for (unsigned t = nseed; --t; ) {
+	for (unsigned t = nseed; --t;) {
 		long nbest = N;
 		unsigned ibest = 0;
 		int ncompbest = 0;
@@ -199,7 +190,7 @@ void run_greedy()
 		present[ibest] = 1;
 		num_comp += 1 - ncompbest;
 		for (tie(eit, eend) = out_edges(ibest, g); eit != eend; ++eit) {
-			unsigned j =  target(*eit, g);
+			unsigned j = target(*eit, g);
 			if (present[j]) {
 				ds.union_set(ibest, j);
 				nedges++;
@@ -213,7 +204,7 @@ void run_greedy()
 			break;
 		seed[ibest] = 0;
 		if (t % 1 == 0)
-			cout << t << " " << ngiant << " " << ibest << " " << nbest << " " << num_comp << " " << nedges <<  endl;
+			cout << t << " " << ngiant << " " << ibest << " " << nbest << " " << num_comp << " " << nedges << endl;
 	}
 	for (unsigned i = 0; i < N; ++i) {
 		if (seed[i])
@@ -223,16 +214,15 @@ void run_greedy()
 
 namespace po = boost::program_options;
 
-po::variables_map parse_command_line(int ac, char ** av)
-{
+po::variables_map parse_command_line(int ac, char **av) {
 	po::options_description desc(
-			"Implements reverse greedy from a decycled graph\n"
-			"Standard input: edges (D i j)  + seeds (removed nodes, S i)\n"
-			"Usage: " + string(av[0]) + " <option> ... \n\twhere <option> is one or more of"
-			);
+		"Implements reverse greedy from a decycled graph\n"
+		"Standard input: edges (D i j)  + seeds (removed nodes, S i)\n"
+		"Usage: " + string(av[0]) + " <option> ... \n\twhere <option> is one or more of"
+	);
 	desc.add_options()
-		("help,h", "produce help message")
-		("threshold,t", po::value(&threshold), "stop on threshold");
+			("help,h", "produce help message")
+			("threshold,t", po::value(&threshold), "stop on threshold");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(ac, av, desc), vm);
@@ -247,8 +237,7 @@ po::variables_map parse_command_line(int ac, char ** av)
 }
 
 
-int main(int ac, char** av)
-{
+int main(int ac, char **av) {
 	po::variables_map vm = parse_command_line(ac, av);
 	read_graph(cin);
 	run_greedy();

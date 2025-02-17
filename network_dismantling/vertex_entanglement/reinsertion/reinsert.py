@@ -120,7 +120,7 @@ def reinsert(
         broken_fd.flush()
 
         cmds = [
-            # 'make clean && make',
+            'make clean && make',
 
             # Build the reinsertion program, if necessary
             "make",

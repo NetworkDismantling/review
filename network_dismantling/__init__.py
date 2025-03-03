@@ -100,7 +100,6 @@ class DismantlingMethod:
         if not isinstance(self.short_name, str):
             raise RuntimeError(f"Short name not a string for {self.key}")
 
-
     def __call__(self, *args, **kwargs):
         output = self.function(*args, **kwargs)
 
@@ -162,10 +161,6 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
         except Exception as e:
             logger.warning(f"Exception: {e}\n", exc_info=True)
 
-            try:
-                _module = loader.find_module(module_name).load_module(module_name)
-            except Exception as e:
-                logger.warning(f"Exception: {e}\n", exc_info=True)
 
         if _module is None:
             # print("Error importing:", module_name, e)

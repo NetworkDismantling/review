@@ -330,7 +330,7 @@ def main(
                     "logger": logger,
                 }
 
-                removals, _, _ = dismantler(
+                removals, _, _, _ = dismantler(
                     network=network.copy(),
                     predictor=predictor,
                     generator_args=generator_args,

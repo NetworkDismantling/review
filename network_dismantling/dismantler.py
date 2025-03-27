@@ -473,6 +473,9 @@ def main(args, logger=logging.getLogger("dummy")):
                             f"Dismantling {network_name} according to {display_name}. "
                             f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
                         )
+                        
+                        if network_size > args.max_num_vertices:
+                            continue
                         # logger.debug(f"dismantling_method_kwargs: {dismantling_method_kwargs}")
 
                         generator_args["executor"] = executor
@@ -655,6 +658,14 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Number of jobs.",
+    )
+
+    parser.add_argument(
+        "-mnv",
+        "--max_num_vertices",
+        type=int,
+        default=np.inf,
+        help="Filter for network size based on number of vertices.",
     )
 
     # parser.add_argument(

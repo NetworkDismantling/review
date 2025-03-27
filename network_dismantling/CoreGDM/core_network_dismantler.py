@@ -312,7 +312,7 @@ def test(args, model, early_stopping_dict: dict = None, networks_provider=None, 
             "rem_num": np.inf,
         })
 
-        removals, prediction_time, dismantle_time = dismantler(network=network.copy(),
+        removals, prediction_time, dismantle_time, _ = dismantler(network=network.copy(),
                                                                node_generator=predictor,
                                                                generator_args=generator_args,
                                                                stop_condition=stop_condition,

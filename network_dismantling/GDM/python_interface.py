@@ -376,6 +376,7 @@ def _GDM(
                 # df=new_df_runs,
                 test_networks={f"{network_name}": network},
                 logger=logger,
+                threshold=args.threshold,
             )
         except FileNotFoundError as e:
             raise RuntimeError(

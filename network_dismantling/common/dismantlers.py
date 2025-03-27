@@ -85,7 +85,7 @@ def threshold_dismantler(
             logger.debug("EARLY STOPPING")
             break
 
-    return removals, None, None
+    return removals, None, None, None
 
 
 # TODO REMOVE THIS FROM THE REVIEW. IT IS NOT USED!
@@ -183,7 +183,7 @@ def kcore_lcc_threshold_dismantler(
             # print("EARLY STOPPING")
             break
 
-    return removals, None, None
+    return removals, None, None, None
 
 
 def lcc_threshold_dismantler(
@@ -270,7 +270,7 @@ def lcc_threshold_dismantler(
             generator.close()
             break
 
-    return removals, None, None
+    return removals, None, None, None
 
 
 def lcc_peak_dismantler(
@@ -380,7 +380,7 @@ def lcc_peak_dismantler(
 
     generator.close()
 
-    return removals, None, None  # prediction_time, dismantle_time
+    return removals, None, None, None  # prediction_time, dismantle_time
 
 
 def enqueued(original_function=None,
@@ -454,7 +454,7 @@ def dismantler_wrapper(
             generator_args["sorting_function"] = function
 
             # kwargs["generator_args"] = generator_args
-            removals, prediction_time, dismantle_time = dismantler(
+            removals, prediction_time, dismantle_time, _ = dismantler(
                 network=network,
                 predictor=predictor,
                 generator_args=generator_args,

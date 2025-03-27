@@ -16,6 +16,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
 import logging
 from ast import literal_eval
 from errno import ENOSPC
@@ -292,9 +293,9 @@ def main(
 
                 run.drop(run_columns, inplace=True, errors="ignore")
                 # Get the removals
-                removals = run.pop("removals")
-                removals = literal_eval(removals)
-
+                original_removals = run.pop("removals")
+                original_removals = re.sub(r'np\.float64\(([^)]+)\)', r'\1', original_removals)
+                original_removals = literal_eval(original_removals)
                 # Remove the columns that are not needed
                 run.drop(run_columns,
                          inplace=True,
@@ -316,18 +317,18 @@ def main(
 
                 if threshold is None:
                     threshold = run.get("threshold",
-                                        removals[-1][3],
+                                        original_removals[-1][3],
                                         )
 
                 stop_condition = int(np.ceil(threshold * network.num_vertices()))
                 generator_args = {
-                    "removals": list(map(itemgetter(1), removals)),
+                    "removals": list(map(itemgetter(1), original_removals)),
                     "stop_condition": stop_condition,
                     "network_name": network_name,
                     "logger": logger,
                 }
 
-                removals, _, _ = dismantler(
+                removals, _, _, last_lcc_size = dismantler(
                     network=network.copy(),
                     predictor=predictor,
                     generator_args=generator_args,
@@ -335,22 +336,6 @@ def main(
                     dismantler=dismantler,
                     logger=logger,
                 )
-
-                peak_slcc = max(removals, key=itemgetter(4))
-
-                _run = {
-                    "network": network_name,
-                    "removals": removals,
-                    "slcc_peak_at": peak_slcc[0],
-                    "lcc_size_at_peak": peak_slcc[3],
-                    "slcc_size_at_peak": peak_slcc[4],
-                    "r_auc": simpson(list(r[3] for r in removals), dx=1),
-                    "rem_num": len(removals),
-                    "threshold": threshold,
-                }
-
-                for key, value in _run.items():
-                    run[key] = value
 
                 # Check if something is wrong with the removals
                 if removals[-1][2] == 0:
@@ -368,10 +353,29 @@ def main(
                             last_valid_index = i
                         else:
                             break
-
                     logger.error(f"Last valid index: {last_valid_index}: {removals[last_valid_index]}")
-                    raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
+                    removals = removals[:last_valid_index+1]
+                    # raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
+                
+                if last_lcc_size > stop_condition: # careful size of LCC not actual %, stop condition is number of nodes not threshold
+                    raise RuntimeError(f"Reinsertion did not ensure a proper dismantling with {last_lcc_size=} > {stop_condition=}.")
+                
+                peak_slcc = max(removals, key=itemgetter(4))
 
+                _run = {
+                    "network": network_name,
+                    "removals": removals,
+                    "slcc_peak_at": peak_slcc[0],
+                    "lcc_size_at_peak": peak_slcc[3],
+                    "slcc_size_at_peak": peak_slcc[4],
+                    "r_auc": simpson(list(r[3] for r in removals), dx=1),
+                    "rem_num": len(removals),
+                    "threshold": threshold,
+                }
+
+                for key, value in _run.items():
+                    run[key] = value
+                    
                 all_runs.append(run)
 
                 run_df = pd.DataFrame(data=[run], columns=network_df.columns)

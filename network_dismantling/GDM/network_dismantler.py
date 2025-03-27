@@ -205,7 +205,7 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
                          f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
                          )
 
-            removals, prediction_time, dismantle_time = dismantler(network, predictor, generator_args, stop_condition)
+            removals, prediction_time, dismantle_time, _ = dismantler(network, predictor, generator_args, stop_condition)
 
             peak_slcc = max(removals, key=itemgetter(4))
 

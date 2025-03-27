@@ -141,7 +141,7 @@ You can find them in their sub-folders.
 #### All algorithms except FINDER and GDM
 
 ```bash
-conda create -n dismantling python=3.9 boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib -c anaconda -c conda-forge
+conda create -n dismantling python=3.9 boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib parse pyyaml -c anaconda -c conda-forge
 
 conda activate dismantling
 ```
@@ -154,7 +154,7 @@ Please refer to the [PyTorch installation matrix](https://pytorch.org/get-starte
 
 Just as an example, if your host machine supports CUDA (11.8), the command should look like the following:
 ```bash
-conda create --name gdm boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib python pytorch torchvision torchaudio pytorch-cuda=11.8 pyg -c pyg -c pytorch -c nvidia -c conda-forge -c anaconda
+conda create --name gdm boost boost-cpp graph-tool dill tqdm numpy scipy pandas seaborn matplotlib python parse pyyaml pytorch torchvision torchaudio pytorch-cuda=11.8 pyg -c pyg -c pytorch -c nvidia -c conda-forge -c anaconda
 
 conda activate gdm
 ```

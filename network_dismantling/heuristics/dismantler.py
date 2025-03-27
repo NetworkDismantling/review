@@ -224,7 +224,7 @@ def main(args):
                                                                                               "STATIC" if mode is True else "DYNAMIC") + " " + display_name,
                                                                                           stop_condition,
                                                                                           stop_condition / network_size))
-                removals, prediction_time, dismantle_time = dismantler(network=network.copy(),
+                removals, prediction_time, dismantle_time, _ = dismantler(network=network.copy(),
                                                                        predictor=generator,
                                                                        generator_args=generator_args,
                                                                        stop_condition=stop_condition,

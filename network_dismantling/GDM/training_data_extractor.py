@@ -55,7 +55,7 @@ def training_data_extractor(g, threshold=None,
         degree = g.get_out_degrees(vertices)
 
         logger.debug("Computing Max degree")
-        max_degree = np.max(degree)
+        max_degree = np.max(degree) if len(degree) > 0 else 1
 
         logger.debug("Normalizing the degree")
         degree = np.divide(degree, max_degree)

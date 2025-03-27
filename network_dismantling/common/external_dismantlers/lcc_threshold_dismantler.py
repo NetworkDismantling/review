@@ -118,7 +118,7 @@ def _threshold_dismantler(
 
     del predictions_dict
 
-    return removals, prediction_time, dismantle_time
+    return removals, prediction_time, dismantle_time, lcc_size
 
 
 def lcc_threshold_dismantler(
@@ -227,7 +227,7 @@ def _iterative_threshold_dismantler(network, predictor, generator_args, stop_con
         f"{network_name}: iterative external dismantler returned in {dismantle_time}s"
     )
 
-    return removals, None, None
+    return removals, None, None, lcc_size
 
 
 def iterative_threshold_dismantler(network, predictor, generator_args, stop_condition):

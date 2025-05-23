@@ -36,7 +36,7 @@ from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler im
     threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.logging.pipe import LogPipe
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 from scipy.integrate import simpson
 from tqdm import tqdm
 

@@ -1,9 +1,13 @@
 import logging
+import multiprocessing
+import threading
 from pathlib import Path
 from typing import Callable, List, Union, Dict
 
 import numpy as np
 import pandas as pd
+
+from network_dismantling.common.data_structures import dotdict
 
 
 def get_df_columns(file: Path):
@@ -244,3 +248,79 @@ class RemovalsColumns:
     PREDICTION = 2
     LCC_SIZE = 3
     SLCC_SIZE = 4
+
+
+def df_writer(queue, output_file, output_columns=None, logger=logging.getLogger("dummy")):
+    output_file = Path(output_file)
+    kwargs = {
+        "path_or_buf": output_file,
+        "index": False,
+        "columns": output_columns,
+        # header='column_names'
+    }
+
+    if not output_file.exists():
+        empty_df = pd.DataFrame(columns=output_columns)
+        empty_df.to_csv(**kwargs)
+
+    # If dataframe exists append without writing the header
+    kwargs["mode"] = "a"
+    kwargs["header"] = False
+
+    while True:
+        record = queue.get()
+
+        if record is None:
+            return
+
+        if len(record):
+            # Reorder the columns
+            try:
+                record = record[output_columns]
+            except KeyError as e:
+                logger.error(f"Error writing record {record} to {output_file}. "
+                             f"Missing column(s): {e}")
+
+            record.to_csv(**kwargs)
+
+
+def start_df_writer(args: dotdict,
+                    df_queue: multiprocessing.Queue,
+                    logger: logging.Logger = logging.getLogger("dummy"),
+                    ) -> threading.Thread:
+    """Start a thread to write the dataframe to a CSV file.
+    This function creates a thread that runs the df_writer function, which
+    writes the dataframe to a CSV file. The thread is started and returned.
+    The thread is a daemon thread, which means it will not block the program
+    from exiting.
+    The thread will run in the background and write the dataframe to the
+    CSV file as it is being generated. The thread will be stopped when the
+    program exits.
+    
+    Args:
+        args: dotdict: 
+            output_file: The path to the output CSV file.
+            output_df_columns: The columns to write to the CSV file.
+        df_queue: multiprocessing.Queue: 
+            The queue to read the dataframe from.
+        logger: logging.Logger: 
+            The logger to use for logging messages.
+
+    Returns:
+        threading.Thread: 
+            The thread that is writing the dataframe to the CSV file.
+
+    """
+    # Create and start the Dataset Writer Thread
+    dp = threading.Thread(
+        target=df_writer,
+        kwargs=dict(
+            queue=df_queue,
+            output_file=args.output_file,
+            output_columns=args.output_df_columns,
+            logger=logger,
+        ),
+        daemon=True,
+    )
+    dp.start()
+    return dp

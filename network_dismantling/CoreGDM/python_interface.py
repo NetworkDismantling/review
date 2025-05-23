@@ -29,10 +29,12 @@ import logging
 from pathlib import Path
 
 from graph_tool import Graph
+
 from network_dismantling.GDM.models import BaseModel
 from network_dismantling.GDM.python_interface import models_folder_path
 from network_dismantling._sorters import dismantling_method
 from network_dismantling.common.data_structures import dotdict, product_dict
+from network_dismantling.common.storage.pandas.csv import start_df_writer
 
 folder = 'network_dismantling/CoreGDM/'
 cd_cmd = f'cd {folder} && '
@@ -111,7 +113,7 @@ def grid(df,
     from network_dismantling.GDM.dataset_providers import prepare_graph
     # from network_dismantling.GDM.models import models_mapping
     from network_dismantling.GDM.training_data_extractor import training_data_extractor
-    from network_dismantling.common.multiprocessing import progressbar_thread, dataset_writer, apply_async
+    from network_dismantling.common.multiprocessing import progressbar_thread, apply_async
 
     # try:
     #     if cuda.is_available():
@@ -163,8 +165,10 @@ def grid(df,
     }
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(target=dataset_writer, args=(df_queue, args.output_file), daemon=True)
-    dp.start()
+    dp: threading.Thread = start_df_writer(args=args,
+                                           df_queue=df_queue,
+                                           logger=logger,
+                                           )
 
     devices = []
     locks = dict()

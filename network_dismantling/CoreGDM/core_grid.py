@@ -24,10 +24,13 @@ from itertools import combinations
 from pathlib import Path
 from queue import Queue
 
-import network_dismantling
 import numpy as np
 import pandas as pd
 from graph_tool.all import remove_parallel_edges, remove_self_loops
+from torch import multiprocessing, cuda
+from tqdm import tqdm
+
+import network_dismantling
 from network_dismantling.CoreGDM.core_network_dismantler import get_df_columns
 from network_dismantling.GDM.config import all_features
 from network_dismantling.GDM.config import base_models_path
@@ -39,13 +42,11 @@ from network_dismantling.common.config import output_path, base_dataframes_path
 from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dataset_providers import list_files
 from network_dismantling.common.multiprocessing import (
-    dataset_writer,
     apply_async,
     progressbar_thread,
-    TqdmLoggingHandler,
 )
-from torch import multiprocessing, cuda
-from tqdm import tqdm
+from network_dismantling.common.storage.pandas.csv import start_df_writer
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 
 def process_parameters_wrapper(
@@ -302,12 +303,10 @@ def main(args, nn_model):
         }
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(
-        target=dataset_writer,
-        args=(df_queue, args.output_file),
-        daemon=True,
-    )
-    dp.start()
+    dp: threading.Thread = start_df_writer(args=args,
+                                           df_queue=df_queue,
+                                           logger=logger,
+                                           )
 
     devices = []
     locks = dict()

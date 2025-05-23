@@ -1,12 +1,34 @@
 import logging
 from glob import glob
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Union, Callable
 
 from network_dismantling.common.loaders import load_graph
 
 
-def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", "gt"), **kwargs):
+def list_files(location: Union[Path, List[Path]],
+               filter: str = "*",
+               max_num_vertices: Union[int, None] = None,
+               extensions: Union[list, str] = ("graphml", "gt"),
+               **kwargs) -> List[Path]:
+    files: List[Path] = []
+
+    if isinstance(location, list):
+        files = []
+        for loc in location:
+            try:
+                files += list_files(
+                    loc,
+                    max_num_vertices=max_num_vertices,
+                    filter=filter,
+                    targets=None,
+                    # manager=mp_manager,
+                )
+            except FileNotFoundError:
+                pass
+
+        return files
+
     if not isinstance(filter, list):
         filter = [filter]
 
@@ -14,7 +36,6 @@ def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", 
     if not isinstance(extensions, (list, tuple)):
         extensions = [extensions]
 
-    files = []
     for extension in extensions:
         for f in filter:
             l = location / (f"{f}.{extension}")
@@ -22,7 +43,10 @@ def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", 
             files += glob(str(l))
 
     # files = sorted([Path(file).stem for file in files])
-    files = sorted([Path(file) for file in files])
+    files = sorted([Path(file).resolve() for file in files])
+
+    if max_num_vertices is not None:
+        files = [file for file in files if load_graph(str(file)).num_vertices() <= max_num_vertices]
 
     if len(files) == 0:
         raise FileNotFoundError
@@ -30,8 +54,12 @@ def list_files(location, filter="*", extensions: Union[list, str] = ("graphml", 
     return files
 
 
-def storage_provider(location, max_num_vertices=None, filter="*", extensions: Union[list, str] = ("graphml", "gt"),
-                     callback=None):
+def storage_provider(location,
+                     max_num_vertices=None,
+                     filter="*", extensions: Union[list, str] = ("graphml", "gt"),
+                     callback: Union[Callable, None] = None,
+                     logger=logging.getLogger("dummy"),
+                     ):
     if not location.is_absolute():
         location = location.resolve()
 
@@ -85,8 +113,11 @@ def storage_provider(location, max_num_vertices=None, filter="*", extensions: Un
     return networks
 
 
-def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=None, filter="*",
-                          logger=logging.getLogger("dummy"), **kwargs):
+def init_network_provider(location: Union[Path, List[Path]],
+                          max_num_vertices=None,
+                          filter="*",
+                          logger=logging.getLogger("dummy"),
+                          **kwargs):
     if not isinstance(location, list):
         location = [location]
 
@@ -99,7 +130,10 @@ def init_network_provider(location: Union[Path, List[Path]], max_num_vertices=No
 
         # logger.info(f"Loading networks from: {loc}")
         try:
-            networks += storage_provider(loc, max_num_vertices=max_num_vertices, filter=filter)
+            networks += storage_provider(loc,
+                                         max_num_vertices=max_num_vertices,
+                                         filter=filter,
+                                         **kwargs)
         except FileNotFoundError:
             # Assume we can find the file somewhere else
             pass

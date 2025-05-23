@@ -55,8 +55,9 @@ from typing import Callable, Union, Dict, List
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
-from network_dismantling.common.logger import logger_thread
 from tqdm.auto import tqdm
+
+from network_dismantling.common.logger import logger_thread
 
 try:
     from torch import multiprocessing, cuda
@@ -72,10 +73,8 @@ from network_dismantling.common.dataset_providers import (
     init_network_provider,
 )
 from network_dismantling.common.df_helpers import df_reader, RemovalsColumns
-from network_dismantling.common.multiprocessing import (
-    TqdmLoggingHandler,
-    dataset_writer,
-)
+from network_dismantling.common.storage.pandas.csv import start_df_writer
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 # # Remove the OpenMP threads. Use data parallelism instead
 # from graph_tool.all import openmp_set_num_threads

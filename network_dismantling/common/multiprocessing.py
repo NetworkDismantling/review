@@ -1,35 +1,9 @@
-import logging
 import multiprocessing
-from pathlib import Path
 
 from parse import compile
-from torch.multiprocessing import current_process
-from tqdm.auto import tqdm
+from multiprocessing import current_process
 
 child_num_format = compile("{}-{number:d}")
-
-
-def dataset_writer(queue, output_file):
-    kwargs = {
-        "path_or_buf": Path(output_file),
-        "index": False,
-        # header='column_names'
-    }
-
-    while True:
-        record = queue.get()
-
-        if record is None:
-            return
-
-        if len(record):
-            # TODO DO NOT CHECK EVERY TIME!
-            # If dataframe exists append without writing the header
-            if kwargs["path_or_buf"].exists():
-                kwargs["mode"] = "a"
-                kwargs["header"] = False
-
-            record.to_csv(**kwargs)
 
 
 def progressbar_thread(q, progressbar):
@@ -124,17 +98,3 @@ def get_position():
         position = 2
 
     return position
-
-
-class TqdmLoggingHandler(logging.Handler):
-    def __init__(self, level=logging.NOTSET):
-        super().__init__(level)
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            tqdm.write(msg)
-            self.flush()
-
-        except Exception:
-            self.handleError(record)

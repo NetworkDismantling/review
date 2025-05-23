@@ -24,7 +24,7 @@ import torch
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 
 def main(args):

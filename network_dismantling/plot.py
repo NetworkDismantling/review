@@ -29,7 +29,7 @@ from matplotlib.ticker import MaxNLocator
 
 from network_dismantling import dismantling_methods
 from network_dismantling.common.df_helpers import df_reader
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 column_duplicates = [
     "network",

@@ -23,7 +23,7 @@ from pathlib import Path
 
 import networkx as nx
 
-from network_dismantling.common.multiprocessing import TqdmLoggingHandler
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 _format_mapping = {
     # "ncol":       ("Read_Ncol", "write_ncol"),

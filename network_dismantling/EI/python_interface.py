@@ -1,8 +1,7 @@
 from graph_tool import Graph
-from parse import compile
-
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
+from parse import compile
 
 targets_num_expression = compile("Vaccinated nodes {num:d}")
 
@@ -10,12 +9,16 @@ folder = "network_dismantling/EI/"
 cd_cmd = "cd {} && ".format(folder)
 executable = "exploimmun"
 
+
 # TODO use tempfile.NamedTemporaryFile?
 # TODO use logger instead of print
 
 
 def _explosive_immunization(
-    network: Graph, stop_condition: int, sigma: int, candidates: int, **kwargs
+        network: Graph,
+        stop_condition: int,
+        sigma: int,
+        candidates: int, **kwargs
 ):
     import tempfile
     from os import close, remove
@@ -33,7 +36,7 @@ def _explosive_immunization(
 
     assert static_id.a.min() == 0, "Static id must start from 0"
     assert (
-        static_id.a.max() == network.num_vertices() - 1
+            static_id.a.max() == network.num_vertices() - 1
     ), "Static id must be consecutive"
 
     network_fd, network_path = tempfile.mkstemp()

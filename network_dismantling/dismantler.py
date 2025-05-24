@@ -65,8 +65,9 @@ except ImportError:
     import multiprocessing
 
     # TODO maybe improve this cuda mock?
-    cuda = object()
-    cuda.is_available = lambda: False
+    from types import SimpleNamespace
+
+    cuda = SimpleNamespace(is_available=lambda: False)
 
 from network_dismantling.common.dataset_providers import (
     list_files,

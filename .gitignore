@@ -203,3 +203,4 @@ dataset.tar.gz
 network_dismantling/CI/CI
 CMakeLists.txt
 network_dismantling/vertex_entanglement/reinsertion/reinsertion
+network_dismantling/common/external_dismantlers/bin/external_dismantlers

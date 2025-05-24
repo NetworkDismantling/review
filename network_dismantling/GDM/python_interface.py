@@ -10,8 +10,10 @@ import logging
 from pathlib import Path
 
 from graph_tool import Graph
-from network_dismantling._sorters import dismantling_method
 from torch import multiprocessing
+
+from network_dismantling._sorters import dismantling_method
+from network_dismantling.common.storage.pandas.csv import start_df_writer
 
 try:
     from deadpool import as_completed, Executor
@@ -101,7 +103,6 @@ def grid(
     from network_dismantling.GDM.grid import process_parameters_wrapper
     from network_dismantling.common.multiprocessing import (
         progressbar_thread,
-        dataset_writer,
         submit,
     )
 
@@ -127,15 +128,10 @@ def grid(
     iterations_queue: Queue = mp_manager.Queue()
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(
-        target=dataset_writer,
-        kwargs=dict(
-            queue=df_queue,
-            output_file=args.output_file,
-        ),
-        daemon=True,
-    )
-    dp.start()
+    dp: threading.Thread = start_df_writer(args=args,
+                                           df_queue=df_queue,
+                                           logger=logger,
+                                           )
 
     devices = []
     locks = dict()
@@ -349,6 +345,7 @@ def _GDM(
             "sort_descending": False,
         }
     )
+
     if reinsertion is True:
         reinsertion_args = reinsert_parse_parameters(
             parse_string=default_reinsertion_params.split()

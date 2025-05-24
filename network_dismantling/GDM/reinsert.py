@@ -25,7 +25,7 @@ from pathlib import Path
 from subprocess import run, CalledProcessError
 from tempfile import NamedTemporaryFile
 from time import time
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -66,9 +66,9 @@ cached_networks: Dict[Path, str] = {}
 
 
 def get_predictions(
-        network,
-        removals,
-        stop_condition,
+        network: Graph,
+        removals: List,
+        stop_condition: int,
         logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs
 ):
@@ -89,9 +89,9 @@ def get_predictions(
 
 
 def reinsert(
-        network,
-        removals,
-        stop_condition,
+        network: Graph,
+        removals: List,
+        stop_condition: int,
         logger: logging.Logger = logging.getLogger("dummy"),
 ):
     network_path = get_network_file(network)
@@ -119,19 +119,20 @@ def reinsert(
 
             # Run the reinsertion algorithm
             f"./{reinsertion_executable} "
-            f"--NetworkFile {network_path} "
-            f"--IDFile \"{broken_path}\" "
-            f"--OutFile \"{output_path}\" "
-            f"--TargetSize {stop_condition} "
-            f"--SortStrategy {reinsertion_strategy} ",
+                f"--NetworkFile {network_path} "
+                f'--IDFile "{broken_path}" '
+                f'--OutFile "{output_path}" '
+                f"--TargetSize {int(stop_condition)} "
+                f"--SortStrategy {reinsertion_strategy} ",
         ]
 
-        with LogPipe(logger=logger,
-                     level=logging.INFO,
-                     ) as stdout_pipe, \
-                LogPipe(logger=logger,
-                        level=logging.ERROR,
-                        ) as stderr_pipe:
+        with (LogPipe(logger=logger,
+                      level=logging.INFO,
+                      ) as stdout_pipe,
+
+              LogPipe(logger=logger,
+                      level=logging.ERROR,
+                      ) as stderr_pipe):
 
             for cmd in cmds:
                 try:

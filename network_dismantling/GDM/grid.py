@@ -23,26 +23,16 @@ from network_dismantling.common.config import base_dataframes_path
 
 
 def process_parameters_wrapper(
-    args,
-    df,
-    nn_model,
-    params_queue,
-    test_networks,
-    train_networks,
-    df_queue,
-    iterations_queue,
-    logger=logging.getLogger("dummy"),
+        args,
+        df,
+        nn_model,
+        params_queue,
+        test_networks,
+        train_networks,
+        df_queue,
+        iterations_queue,
+        logger=logging.getLogger("dummy"),
 ):
-    # import sys
-    #
-    # logging.basicConfig(
-    #     level=logging.DEBUG,
-    #     format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-    #     datefmt="%m-%d %H:%M",
-    #     stream=sys.stdout,
-    # )
-    # logger = logging.getLogger(__name__)
-
     import pandas as pd
     from torch import device
     from os import getpid
@@ -255,7 +245,6 @@ def main(args, nn_model):
     from network_dismantling.common.dataset_providers import list_files
     from network_dismantling.common.df_helpers import df_reader
     from network_dismantling.common.multiprocessing import (
-        dataset_writer,
         progressbar_thread,
         apply_async,
     )
@@ -313,10 +302,10 @@ def main(args, nn_model):
     iterations_queue: Queue = mp_manager.Queue()
 
     # Create and start the Dataset Writer Thread
-    dp = threading.Thread(
-        target=dataset_writer, args=(df_queue, args.output_file), daemon=True
-    )
-    dp.start()
+    dp: threading.Thread = start_df_writer(args=args,
+                                           df_queue=df_queue,
+                                           logger=logger,
+                                           )
 
     # mpl = multiprocessing.log_to_stderr()
     # mpl.setLevel(logging.INFO)
@@ -347,9 +336,9 @@ def main(args, nn_model):
     args.locks = locks
 
     for network_name in tqdm(
-        test_networks_list,
-        desc="Networks",
-        leave=False,
+            test_networks_list,
+            desc="Networks",
+            leave=False,
     ):
         logger.info(f"Loading network: {network_name}")
 
@@ -372,9 +361,9 @@ def main(args, nn_model):
 
         # Create the pool
         with multiprocessing.Pool(
-            processes=args.jobs,
-            initializer=tqdm.set_lock,
-            initargs=(multiprocessing.Lock(),),
+                processes=args.jobs,
+                initializer=tqdm.set_lock,
+                initargs=(multiprocessing.Lock(),),
         ) as p:
             with tqdm(total=len(params_list),
                       ascii=True) as pb:
@@ -427,10 +416,10 @@ def main(args, nn_model):
 
 
 def parse_parameters(
-    parse_args=None,
-    base_dataframes_path=base_dataframes_path,
-    base_models_path=base_models_path,
-    logger=logging.getLogger("dummy"),
+        parse_args=None,
+        base_dataframes_path=base_dataframes_path,
+        base_models_path=base_models_path,
+        logger=logging.getLogger("dummy"),
 ):
     import argparse
     from itertools import combinations
@@ -735,10 +724,10 @@ def parse_parameters(
     logger.debug(f"Simultaneous access to PyTorch device {args.simultaneous_access}")
 
     dataframes_path = (
-        base_dataframes_path
-        / args.location_train.name
-        / args.target
-        / "T_{}".format(float(args.threshold) if not args.peak_dismantling else "PEAK")
+            base_dataframes_path
+            / args.location_train.name
+            / args.target
+            / "T_{}".format(float(args.threshold) if not args.peak_dismantling else "PEAK")
     )
 
     if not dataframes_path.exists():
@@ -789,11 +778,11 @@ if __name__ == "__main__":
     from network_dismantling.common.config import output_path, base_dataframes_path
     from network_dismantling.common.dataset_providers import list_files
     from network_dismantling.common.multiprocessing import (
-        dataset_writer,
         progressbar_thread,
         apply_async,
-        TqdmLoggingHandler,
     )
+    from network_dismantling.common.storage.pandas.csv import start_df_writer
+    from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)

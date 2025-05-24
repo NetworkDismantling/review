@@ -104,9 +104,6 @@ def _decycler(network: Graph,
                 # raise RuntimeError("ERROR! {}".format(e))
                 raise e
 
-        output_fd.seek(0)
-        logger.debug(f"Output: {output_fd.readlines()}")
-
         # Iterate over seeds
         for tmp_file in output:
             tmp_file.seek(0)

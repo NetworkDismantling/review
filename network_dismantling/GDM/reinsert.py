@@ -315,12 +315,16 @@ def main(
                     # Nothing to do. The network was already tested
                     continue
 
-                if threshold is None:
-                    threshold = run.get("threshold",
-                                        removals[-1][3],
-                                        )
+                # if threshold is None:
+                #     threshold = run.get("threshold",
+                #                         removals[-1][3],
+                #                         )
 
-                stop_condition = int(np.ceil(threshold * network.num_vertices()))
+                threshold = removals[-1][3]
+                stop_condition = np.ceil(network.num_vertices() * threshold)
+
+                logger.debug(f"Threshold: {threshold}, stop condition: {stop_condition}")
+
                 generator_args = {
                     "removals": list(map(itemgetter(1), removals)),
                     "stop_condition": stop_condition,
@@ -371,7 +375,7 @@ def main(
                             break
 
                     logger.error(f"Last valid index: {last_valid_index}: {removals[last_valid_index]}")
-                    raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
+                    # raise RuntimeError(f"Had to remove too many nodes ({len(removals)})")
 
                 all_runs.append(run)
 

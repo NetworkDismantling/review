@@ -26,7 +26,9 @@ from network_dismantling.common.data_structures import dotdict
 
 def df_writer(queue: multiprocessing.Queue,
               output_file: Union[Path, str],
-              output_columns=None, logger=logging.getLogger("dummy")):
+              output_columns=None,
+              logger=logging.getLogger("dummy"),
+              ):
     """Write a dataframe to a parquet file.
     Args:
         queue: A multiprocessing queue to receive dataframes.
@@ -185,6 +187,16 @@ def read_without_columns(
         read_index: Union[None, int, List[int]] = None,
         dtype_dict=None,
 ):
+    if not isinstance(file, Path):
+        file = Path(file)
+    file = file.resolve()
+    if not file.exists():
+        raise FileNotFoundError(f"Input file {file} does not exist.")
+    if not file.is_file():
+        raise FileNotFoundError(f"Input file {file} is not a file.")
+    if not file.suffix == ".parquet":
+        raise ValueError(f"Input file {file} is not a parquet file.")
+
     if exclude_columns is None:
         exclude_columns = []
 

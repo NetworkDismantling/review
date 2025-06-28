@@ -321,10 +321,6 @@ int main(int ac, char **av) {
     cout << "Running greedy reinsertion algorithm..." << endl;
     run_greedy(nodes); // reinsertion
 
-//    cout << "Greedy output:" << endl;
-//    for (unsigned i: nodes) {
-//        cout << i << endl;
-//    }
 
     // store the weights of each node
     vector<unsigned> Weights(N, 0);
@@ -333,17 +329,7 @@ int main(int ac, char **av) {
         Weights[i] = degree(i + 1, g); // the latter one is i+1
     }
 
-//    cout << "Degree:" << endl;
-//    for (unsigned int i: nodes) {
-//        cout << Weights[i] << endl;
-//    }
-
     nodes_ordered = sort_nodes_Weights(Weights, nodes); // sort the nodes in the set nodes
-
-//    cout << "Ordered nodes:" << endl;
-//    for (unsigned int i: nodes_ordered) {
-//        cout << i << endl;
-//    }
     write(nodes_ordered);
 
     return 0;

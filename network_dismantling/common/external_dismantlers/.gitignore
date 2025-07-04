@@ -6,3 +6,5 @@ cmake-build-debug/
 
 dismantler.o
 dismantler.so
+
+bin/external_dismantlers

@@ -56,7 +56,10 @@ def df_writer(queue: multiprocessing.Queue,
     }
 
     # if not output_file.exists():
-    #     empty_df = pd.DataFrame(columns=output_columns)
+    #     empty_df = pd.DataFrame(data=[],
+    #                             columns=output_columns,
+    #                             )
+    #
     #     empty_df.to_parquet(**kwargs)
     #
     #     print(f"Created empty file {output_file} with columns {output_columns}")
@@ -106,8 +109,8 @@ def start_df_writer(args: dotdict,
 
     Args:
         args: dotdict:
-            output_file: The path to the output CSV file.
-            output_df_columns: The columns to write to the CSV file.
+            output_file: The path to the output .parquet file.
+            output_df_columns: The columns to write to the .parquet file.
         df_queue: multiprocessing.Queue:
             The queue to read the dataframe from.
         logger: logging.Logger:
@@ -115,7 +118,7 @@ def start_df_writer(args: dotdict,
 
     Returns:
         threading.Thread:
-            The thread that is writing the dataframe to the CSV file.
+            The thread that is writing the dataframe to the .parquet file.
 
     """
     # Create and start the Dataset Writer Thread

@@ -131,8 +131,8 @@ pair<long, int> compute_comp(unsigned i, vector<int> const &present,
 			}
 		}
 	}
-	for (unsigned k = 0; k < compos.size(); ++k)
-		mask[compos[k]] = 0;
+	for (int compo : compos)
+		mask[compo] = 0;
 	return make_pair(nc, ncomp);
 }
 

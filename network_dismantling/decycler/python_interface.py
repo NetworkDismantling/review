@@ -115,7 +115,7 @@ def _decycler(network: Graph,
 
                 if node_type != "S":
                     continue
-                    # raise ValueError("Unexpected output: {}".format(line))
+                    # raise ValueError(f"Unexpected output: {line}")
 
                 nodes.append(seed)
 

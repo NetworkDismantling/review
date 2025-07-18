@@ -2,12 +2,11 @@ import logging
 import multiprocessing
 import threading
 from pathlib import Path
+from queue import Queue
 from typing import Callable, List, Union, Dict
 
 import numpy as np
 import pandas as pd
-
-from network_dismantling.common.data_structures import dotdict
 
 
 def get_df_columns(file: Path):
@@ -250,8 +249,17 @@ class RemovalsColumns:
     SLCC_SIZE = 4
 
 
-def df_writer(queue, output_file, output_columns=None, logger=logging.getLogger("dummy")):
-    output_file = Path(output_file)
+def df_writer(queue: Queue,
+              output_file: Union[Path, str],
+              output_columns=None,
+              logger=logging.getLogger("dummy")
+              ):
+    if not isinstance(output_file, Path):
+        if isinstance(output_file, str):
+            output_file = Path(output_file)
+        else:
+            raise ValueError(f"output_file must be a Path or a str. Found {type(output_file)}.")
+
     kwargs = {
         "path_or_buf": output_file,
         "index": False,
@@ -284,7 +292,8 @@ def df_writer(queue, output_file, output_columns=None, logger=logging.getLogger(
             record.to_csv(**kwargs)
 
 
-def start_df_writer(args: dotdict,
+def start_df_writer(output_file: Path,
+                    output_df_columns: Union[str, List[str]],
                     df_queue: multiprocessing.Queue,
                     logger: logging.Logger = logging.getLogger("dummy"),
                     ) -> threading.Thread:
@@ -316,8 +325,8 @@ def start_df_writer(args: dotdict,
         target=df_writer,
         kwargs=dict(
             queue=df_queue,
-            output_file=args.output_file,
-            output_columns=args.output_df_columns,
+            output_file=output_file,
+            output_columns=output_df_columns,
             logger=logger,
         ),
         daemon=True,

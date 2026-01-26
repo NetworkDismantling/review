@@ -1,4 +1,6 @@
 import multiprocessing
+from concurrent import futures
+from typing import Callable
 
 from parse import compile
 from multiprocessing import current_process
@@ -41,7 +43,9 @@ def run_dill_encoded(payload):
     return fun(*args, **kwargs)
 
 
-def submit(executor, func, *args, **kwargs):
+def submit(executor: futures.Executor,
+           func: Callable,
+           *args, **kwargs) -> futures.Future:
     from dill import dumps, HIGHEST_PROTOCOL
 
     payload = dumps(

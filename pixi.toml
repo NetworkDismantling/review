@@ -1,0 +1,67 @@
+[workspace]
+authors = ["Marco Grassia <666024+eMarco@users.noreply.github.com>"]
+channels = ["conda-forge"]
+name = "Network Dismantling framework"
+homepage = "https://github.com/NetworkDismantling/review/"
+repository = "https://github.com/NetworkDismantling/review/"
+documentation = "https://github.com/NetworkDismantling/review/"
+#license-file =
+readme = "README.md"
+
+platforms = ["osx-arm64", "linux-64", "win-64"]
+version = "0.1.0"
+
+
+# [project]
+# name = "pytorch-conda-forge"
+
+
+[tasks]
+
+[dependencies]
+pip = ">=25.1.1,<26"
+pandas = ">=2.3.0,<3"
+tqdm = ">=4.67.1,<5"
+seaborn = ">=0.13.2,<0.14"
+dill = ">=0.4.0,<0.5"
+numpy = ">=2.3.0,<3"
+scipy = ">=1.15.2,<2"
+matplotlib = ">=3.10.3,<4"
+pandas-stubs = ">=2.2.3.250527,<3"
+graph-tool = ">=2.77,<3"
+boost = ">=1.84.0,<2"
+boost-cpp = ">=1.84.0,<2"
+libboost = ">=1.84.0,<2"
+libboost-devel = ">=1.84.0,<2"
+libboost-headers = ">=1.84.0,<2"
+libboost-python = ">=1.84.0,<2"
+libboost-python-devel = ">=1.84.0,<2"
+
+
+[pypi-dependencies]
+
+[pypi-options]
+no-build-isolation = ["NetworkDismantling"]
+
+##### Pytorch
+
+[tool.pixi.project]
+channels = ["https://prefix.dev/conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.feature.gpu.system-requirements]
+cuda = "12.0"
+
+[tool.pixi.feature.gpu.dependencies]
+cuda-version = "12.*.*"
+pytorch-gpu = "*"
+
+[tool.pixi.feature.cpu.dependencies]
+pytorch-cpu = "*"
+
+[tool.pixi.environments]
+cpu = ["cpu"]
+default = ["gpu"]
+
+[build-dependencies]
+cmake = ">=3.25.0,<4"

@@ -47,6 +47,7 @@ import threading
 from ast import literal_eval
 from datetime import timedelta
 from logging.handlers import QueueHandler
+from multiprocessing import Queue
 from operator import itemgetter
 from pathlib import Path
 from time import time

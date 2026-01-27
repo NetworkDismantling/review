@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
 from time import time, perf_counter_ns
-from typing import Callable, Dict
+from typing import Callable, Dict, List, Tuple, Optional
 
 from graph_tool import Graph
 import numpy as np
@@ -10,8 +10,8 @@ import numpy as np
 # from traceback import print_tb
 
 
-def test_network_callback(network):
-    from network_dismantling.common.external_dismantlers.dismantler import Graph
+def test_network_callback(network: Graph):
+    from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
 
     from graph_tool.all import remove_parallel_edges, remove_self_loops
 
@@ -24,15 +24,15 @@ def test_network_callback(network):
     )
 
     if len(edges) == 0:
-        raise RuntimeError
+        raise RuntimeError("No edges in network")
 
-    return Graph(edges)
-
-
-cache = dict()
+    return ExternalGraph(edges)
 
 
-def add_dismantling_edges(filename, network):
+cache: Dict[str, object] = dict()
+
+
+def add_dismantling_edges(filename: str, network: Graph):
     cache[filename] = test_network_callback(network)
 
     return cache[filename]
@@ -45,9 +45,9 @@ def _threshold_dismantler(
     generator_args: Dict,
     stop_condition: int,
     dismantler: Callable,
-    logger=logging.getLogger("dummy"),
+    logger: logging.Logger = logging.getLogger("dummy"),
     **kwargs,
-):
+) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
     from network_dismantling.common.external_dismantlers.dismantler import Graph
 
     network_name = generator_args["network_name"]
@@ -122,8 +122,12 @@ def _threshold_dismantler(
 
 
 def lcc_threshold_dismantler(
-    network, predictor, generator_args, stop_condition, **kwargs
-):
+    network: Graph,
+    predictor: Callable,
+    generator_args: Dict,
+    stop_condition: int,
+    **kwargs
+) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
     from network_dismantling.common.external_dismantlers.dismantler import (
         lccThresholdDismantler,
     )
@@ -135,7 +139,13 @@ def lcc_threshold_dismantler(
     )
 
 
-def threshold_dismantler(network, predictor, generator_args, stop_condition, **kwargs):
+def threshold_dismantler(
+    network: Graph,
+    predictor: Callable,
+    generator_args: Dict,
+    stop_condition: int,
+    **kwargs
+) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
     from network_dismantling.common.external_dismantlers.dismantler import (
         thresholdDismantler,
     )
@@ -149,7 +159,12 @@ def threshold_dismantler(network, predictor, generator_args, stop_condition, **k
     )
 
 
-def _iterative_threshold_dismantler(network, predictor, generator_args, stop_condition):
+def _iterative_threshold_dismantler(
+    network: Graph,
+    predictor: Callable,
+    generator_args: Dict,
+    stop_condition: int
+) -> Tuple[List[Tuple[int, int, float, float, float]], Optional[float], Optional[float]]:
     from network_dismantling.common.external_dismantlers.dismantler import (
         Graph,
         thresholdDismantler,
@@ -230,7 +245,12 @@ def _iterative_threshold_dismantler(network, predictor, generator_args, stop_con
     return removals, None, None
 
 
-def iterative_threshold_dismantler(network, predictor, generator_args, stop_condition):
+def iterative_threshold_dismantler(
+    network: Graph,
+    predictor: Callable,
+    generator_args: Dict,
+    stop_condition: int
+) -> Tuple[List[Tuple[int, int, float, float, float]], Optional[float], Optional[float]]:
     return _iterative_threshold_dismantler(
         network, predictor, generator_args, stop_condition
     )

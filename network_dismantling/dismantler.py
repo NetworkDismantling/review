@@ -72,7 +72,7 @@ except ImportError:
 
 from network_dismantling.common.dataset_providers import (
     list_files,
-    init_network_provider,
+    load_single_network,
 )
 from network_dismantling.common.df_helpers import df_reader, RemovalsColumns
 from network_dismantling.common.storage.pandas.csv import start_df_writer
@@ -291,10 +291,10 @@ def main(args: argparse.Namespace,
     ):
         # noinspection PyTypeChecker
         for network_path in tqdm_test_network_list:
-            network: Graph = None
-            networks_provider: Union[Dict, None] = None
-            network_size: int = None
-            stop_condition: int = None
+            network: Union[Graph, None] = None
+            network_loaded: bool = False
+            network_size: Union[int, None] = None
+            stop_condition: Union[int, None] = None
             generator_args: Union[Dict, None] = None
 
             network_name: str = network_path.stem
@@ -327,39 +327,23 @@ def main(args: argparse.Namespace,
                         # Nothing to do. The network was already tested
                         continue
 
-                    if networks_provider is None:
+                    if not network_loaded:
                         # Delay the network loading until the heuristic is actually run.
-                        # This is meant to to avoid loading the network if it is not needed,
+                        # This is meant to avoid loading the network if it is not needed,
                         # e.g., all the heuristics have been already run on the network.
-
-                        logger.debug(f"Loading network: {network_name}")
-
-                        networks_provider = init_network_provider(
-                            location=network_path.parent,
+                        
+                        network = load_single_network(
+                            network_name,
+                            network_path,
                             max_num_vertices=args.max_num_vertices,
-                            filter=f"{network_name}",
                             logger=logger,
                         )
-
-                        if len(networks_provider) == 0:
-                            logger.error(f"Network {network_name} not found!")
+                        
+                        if network is None:
                             continue
-
-                        elif len(networks_provider) > 1:
-                            logger.error(f"More than one network found for {network_name}!")
-                            continue
-
-                        network_name, network = networks_provider[0]
-
-                        if network_name != network_name:
-                            logger.error(
-                                f"Loaded network with filename {network_name} does not match the expected filename {network_name}!"
-                            )
-                            continue
-
+                        
+                        # Compute network properties
                         network_size = network.num_vertices()
-
-                        # Compute stop condition
                         stop_condition = np.ceil(network_size * args.threshold)
 
                         generator_args = {
@@ -367,6 +351,9 @@ def main(args: argparse.Namespace,
                             "stop_condition": int(stop_condition),
                             "threshold": args.threshold,
                         }
+                        
+                        # Mark that we've loaded the network
+                        network_loaded = True
 
                     dismantling_method_kwargs = {}
 
@@ -394,13 +381,15 @@ def main(args: argparse.Namespace,
                         df_dependency_filtered = df_dependency_filtered.iloc[0]
 
                         logger.debug(f"df_dependency_filtered: {df_dependency_filtered}")
-                        if ("removals" not in df_dependency_filtered or  # missing column
-                                df_dependency_filtered["removals"] is None or  # None
-                                df_dependency_filtered["removals"] == "" or  # empty string
-                                df_dependency_filtered["removals"] == "[]" or  # empty list
-                                not isinstance(df_dependency_filtered["removals"], list) or  # not a list
-                                len(df_dependency_filtered["removals"]) == 0  # empty list
-                        ):
+                        
+                        # Check if removals are missing or invalid
+                        removals = df_dependency_filtered.get("removals", None)
+                        needs_reload = (
+                            not removals or  # Handles None, "", [], etc.
+                            removals == "[]"  # String representation of empty list
+                        )
+                        
+                        if needs_reload:
 
                             try:
                                 df_dependency_row = df_reader(df_dependency_filtered["file"],
@@ -473,6 +462,12 @@ def main(args: argparse.Namespace,
 
                         dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals
                         generator_args[dismantling_method.depends_on.key] = dependency_removals
+                        if generator_args is not None:
+                            generator_args[dismantling_method.depends_on.key] = dependency_removals
+
+                    if network is None or stop_condition is None or network_size is None or generator_args is None:
+                        logger.error(f"Network {network_name} was not properly loaded. Skipping heuristic {dismantling_method.short_name}")
+                        continue
 
                     logger.debug(
                         f"Dismantling {network_name} according to {display_name}. "

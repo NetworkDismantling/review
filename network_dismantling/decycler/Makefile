@@ -7,7 +7,8 @@ BOOST_LIB_LOCATION := $(PYTHON_LOCATION)/lib
 BOOST_LIB_VERSION := $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t.replace('.', ''))")
 BOOST_LIB_FILE := boost_python$(BOOST_LIB_VERSION)
 
-CXX := g++
+# Allow overriding compiler (e.g., CXX=clang++ make)
+CXX ?= g++
 
 # -fPIC
 CFLAGS := -shared -Wall -O3 -march=native -g -Wno-deprecated -DBOOST -std=c++11

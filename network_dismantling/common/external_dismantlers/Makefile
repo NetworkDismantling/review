@@ -8,7 +8,8 @@ BOOST_LIB_LOCATION := $(PYTHON_LOCATION)/lib
 BOOST_LIB_VERSION := $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t.replace('.', ''))")
 BOOST_LIB_FILE := boost_python$(BOOST_LIB_VERSION)
 
-CXX := g++
+# Allow overriding compiler (e.g., CXX=clang++ make)
+CXX ?= g++
 
 CFLAGS := -c -fPIC -std=c++17 -DBOOST -march=native -O3
 CInc := -I$(BOOST_INC) -I$(PYTHON_INC)

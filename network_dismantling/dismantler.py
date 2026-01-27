@@ -26,7 +26,6 @@
 #           and/or to complete some missing runs
 #       - when providing dependencies, check if the dependency was already run with the requested parameters!
 # TODO allow parallel execution of the heuristics
-# TODO define a way to test the imports needed by the heuristics, and show a warning if they are not installed
 # TODO improve pool performance by using a single pool for all the heuristics.
 #       Can we spawn a worker for each network and heuristic?
 #       A worker for each heuristic is not a good idea, if they have multiple parameters.
@@ -134,6 +133,11 @@ def validate_heuristic_imports(heuristics: List[str],
     valid_heuristics = []
     
     for heuristic in heuristics:
+        # Check if heuristic exists
+        if heuristic not in dismantling_methods:
+            logger.error(f"Heuristic '{heuristic}' not found in available methods")
+            continue
+            
         dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
         
         # Check if the heuristic has required imports
@@ -180,6 +184,11 @@ def check_dependencies(heuristics: List[str],
     
     # Check for cyclic dependencies before processing
     for heuristic in heuristics:
+        # Check if heuristic exists
+        if heuristic not in dismantling_methods:
+            logger.error(f"Heuristic '{heuristic}' not found in available methods")
+            raise KeyError(f"Heuristic '{heuristic}' not found in available methods")
+            
         if check_cyclic_dependency(heuristic, set()):
             logger.error(f"Cyclic dependency detected for heuristic {heuristic}")
             raise ValueError(f"Cyclic dependency detected in heuristics chain starting from {heuristic}")

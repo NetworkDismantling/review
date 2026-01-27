@@ -406,6 +406,69 @@ class TestImportValidation:
             assert "method_a" in result
 
 
+class TestErrorHandling:
+    """Test error handling for edge cases."""
+    
+    def test_validate_nonexistent_heuristic(self):
+        """Test validation with non-existent heuristic."""
+        from network_dismantling.dismantler import validate_heuristic_imports
+        
+        method_a = MockDismantlingMethod("method_a", "Method A", required_imports=["os"])
+        
+        dismantling_methods = {"method_a": method_a}
+        
+        with patch("network_dismantling.dismantling_methods", dismantling_methods):
+            result = validate_heuristic_imports(["method_a", "nonexistent"])
+            # Only valid heuristic should be returned
+            assert "method_a" in result
+            assert "nonexistent" not in result
+            assert len(result) == 1
+    
+    def test_check_dependencies_nonexistent_heuristic(self):
+        """Test dependency checking with non-existent heuristic."""
+        from network_dismantling.dismantler import check_dependencies
+        
+        method_a = MockDismantlingMethod("method_a", "Method A")
+        
+        dismantling_methods = {"method_a": method_a}
+        
+        with patch("network_dismantling.dismantling_methods", dismantling_methods):
+            with pytest.raises(KeyError, match="not found in available methods"):
+                check_dependencies(["method_a", "nonexistent"])
+    
+    def test_validate_all_nonexistent(self):
+        """Test validation when all heuristics are non-existent."""
+        from network_dismantling.dismantler import validate_heuristic_imports
+        
+        dismantling_methods = {}
+        
+        with patch("network_dismantling.dismantling_methods", dismantling_methods):
+            result = validate_heuristic_imports(["nonexistent1", "nonexistent2"])
+            assert len(result) == 0
+    
+    def test_mixed_valid_invalid_heuristics(self):
+        """Test with mixed valid and invalid heuristics."""
+        from network_dismantling.dismantler import validate_heuristic_imports
+        
+        method_a = MockDismantlingMethod("method_a", "Method A", required_imports=["os"])
+        method_b = MockDismantlingMethod("method_b", "Method B", required_imports=["sys"])
+        
+        dismantling_methods = {
+            "method_a": method_a,
+            "method_b": method_b,
+        }
+        
+        with patch("network_dismantling.dismantling_methods", dismantling_methods):
+            result = validate_heuristic_imports(
+                ["method_a", "nonexistent", "method_b", "another_missing"]
+            )
+            assert len(result) == 2
+            assert "method_a" in result
+            assert "method_b" in result
+            assert "nonexistent" not in result
+            assert "another_missing" not in result
+
+
 class TestIntegration:
     """Integration tests for the full dependency and import validation pipeline."""
     

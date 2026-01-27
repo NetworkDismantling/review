@@ -89,7 +89,7 @@ logger = None
 
 def pool_initializer(log_queue,
                      log_level=logging.INFO,
-                     lock: multiprocessing.Lock = None,
+                     lock: Union[multiprocessing.Lock, None] = None,
                      ):
     global logger
 
@@ -104,7 +104,8 @@ def pool_initializer(log_queue,
     logger = logging.getLogger(__name__)
     # queue_logger.setLevel(logging.DEBUG)
 
-    tqdm.set_lock(lock)
+    if lock is not None:
+        tqdm.set_lock(lock)
 
 
 def get_predictions(

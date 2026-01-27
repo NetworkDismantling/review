@@ -245,8 +245,6 @@ def main(args: argparse.Namespace,
     except RuntimeError:
         pass
 
-    multiprocessing.set_start_method("spawn", force=True)
-
     # Create the Multiprocessing Manager
     mp_context: multiprocessing.context = multiprocessing.get_context("spawn")
 

@@ -135,14 +135,14 @@ def check_dependencies(heuristics: List[str],
         dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
         display_name: str = dismantling_method.short_name
 
-        depends_on: Callable = dismantling_method.depends_on
+        depends_on: DismantlingMethod | str | None = dismantling_method.depends_on
         logger.debug(f"Checking dependencies for heuristic {display_name}")
         logger.debug(f"Depends on: {depends_on} type {type(depends_on)}")
 
         if depends_on is not None:
             logger.debug(f"Dismantling method {display_name} depends on {depends_on}")
             if isinstance(depends_on, str):
-                depends_on = dismantling_methods.get(depends_on.key, None)
+                depends_on = dismantling_methods.get(depends_on, None)
 
                 if depends_on is None:
                     logger.error(f"Dependency {dismantling_method.depends_on} not found for heuristic {display_name}")
@@ -186,8 +186,7 @@ def main(args: argparse.Namespace,
         pool_kwargs = {}
 
     try:
-        if cuda.is_available():
-            multiprocessing.set_start_method("spawn", force=True)
+        multiprocessing.set_start_method("spawn", force=True)
     except RuntimeError:
         pass
 
@@ -217,7 +216,9 @@ def main(args: argparse.Namespace,
     lp.start()
 
     # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(args=args,
+    dp: threading.Thread = start_df_writer(#args=args,
+                                           output_file=args.output_file,
+                                           output_df_columns=args.output_df_columns,
                                            df_queue=df_queue,
                                            logger=logger,
                                            )
@@ -471,7 +472,7 @@ def main(args: argparse.Namespace,
                         continue
 
                     logger.debug(
-                        f"Dismantling {network_name} according to {display_name}. "
+                        f"Dismantling {network_name} according to {dismantling_method.short_name}. "
                         f"Aiming to LCC size {stop_condition} ({stop_condition / network_size:.3f})"
                     )
                     # logger.debug(f"dismantling_method_kwargs: {dismantling_method_kwargs}")
@@ -703,7 +704,12 @@ if __name__ == "__main__":
             args.input.append(args.output)
 
     if not args.output_file.parent.exists():
-        args.output_file.parent.mkdir(parents=True)
+        try:
+            args.output_file.parent.mkdir(parents=True)
+            logger.info(f"Created output directory: {args.output_file.parent}")
+        except OSError as e:
+            logger.error(f"Failed to create output directory {args.output_file.parent}: {e}")
+            raise
 
     args.output_df_columns = get_df_columns()
 

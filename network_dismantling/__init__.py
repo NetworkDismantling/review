@@ -19,12 +19,11 @@ import importlib
 import logging
 import pkgutil
 from pathlib import Path
-from typing import Union, List
+from typing import Callable, Union, List
 
 import pandas as pd
 
 from network_dismantling.common.data_structures import product_dict
-from network_dismantling.common.dismantlers import dismantler_wrapper
 
 dismantling_methods = {}
 
@@ -45,21 +44,21 @@ class DismantlingMethod:
     name: str = None
     short_name: str = None
 
-    _depends_on: str = None
+    _depends_on: str | None = None
 
-    doi: str = None
-    citation: str = None
-    description: str = None
-    authors: Union[str, List[str]] = None
+    doi: str | None = None
+    citation: str | None = None
+    description: str | None = None
+    authors: Union[str, List[str]] | None = None
 
-    function = None
-    dynamic = None
+    function: Callable = None
+    dynamic: bool | None = None
 
-    display_name: str = None
-    short_display_name: str = None
+    display_name: str | None = None
+    short_display_name: str | None = None
 
-    plot_color: str = None
-    plot_marker: str = None
+    plot_color: str | None = None
+    plot_marker: str | None = None
 
     # reinsertion: ReinsertionSupport = None
     includes_reinsertion: bool = False
@@ -68,11 +67,13 @@ class DismantlingMethod:
     reinsertion_display_name = None
     reinsertion_short_display_name = None
 
-    license_file: Path = None
+    license_file: Path | None = None
 
     # return_type: ReturnTypes = None
 
-    source: str = None
+    source: str | None = None
+
+    required_imports: List[str] | None = None
 
     def __init__(self,
                  # name=None,
@@ -93,7 +94,20 @@ class DismantlingMethod:
             # setdefaultattr(self, key, value)
             setattr(self, key, value)
 
+        if self.function is None:
+            raise RuntimeError("DismantlingMethod must have a function defined")
+        
         self.key = self.function.__name__
+
+        if self.name is None:
+            self.name = self.key
+        if self.display_name is None:
+            self.display_name = "".join([w[0].capitalize() for w in self.name.split("_")])
+        if self.dynamic is None:
+            raise RuntimeError(f"Dynamic/static not defined for {self.key}")
+        
+        if self.required_imports is None:
+            self.required_imports = []
 
         if self.short_name is None:
             raise RuntimeError(f"Short name not defined for {self.key}")

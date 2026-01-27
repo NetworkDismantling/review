@@ -125,11 +125,66 @@ def get_predictions(
     return values, time_spent
 
 
+def validate_heuristic_imports(heuristics: List[str],
+                               logger: logging.Logger = logging.getLogger("dummy"),
+                               ) -> List[str]:
+    """Test if imports needed by heuristics are available."""
+    from network_dismantling import dismantling_methods, DismantlingMethod
+    
+    valid_heuristics = []
+    
+    for heuristic in heuristics:
+        dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
+        
+        # Check if the heuristic has required imports
+        if hasattr(dismantling_method, 'required_imports') and dismantling_method.required_imports:
+            missing_imports = []
+            for module_name in dismantling_method.required_imports:
+                try:
+                    __import__(module_name)
+                except ImportError:
+                    missing_imports.append(module_name)
+            
+            if missing_imports:
+                logger.warning(
+                    f"Heuristic {dismantling_method.short_name} requires missing imports: {', '.join(missing_imports)}. "
+                    f"This heuristic will be skipped."
+                )
+                continue
+        
+        valid_heuristics.append(heuristic)
+    
+    return valid_heuristics
+
+
 def check_dependencies(heuristics: List[str],
                        logger: logging.Logger = logging.getLogger("dummy"),
                        ):
+    """Check and resolve dependencies between heuristics, including cyclic dependency detection."""
+    from network_dismantling import dismantling_methods, DismantlingMethod
+    
+    # Track dependency chain to detect cycles
+    dependency_chain = set()
+    
+    def check_cyclic_dependency(heuristic_key: str, chain: set) -> bool:
+        """Recursively check for cyclic dependencies."""
+        if heuristic_key in chain:
+            return True
+        
+        method = dismantling_methods.get(heuristic_key)
+        if method is None or method.depends_on is None:
+            return False
+        
+        dependency_key = method.depends_on.key if hasattr(method.depends_on, 'key') else method.depends_on
+        return check_cyclic_dependency(dependency_key, chain | {heuristic_key})
+    
+    # Check for cyclic dependencies before processing
+    for heuristic in heuristics:
+        if check_cyclic_dependency(heuristic, set()):
+            logger.error(f"Cyclic dependency detected for heuristic {heuristic}")
+            raise ValueError(f"Cyclic dependency detected in heuristics chain starting from {heuristic}")
+    
     # Reverse the list to check the dependencies in the correct order
-    # TODO cyclic dependencies are not detected
     heuristics = heuristics[::-1]
     for i, heuristic in enumerate(heuristics):
         dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
@@ -463,7 +518,6 @@ def main(args: argparse.Namespace,
                             continue
 
                         dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals
-                        generator_args[dismantling_method.depends_on.key] = dependency_removals
                         if generator_args is not None:
                             generator_args[dismantling_method.depends_on.key] = dependency_removals
 
@@ -719,6 +773,14 @@ if __name__ == "__main__":
         args.heuristics = list(dismantling_methods.keys())
 
     logger.info(f"Running the following heuristics: {', '.join(args.heuristics)}")
+    
+    # Validate that required imports are available
+    args.heuristics = validate_heuristic_imports(args.heuristics, logger=logger)
+    
+    if not args.heuristics:
+        logger.error("No valid heuristics to run after import validation.")
+        import sys
+        sys.exit(1)
 
     # Check the dependencies of the heuristics
     args.heuristics = check_dependencies(args.heuristics, logger=logger)

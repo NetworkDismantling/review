@@ -205,3 +205,4 @@ CMakeLists.txt
 
 # Xcode
 *.dSYM/
+.cmake

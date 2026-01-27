@@ -40,10 +40,10 @@
 #define TSL_RH_VERSION_MAJOR 1
 // A change of the minor version indicates the addition of a feature without
 // impact on the API/ABI
-#define TSL_RH_VERSION_MINOR 3
+#define TSL_RH_VERSION_MINOR 4
 // A change of the patch version indicates a bugfix without additional
 // functionality
-#define TSL_RH_VERSION_PATCH 0
+#define TSL_RH_VERSION_PATCH 1
 
 #ifdef TSL_DEBUG
 #define tsl_rh_assert(expr) assert(expr)
@@ -84,23 +84,23 @@
 namespace tsl {
     namespace rh {
         /**
-         * Grow the hash table by a factor of GrowthFactor keeping the bucket count to a
-         * power of two. It allows the table to use a mask operation instead of a modulo
-         * operation to map a hash to a bucket.
-         *
-         * GrowthFactor must be a power of two >= 2.
-         */
+ * Grow the hash table by a factor of GrowthFactor keeping the bucket count to a
+ * power of two. It allows the table to use a mask operation instead of a modulo
+ * operation to map a hash to a bucket.
+ *
+ * GrowthFactor must be a power of two >= 2.
+ */
         template<std::size_t GrowthFactor>
         class power_of_two_growth_policy {
         public:
             /**
-             * Called on the hash table creation and on rehash. The number of buckets for
-             * the table is passed in parameter. This number is a minimum, the policy may
-             * update this value with a higher value if needed (but not lower).
-             *
-             * If 0 is given, min_bucket_count_in_out must still be 0 after the policy
-             * creation and bucket_for_hash must always return 0 in this case.
-             */
+   * Called on the hash table creation and on rehash. The number of buckets for
+   * the table is passed in parameter. This number is a minimum, the policy may
+   * update this value with a higher value if needed (but not lower).
+   *
+   * If 0 is given, min_bucket_count_in_out must still be 0 after the policy
+   * creation and bucket_for_hash must always return 0 in this case.
+   */
             explicit power_of_two_growth_policy(std::size_t &min_bucket_count_in_out) {
                 if (min_bucket_count_in_out > max_bucket_count()) {
                     TSL_RH_THROW_OR_TERMINATE(std::length_error,
@@ -117,16 +117,16 @@ namespace tsl {
             }
 
             /**
-             * Return the bucket [0, bucket_count()) to which the hash belongs.
-             * If bucket_count() is 0, it must always return 0.
-             */
+   * Return the bucket [0, bucket_count()) to which the hash belongs.
+   * If bucket_count() is 0, it must always return 0.
+   */
             std::size_t bucket_for_hash(std::size_t hash) const noexcept {
                 return hash & m_mask;
             }
 
             /**
-             * Return the number of buckets that should be used on next growth.
-             */
+   * Return the number of buckets that should be used on next growth.
+   */
             std::size_t next_bucket_count() const {
                 if ((m_mask + 1) > max_bucket_count() / GrowthFactor) {
                     TSL_RH_THROW_OR_TERMINATE(std::length_error,
@@ -137,18 +137,18 @@ namespace tsl {
             }
 
             /**
-             * Return the maximum number of buckets supported by the policy.
-             */
+   * Return the maximum number of buckets supported by the policy.
+   */
             std::size_t max_bucket_count() const {
                 // Largest power of two.
                 return (std::numeric_limits<std::size_t>::max() / 2) + 1;
             }
 
             /**
-             * Reset the growth policy as if it was created with a bucket count of 0.
-             * After a clear, the policy must always return 0 when bucket_for_hash is
-             * called.
-             */
+   * Reset the growth policy as if it was created with a bucket count of 0.
+   * After a clear, the policy must always return 0 when bucket_for_hash is
+   * called.
+   */
             void clear() noexcept { m_mask = 0; }
 
         private:
@@ -181,10 +181,10 @@ namespace tsl {
         };
 
         /**
-         * Grow the hash table by GrowthFactor::num / GrowthFactor::den and use a modulo
-         * to map a hash to a bucket. Slower but it can be useful if you want a slower
-         * growth.
-         */
+ * Grow the hash table by GrowthFactor::num / GrowthFactor::den and use a modulo
+ * to map a hash to a bucket. Slower but it can be useful if you want a slower
+ * growth.
+ */
         template<class GrowthFactor = std::ratio<3, 2> >
         class mod_growth_policy {
         public:
@@ -340,32 +340,32 @@ namespace tsl {
         } // namespace detail
 
         /**
-         * Grow the hash table by using prime numbers as bucket count. Slower than
-         * tsl::rh::power_of_two_growth_policy in general but will probably distribute
-         * the values around better in the buckets with a poor hash function.
-         *
-         * To allow the compiler to optimize the modulo operation, a lookup table is
-         * used with constant primes numbers.
-         *
-         * With a switch the code would look like:
-         * \code
-         * switch(iprime) { // iprime is the current prime of the hash table
-         *     case 0: hash % 5ul;
-         *             break;
-         *     case 1: hash % 17ul;
-         *             break;
-         *     case 2: hash % 29ul;
-         *             break;
-         *     ...
-         * }
-         * \endcode
-         *
-         * Due to the constant variable in the modulo the compiler is able to optimize
-         * the operation by a series of multiplications, substractions and shifts.
-         *
-         * The 'hash % 5' could become something like 'hash - (hash * 0xCCCCCCCD) >> 34)
-         * * 5' in a 64 bits environment.
-         */
+ * Grow the hash table by using prime numbers as bucket count. Slower than
+ * tsl::rh::power_of_two_growth_policy in general but will probably distribute
+ * the values around better in the buckets with a poor hash function.
+ *
+ * To allow the compiler to optimize the modulo operation, a lookup table is
+ * used with constant primes numbers.
+ *
+ * With a switch the code would look like:
+ * \code
+ * switch(iprime) { // iprime is the current prime of the hash table
+ *     case 0: hash % 5ul;
+ *             break;
+ *     case 1: hash % 17ul;
+ *             break;
+ *     case 2: hash % 29ul;
+ *             break;
+ *     ...
+ * }
+ * \endcode
+ *
+ * Due to the constant variable in the modulo the compiler is able to optimize
+ * the operation by a series of multiplications, substractions and shifts.
+ *
+ * The 'hash % 5' could become something like 'hash - (hash * 0xCCCCCCCD) >> 34)
+ * * 5' in a 64 bits environment.
+ */
         class prime_growth_policy {
         public:
             explicit prime_growth_policy(std::size_t &min_bucket_count_in_out) {

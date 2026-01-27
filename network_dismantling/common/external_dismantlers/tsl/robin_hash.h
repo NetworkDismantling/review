@@ -93,17 +93,17 @@ namespace tsl {
             // MSVC < 2017 is not conformant, circumvent the problem by removing the
             // template keyword
 #if defined(_MSC_VER) && _MSC_VER < 1910
-  return deserializer.Deserializer::operator()<T>();
+            return deserializer.Deserializer::operator()<T>();
 #else
             return deserializer.Deserializer::template operator()<T>();
 #endif
         }
 
         /**
-         * Fixed size type used to represent size_type values on serialization. Need to
-         * be big enough to represent a std::size_t on 32 and 64 bits platforms, and
-         * must be the same size on both platforms.
-         */
+ * Fixed size type used to represent size_type values on serialization. Need to
+ * be big enough to represent a std::size_t on 32 and 64 bits platforms, and
+ * must be the same size on both platforms.
+ */
         using slz_size_type = std::uint64_t;
         static_assert(std::numeric_limits<slz_size_type>::max() >=
                       std::numeric_limits<std::size_t>::max(),
@@ -112,9 +112,9 @@ namespace tsl {
         using truncated_hash_type = std::uint32_t;
 
         /**
-         * Helper class that stores a truncated hash if StoreHash is true and nothing
-         * otherwise.
-         */
+ * Helper class that stores a truncated hash if StoreHash is true and nothing
+ * otherwise.
+ */
         template<bool StoreHash>
         class bucket_entry_hash {
         public:
@@ -146,23 +146,23 @@ namespace tsl {
         };
 
         /**
-         * Each bucket entry has:
-         * - A value of type `ValueType`.
-         * - An integer to store how far the value of the bucket, if any, is from its
-         * ideal bucket (ex: if the current bucket 5 has the value 'foo' and
-         * `hash('foo') % nb_buckets` == 3, `dist_from_ideal_bucket()` will return 2 as
-         * the current value of the bucket is two buckets away from its ideal bucket) If
-         * there is no value in the bucket (i.e. `empty()` is true)
-         * `dist_from_ideal_bucket()` will be < 0.
-         * - A marker which tells us if the bucket is the last bucket of the bucket
-         * array (useful for the iterator of the hash table).
-         * - If `StoreHash` is true, 32 bits of the hash of the value, if any, are also
-         * stored in the bucket. If the size of the hash is more than 32 bits, it is
-         * truncated. We don't store the full hash as storing the hash is a potential
-         * opportunity to use the unused space due to the alignment of the bucket_entry
-         * structure. We can thus potentially store the hash without any extra space
-         *   (which would not be possible with 64 bits of the hash).
-         */
+ * Each bucket entry has:
+ * - A value of type `ValueType`.
+ * - An integer to store how far the value of the bucket, if any, is from its
+ * ideal bucket (ex: if the current bucket 5 has the value 'foo' and
+ * `hash('foo') % nb_buckets` == 3, `dist_from_ideal_bucket()` will return 2 as
+ * the current value of the bucket is two buckets away from its ideal bucket) If
+ * there is no value in the bucket (i.e. `empty()` is true)
+ * `dist_from_ideal_bucket()` will be < 0.
+ * - A marker which tells us if the bucket is the last bucket of the bucket
+ * array (useful for the iterator of the hash table).
+ * - If `StoreHash` is true, 32 bits of the hash of the value, if any, are also
+ * stored in the bucket. If the size of the hash is more than 32 bits, it is
+ * truncated. We don't store the full hash as storing the hash is a potential
+ * opportunity to use the unused space due to the alignment of the bucket_entry
+ * structure. We can thus potentially store the hash without any extra space
+ *   (which would not be possible with 64 bits of the hash).
+ */
         template<typename ValueType, bool StoreHash>
         class bucket_entry : public bucket_entry_hash<StoreHash> {
             using bucket_hash = bucket_entry_hash<StoreHash>;
@@ -199,10 +199,10 @@ namespace tsl {
             }
 
             /**
-             * Never really used, but still necessary as we must call resize on an empty
-             * `std::vector<bucket_entry>`. and we need to support move-only types. See
-             * robin_hash constructor for details.
-             */
+   * Never really used, but still necessary as we must call resize on an empty
+   * `std::vector<bucket_entry>`. and we need to support move-only types. See
+   * robin_hash constructor for details.
+   */
             bucket_entry(bucket_entry &&other) noexcept(
                 std::is_nothrow_move_constructible<value_type>::value)
                 : bucket_hash(std::move(other)),
@@ -328,24 +328,24 @@ namespace tsl {
         };
 
         /**
-         * Internal common class used by `robin_map` and `robin_set`.
-         *
-         * ValueType is what will be stored by `robin_hash` (usually `std::pair<Key, T>`
-         * for map and `Key` for set).
-         *
-         * `KeySelect` should be a `FunctionObject` which takes a `ValueType` in
-         * parameter and returns a reference to the key.
-         *
-         * `ValueSelect` should be a `FunctionObject` which takes a `ValueType` in
-         * parameter and returns a reference to the value. `ValueSelect` should be void
-         * if there is no value (in a set for example).
-         *
-         * The strong exception guarantee only holds if the expression
-         * `std::is_nothrow_swappable<ValueType>::value &&
-         * std::is_nothrow_move_constructible<ValueType>::value` is true.
-         *
-         * Behaviour is undefined if the destructor of `ValueType` throws.
-         */
+ * Internal common class used by `robin_map` and `robin_set`.
+ *
+ * ValueType is what will be stored by `robin_hash` (usually `std::pair<Key, T>`
+ * for map and `Key` for set).
+ *
+ * `KeySelect` should be a `FunctionObject` which takes a `ValueType` in
+ * parameter and returns a reference to the key.
+ *
+ * `ValueSelect` should be a `FunctionObject` which takes a `ValueType` in
+ * parameter and returns a reference to the value. `ValueSelect` should be void
+ * if there is no value (in a set for example).
+ *
+ * The strong exception guarantee only holds if the expression
+ * `std::is_nothrow_swappable<ValueType>::value &&
+ * std::is_nothrow_move_constructible<ValueType>::value` is true.
+ *
+ * Behaviour is undefined if the destructor of `ValueType` throws.
+ */
         template<class ValueType, class KeySelect, class ValueSelect, class Hash,
             class KeyEqual, class Allocator, bool StoreHash, class GrowthPolicy>
         class robin_hash : private Hash, private KeyEqual, private GrowthPolicy {
@@ -380,10 +380,10 @@ namespace tsl {
 
         private:
             /**
-             * Either store the hash because we are asked by the `StoreHash` template
-             * parameter or store the hash because it doesn't cost us anything in size and
-             * can be used to speed up rehash.
-             */
+   * Either store the hash because we are asked by the `StoreHash` template
+   * parameter or store the hash because it doesn't cost us anything in size and
+   * can be used to speed up rehash.
+   */
             static constexpr bool STORE_HASH =
                     StoreHash ||
                     ((sizeof(tsl::detail_robin_hash::bucket_entry<value_type, true>) ==
@@ -395,18 +395,18 @@ namespace tsl {
                       !std::is_same<Hash, std::hash<key_type> >::value));
 
             /**
-             * Only use the stored hash on lookup if we are explicitly asked. We are not
-             * sure how slow the KeyEqual operation is. An extra comparison may slow
-             * things down with a fast KeyEqual.
-             */
+   * Only use the stored hash on lookup if we are explicitly asked. We are not
+   * sure how slow the KeyEqual operation is. An extra comparison may slow
+   * things down with a fast KeyEqual.
+   */
             static constexpr bool USE_STORED_HASH_ON_LOOKUP = StoreHash;
 
             /**
-             * We can only use the hash on rehash if the size of the hash type is the same
-             * as the stored one or if we use a power of two modulo. In the case of the
-             * power of two modulo, we just mask the least significant bytes, we just have
-             * to check that the truncated_hash_type didn't truncated more bytes.
-             */
+   * We can only use the hash on rehash if the size of the hash type is the same
+   * as the stored one or if we use a power of two modulo. In the case of the
+   * power of two modulo, we just mask the least significant bytes, we just have
+   * to check that the truncated_hash_type didn't truncated more bytes.
+   */
             static bool USE_STORED_HASH_ON_REHASH(size_type bucket_count) {
                 if (STORE_HASH && sizeof(std::size_t) == sizeof(truncated_hash_type)) {
                     TSL_RH_UNUSED(bucket_count);
@@ -431,16 +431,16 @@ namespace tsl {
 
         public:
             /**
-             * The 'operator*()' and 'operator->()' methods return a const reference and
-             * const pointer respectively to the stored value type.
-             *
-             * In case of a map, to get a mutable reference to the value associated to a
-             * key (the '.second' in the stored pair), you have to call 'value()'.
-             *
-             * The main reason for this is that if we returned a `std::pair<Key, T>&`
-             * instead of a `const std::pair<Key, T>&`, the user may modify the key which
-             * will put the map in a undefined state.
-             */
+   * The 'operator*()' and 'operator->()' methods return a const reference and
+   * const pointer respectively to the stored value type.
+   *
+   * In case of a map, to get a mutable reference to the value associated to a
+   * key (the '.second' in the stored pair), you have to call 'value()'.
+   *
+   * The main reason for this is that if we returned a `std::pair<Key, T>&`
+   * instead of a `const std::pair<Key, T>&`, the user may modify the key which
+   * will put the map in a undefined state.
+   */
             template<bool IsConst>
             class robin_iterator {
                 friend class robin_hash;
@@ -640,8 +640,8 @@ namespace tsl {
             }
 
             /*
-             * Iterators
-             */
+   * Iterators
+   */
             iterator begin() noexcept {
                 std::size_t i = 0;
                 while (i < m_bucket_count && m_buckets[i].empty()) {
@@ -671,8 +671,8 @@ namespace tsl {
             }
 
             /*
-             * Capacity
-             */
+   * Capacity
+   */
             bool empty() const noexcept { return m_nb_elements == 0; }
 
             size_type size() const noexcept { return m_nb_elements; }
@@ -680,8 +680,8 @@ namespace tsl {
             size_type max_size() const noexcept { return m_buckets_data.max_size(); }
 
             /*
-             * Modifiers
-             */
+   * Modifiers
+   */
             void clear() noexcept {
                 if (m_min_load_factor > 0.0f) {
                     clear_and_shrink();
@@ -783,17 +783,17 @@ namespace tsl {
             }
 
             /**
-             * Here to avoid `template<class K> size_type erase(const K& key)` being used
-             * when we use an `iterator` instead of a `const_iterator`.
-             */
+   * Here to avoid `template<class K> size_type erase(const K& key)` being used
+   * when we use an `iterator` instead of a `const_iterator`.
+   */
             iterator erase(iterator pos) {
                 erase_from_bucket(pos);
 
                 /**
-                 * Erase bucket used a backward shift after clearing the bucket.
-                 * Check if there is a new value in the bucket, if not get the next
-                 * non-empty.
-                 */
+     * Erase bucket used a backward shift after clearing the bucket.
+     * Check if there is a new value in the bucket, if not get the next
+     * non-empty.
+     */
                 if (pos.m_bucket->empty()) {
                     ++pos;
                 }
@@ -823,9 +823,9 @@ namespace tsl {
                 }
 
                 /*
-                 * Backward shift on the values which come after the deleted values.
-                 * We try to move the values closer to their ideal bucket.
-                 */
+     * Backward shift on the values which come after the deleted values.
+     * We try to move the values closer to their ideal bucket.
+     */
                 std::size_t icloser_bucket =
                         static_cast<std::size_t>(first_mutable.m_bucket - m_buckets);
                 std::size_t ito_move_closer_value =
@@ -900,8 +900,8 @@ namespace tsl {
             }
 
             /*
-             * Lookup
-             */
+   * Lookup
+   */
             template<class K, class U = ValueSelect,
                 typename std::enable_if<has_mapped_type<U>::value>::type* = nullptr>
             typename U::value_type &at(const K &key) {
@@ -1006,8 +1006,8 @@ namespace tsl {
             }
 
             /*
-             * Bucket interface
-             */
+   * Bucket interface
+   */
             size_type bucket_count() const { return m_bucket_count; }
 
             size_type max_bucket_count() const {
@@ -1016,8 +1016,8 @@ namespace tsl {
             }
 
             /*
-             * Hash policy
-             */
+   * Hash policy
+   */
             float load_factor() const {
                 if (bucket_count() == 0) {
                     return 0;
@@ -1053,15 +1053,15 @@ namespace tsl {
             }
 
             /*
-             * Observers
-             */
+   * Observers
+   */
             hasher hash_function() const { return static_cast<const Hash &>(*this); }
 
             key_equal key_eq() const { return static_cast<const KeyEqual &>(*this); }
 
             /*
-             * Other
-             */
+   * Other
+   */
             iterator mutable_iterator(const_iterator pos) {
                 return iterator(const_cast<bucket_entry *>(pos.m_bucket));
             }
@@ -1090,7 +1090,7 @@ namespace tsl {
             std::size_t bucket_for_hash(std::size_t hash) const {
                 const std::size_t bucket = GrowthPolicy::bucket_for_hash(hash);
                 tsl_rh_assert(bucket < m_bucket_count ||
-                    (bucket == 0 && m_bucket_count == 0));
+                              (bucket == 0 && m_bucket_count == 0));
 
                 return bucket;
             }
@@ -1129,7 +1129,7 @@ namespace tsl {
                        m_buckets[ibucket].dist_from_ideal_bucket()) {
                     if (TSL_RH_LIKELY(
                         (!USE_STORED_HASH_ON_LOOKUP ||
-                            m_buckets[ibucket].bucket_hash_equal(hash)) &&
+                         m_buckets[ibucket].bucket_hash_equal(hash)) &&
                         compare_keys(KeySelect()(m_buckets[ibucket].value()), key))) {
                         return const_iterator(m_buckets + ibucket);
                     }
@@ -1146,12 +1146,12 @@ namespace tsl {
                 m_nb_elements--;
 
                 /**
-                 * Backward shift, swap the empty bucket, previous_ibucket, with the values
-                 * on its right, ibucket, until we cross another empty bucket or if the
-                 * other bucket has a distance_from_ideal_bucket == 0.
-                 *
-                 * We try to move the values closer to their ideal bucket.
-                 */
+     * Backward shift, swap the empty bucket, previous_ibucket, with the values
+     * on its right, ibucket, until we cross another empty bucket or if the
+     * other bucket has a distance_from_ideal_bucket == 0.
+     *
+     * We try to move the values closer to their ideal bucket.
+     */
                 std::size_t previous_ibucket =
                         static_cast<std::size_t>(pos.m_bucket - m_buckets);
                 std::size_t ibucket = next_bucket(previous_ibucket);
@@ -1215,9 +1215,9 @@ namespace tsl {
 
                 m_nb_elements++;
                 /*
-                 * The value will be inserted in ibucket in any case, either because it was
-                 * empty or by stealing the bucket (robin hood).
-                 */
+     * The value will be inserted in ibucket in any case, either because it was
+     * empty or by stealing the bucket (robin hood).
+     */
                 return std::make_pair(iterator(m_buckets + ibucket), true);
             }
 
@@ -1234,18 +1234,18 @@ namespace tsl {
             }
 
             /*
-             * We don't use `value_type&& value` as last argument due to a bug in MSVC
-             * when `value_type` is a pointer, The compiler is not able to see the
-             * difference between `std::string*` and `std::string*&&` resulting in a
-             * compilation error.
-             *
-             * The `value` will be in a moved state at the end of the function.
-             */
+   * We don't use `value_type&& value` as last argument due to a bug in MSVC
+   * when `value_type` is a pointer, The compiler is not able to see the
+   * difference between `std::string*` and `std::string*&&` resulting in a
+   * compilation error.
+   *
+   * The `value` will be in a moved state at the end of the function.
+   */
             void insert_value_impl(std::size_t ibucket,
                                    distance_type dist_from_ideal_bucket,
                                    truncated_hash_type hash, value_type &value) {
                 tsl_rh_assert(dist_from_ideal_bucket >
-                    m_buckets[ibucket].dist_from_ideal_bucket());
+                              m_buckets[ibucket].dist_from_ideal_bucket());
                 m_buckets[ibucket].swap_with_value_in_bucket(dist_from_ideal_bucket, hash,
                                                              value);
                 ibucket = next_bucket(ibucket);
@@ -1257,9 +1257,9 @@ namespace tsl {
                         if (dist_from_ideal_bucket >
                             bucket_entry::DIST_FROM_IDEAL_BUCKET_LIMIT) {
                             /**
-                             * The number of probes is really high, rehash the map on the next
-                             * insert. Difficult to do now as rehash may throw an exception.
-                             */
+           * The number of probes is really high, rehash the map on the next
+           * insert. Difficult to do now as rehash may throw an exception.
+           */
                             m_grow_on_next_insert = true;
                         }
 
@@ -1335,12 +1335,12 @@ namespace tsl {
             }
 
             /**
-             * Grow the table if m_grow_on_next_insert is true or we reached the
-             * max_load_factor. Shrink the table if m_try_shrink_on_next_insert is true
-             * (an erase occurred) and we're below the min_load_factor.
-             *
-             * Return true if the table has been rehashed.
-             */
+   * Grow the table if m_grow_on_next_insert is true or we reached the
+   * max_load_factor. Shrink the table if m_try_shrink_on_next_insert is true
+   * (an erase occurred) and we're below the min_load_factor.
+   *
+   * Return true if the table has been rehashed.
+   */
             bool rehash_on_extreme_load(distance_type curr_dist_from_ideal_bucket) {
                 if (m_grow_on_next_insert ||
                     curr_dist_from_ideal_bucket >
@@ -1483,6 +1483,9 @@ namespace tsl {
                 } else {
                     m_bucket_count = numeric_cast<size_type>(
                         bucket_count_ds, "Deserialized bucket_count is too big.");
+                    // Recompute m_load_threshold, during max_load_factor() the bucket count
+                    // was still 0 which would trigger rehash on first insert
+                    m_load_threshold = size_type(float(bucket_count()) * m_max_load_factor);
 
                     GrowthPolicy::operator=(GrowthPolicy(m_bucket_count));
                     // GrowthPolicy should not modify the bucket count we got from
@@ -1541,14 +1544,14 @@ namespace tsl {
 
         private:
             /**
-             * Protocol version currenlty used for serialization.
-             */
+   * Protocol version currenlty used for serialization.
+   */
             static const slz_size_type SERIALIZATION_PROTOCOL_VERSION = 1;
 
             /**
-             * Return an always valid pointer to an static empty bucket_entry with
-             * last_bucket() == true.
-             */
+   * Return an always valid pointer to an static empty bucket_entry with
+   * last_bucket() == true.
+   */
             bucket_entry *static_empty_bucket_ptr() noexcept {
                 static bucket_entry empty_bucket(true);
                 tsl_rh_assert(empty_bucket.empty());
@@ -1559,20 +1562,20 @@ namespace tsl {
             buckets_container_type m_buckets_data;
 
             /**
-             * Points to m_buckets_data.data() if !m_buckets_data.empty() otherwise points
-             * to static_empty_bucket_ptr. This variable is useful to avoid the cost of
-             * checking if m_buckets_data is empty when trying to find an element.
-             *
-             * TODO Remove m_buckets_data and only use a pointer instead of a
-             * pointer+vector to save some space in the robin_hash object. Manage the
-             * Allocator manually.
-             */
+   * Points to m_buckets_data.data() if !m_buckets_data.empty() otherwise points
+   * to static_empty_bucket_ptr. This variable is useful to avoid the cost of
+   * checking if m_buckets_data is empty when trying to find an element.
+   *
+   * TODO Remove m_buckets_data and only use a pointer instead of a
+   * pointer+vector to save some space in the robin_hash object. Manage the
+   * Allocator manually.
+   */
             bucket_entry *m_buckets;
 
             /**
-             * Used a lot in find, avoid the call to m_buckets_data.size() which is a bit
-             * slower.
-             */
+   * Used a lot in find, avoid the call to m_buckets_data.size() which is a bit
+   * slower.
+   */
             size_type m_bucket_count;
 
             size_type m_nb_elements;
@@ -1585,12 +1588,12 @@ namespace tsl {
             bool m_grow_on_next_insert;
 
             /**
-             * We can't shrink down the map on erase operations as the erase methods need
-             * to return the next iterator. Shrinking the map would invalidate all the
-             * iterators and we could not return the next iterator in a meaningful way, On
-             * erase, we thus just indicate on erase that we should try to shrink the hash
-             * table on the next insert if we go below the min_load_factor.
-             */
+   * We can't shrink down the map on erase operations as the erase methods need
+   * to return the next iterator. Shrinking the map would invalidate all the
+   * iterators and we could not return the next iterator in a meaningful way, On
+   * erase, we thus just indicate on erase that we should try to shrink the hash
+   * table on the next insert if we go below the min_load_factor.
+   */
             bool m_try_shrink_on_next_insert;
         };
     } // namespace detail_robin_hash

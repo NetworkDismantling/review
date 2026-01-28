@@ -1,6 +1,39 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 4.0)
 
 project(external_dismantlers CXX)
+
+# Use pixi environment
+if(DEFINED ENV{CONDA_PREFIX})
+    set(CONDA_PREFIX $ENV{CONDA_PREFIX})
+    message(STATUS "Using CONDA_PREFIX: ${CONDA_PREFIX}/include")
+else()
+    message(FATAL_ERROR "CONDA_PREFIX environment variable not set. Please activate the pixi environment.")
+endif()
+
+# Search for libraries in conda environment
+set(CMAKE_FIND_ROOT_PATH ${CONDA_PREFIX})
+message(STATUS "CMAKE_FIND_ROOT_PATH: ${CMAKE_FIND_ROOT_PATH}")
+
+# Force find_package to search in CMAKE_FIND_ROOT_PATH only
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+# Python executable must be set for find_package(Python3)
+#  and should point to the python in the conda environment
+#if(NOT DEFINED Python3_EXECUTABLE)
+#set(Python3_EXECUTABLE "${CONDA_PREFIX}/bin/python")
+#message(STATUS "Setting Python3_EXECUTABLE to: ${Python3_EXECUTABLE}")
+#endif()
+
+if(POLICY CMP0167)
+    # CMake 3.29 and below provide a FindBoost module, but it needs constant updates to keep up with upstream Boost releases. Upstream Boost 1.70 and above provide a BoostConfig.cmake package configuration file. find_package(Boost CONFIG) finds the upstream package directly, without the find module.
+    # CMake 3.30 and above prefer to not provide the FindBoost module so that find_package(Boost) calls, without the CONFIG or NO_MODULE options, find the upstream BoostConfig.cmake directly. This policy provides compatibility for projects that have not been ported to use the upstream Boost package.
+    # The OLD behavior of this policy is for find_package(Boost) to load CMake's FindBoost module. The NEW behavior is for find_package(Boost) to search for the upstream BoostConfig.cmake.
+    # This policy was introduced in CMake version 3.30. It may be set by cmake_policy() or cmake_minimum_required(). If it is not set, CMake warns, and uses OLD behavior.
+    cmake_policy(SET CMP0167 NEW)
+endif()
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -24,10 +57,6 @@ message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
 # Include TSL library
 include_directories(tsl)
-
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
 
 # Find Python3
 find_package(Python3 COMPONENTS Development NumPy)

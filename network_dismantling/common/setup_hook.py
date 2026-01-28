@@ -12,7 +12,9 @@ def setup(*args,
     from subprocess import check_output
 
     cd_cmd = f"cd {folder} && "
-    cmd = "make clean && make"
+    # cmd = "make clean && make"
+    # We now use CMake
+    cmd = "mkdir -p build && cd build && cmake .. && make"
 
     try:
         logger.info(check_output(cd_cmd + cmd, shell=True, text=True))

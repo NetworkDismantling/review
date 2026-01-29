@@ -103,8 +103,8 @@ class DismantlingMethod:
             self.name = self.key
         if self.display_name is None:
             self.display_name = "".join([w[0].capitalize() for w in self.name.split("_")])
-        if self.dynamic is None:
-            raise RuntimeError(f"Dynamic/static not defined for {self.key}")
+        # if self.dynamic is None:
+        #     raise RuntimeError(f"Dynamic/static not defined for {self.key}")
         
         if self.required_imports is None:
             self.required_imports = []

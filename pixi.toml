@@ -8,49 +8,68 @@ documentation = "https://github.com/NetworkDismantling/review/"
 #license-file =
 readme = "README.md"
 
-platforms = ["osx-arm64", "linux-64", "win-64"]
+platforms = [
+    "osx-arm64",
+     "linux-64",
+    # "win-64",
+]
 version = "0.1.0"
-
 
 # [project]
 # name = "pytorch-conda-forge"
 
-
 [tasks]
 
 [dependencies]
-pip = ">=25.1.1,<26"
-pandas = ">=2.3.0,<3"
-tqdm = ">=4.67.1,<5"
-seaborn = ">=0.13.2,<0.14"
+pip = ">=25.3"
+pandas = ">=3.0.0"
+tqdm = ">=4.67.1"
+seaborn = ">=0.13.2"
 dill = ">=0.4.0,<0.5"
-numpy = ">=2.3.0,<3"
-scipy = ">=1.15.2,<2"
-matplotlib = ">=3.10.3,<4"
-pandas-stubs = ">=2.2.3.250527,<3"
-graph-tool = ">=2.77,<3"
-boost = ">=1.84.0,<2"
-boost-cpp = ">=1.84.0,<2"
-libboost = ">=1.84.0,<2"
-libboost-devel = ">=1.84.0,<2"
-libboost-headers = ">=1.84.0,<2"
-libboost-python = ">=1.84.0,<2"
-libboost-python-devel = ">=1.84.0,<2"
+numpy = ">=2.3.5"
+scipy = ">=1.17.0,<2"
+matplotlib = ">=3.9.1.post1"
+pandas-stubs = ">=2.3.3.260113"
+ipywidgets = ">=8.1.8"
+jupyter = ">=1.1.1"
+jupyterlab = ">=4.5.0"
+
+graph-tool = ">=2.98,<3"
+libboost = ">=1.86.0,<2"
+libboost-devel = ">=1.86.0,<2"
+libboost-headers = ">=1.86.0,<2"
+libboost-python = ">=1.86.0,<2"
+libboost-python-devel = ">=1.86.0,<2"
+cmake = ">=4.2.1"
+pytest = "9.0.2.*"
+pixi-pycharm = ">=0.0.10,<0.0.11"
+parse = ">=1.20.2,<2"
 
 
 [pypi-dependencies]
 
 [pypi-options]
 no-build-isolation = ["NetworkDismantling"]
+networkdismantling = { path = ".", editable = true }
 
 ##### Pytorch
 
 [tool.pixi.project]
 channels = ["https://prefix.dev/conda-forge"]
 platforms = ["linux-64"]
+# ##### Pytorch
+torch = { version = ">=2.9.1", index = "https://download.pytorch.org/whl/cu130" }
+torchvision = { version = ">=0.24.1", index = "https://download.pytorch.org/whl/cu130" }
 
-[tool.pixi.feature.gpu.system-requirements]
-cuda = "12.0"
+[target.osx.pypi-dependencies]
+# OSX has no CUDA support so use the CPU here
+torch = { version = ">=2.9.1", index = "https://download.pytorch.org/whl/cpu" }
+torchvision = { version = ">=0.24.1", index = "https://download.pytorch.org/whl/cpu" }
+
+
+[pypi-options]
+no-build-isolation = ["networkdismantling"]
+
 
 [tool.pixi.feature.gpu.dependencies]
 cuda-version = "12.*.*"

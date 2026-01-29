@@ -95,11 +95,18 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+if (NOT EXISTS "${GRAPH_TOOL_INCLUDE_DIR}" OR NOT IS_DIRECTORY "${GRAPH_TOOL_INCLUDE_DIR}")
+    message(FATAL_ERROR "Graph-tool include directory not found: ${GRAPH_TOOL_INCLUDE_DIR}")
+endif()
+
 include_directories(${GRAPH_TOOL_INCLUDE_DIR})
 link_directories(${GRAPH_TOOL_LIB_DIR})
 
 message(STATUS "Graph-tool include: ${GRAPH_TOOL_INCLUDE_DIR}")
 message(STATUS "Graph-tool lib: ${GRAPH_TOOL_LIB_DIR}")
+
+# Set GRAPH_TOOL flag for compilation
+add_compile_definitions(GRAPH_TOOL)
 
 # Get Python version for Boost
 string(REPLACE "." "" PYTHON_VERSION_NO_DOT "${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}")
@@ -163,28 +170,71 @@ set_target_properties(dismantler PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-# macOS specific settings
+# Platform-specific linking settings
 if(APPLE)
-    # Get the lib directory from Python3
+    # macOS: Use dynamic lookup for Python and graph_tool symbols
+    # graph_tool must be imported in Python before importing this module
     get_filename_component(PYTHON_LIB_DIR "${Python3_LIBRARIES}" DIRECTORY)
     
     set_target_properties(dismantler PROPERTIES
         MACOSX_RPATH ON
         BUILD_WITH_INSTALL_RPATH ON
-        INSTALL_RPATH "@loader_path;${PYTHON_LIB_DIR};${Boost_LIBRARY_DIRS}"
+        INSTALL_RPATH "@loader_path;${PYTHON_LIB_DIR};${Boost_LIBRARY_DIRS};${GRAPH_TOOL_LIB_DIR}"
         LINK_FLAGS "-undefined dynamic_lookup"
     )
     
-    message(STATUS "Setting RPATH to: @loader_path;${PYTHON_LIB_DIR};${Boost_LIBRARY_DIRS}")
+    message(STATUS "Setting RPATH to: @loader_path;${PYTHON_LIB_DIR};${Boost_LIBRARY_DIRS};${GRAPH_TOOL_LIB_DIR}")
     message(STATUS "Using -undefined dynamic_lookup for macOS")
+    
+    # On macOS, we use -undefined dynamic_lookup, so we only need to link Boost.Python
+    # Python and graph_tool symbols will be resolved at runtime
+    target_link_libraries(dismantler PRIVATE
+        ${BOOST_PYTHON_LIB}
+    )
+    
+elseif(UNIX)
+    # Linux: Use RPATH and allow undefined symbols
+    # graph_tool must be imported in Python before importing this module
+    get_filename_component(PYTHON_LIB_DIR "${Python3_LIBRARIES}" DIRECTORY)
+    
+    set_target_properties(dismantler PROPERTIES
+        INSTALL_RPATH "$ORIGIN:${PYTHON_LIB_DIR}:${Boost_LIBRARY_DIRS}:${GRAPH_TOOL_LIB_DIR}"
+        BUILD_WITH_INSTALL_RPATH ON
+        LINK_FLAGS "-Wl,--allow-shlib-undefined"
+    )
+    
+    message(STATUS "Setting RPATH to: $ORIGIN:${PYTHON_LIB_DIR}:${Boost_LIBRARY_DIRS}:${GRAPH_TOOL_LIB_DIR}")
+    message(STATUS "Using --allow-shlib-undefined for Linux")
+    
+    # On Linux, we use --allow-shlib-undefined, so we only need to link Boost.Python
+    # Python and graph_tool symbols will be resolved at runtime
+    target_link_libraries(dismantler PRIVATE
+        ${BOOST_PYTHON_LIB}
+    )
+    
+elseif(WIN32)
+    # Windows: Must link explicitly to all libraries
+    # Find graph_tool library
+    find_library(GRAPH_TOOL_CORE_LIB
+        NAMES graph_tool_core
+        HINTS ${GRAPH_TOOL_LIB_DIR}
+        NO_DEFAULT_PATH
+    )
+    
+    if(GRAPH_TOOL_CORE_LIB)
+        message(STATUS "Found graph_tool_core library: ${GRAPH_TOOL_CORE_LIB}")
+    else()
+        message(WARNING "graph_tool_core library not found")
+    endif()
+    
+    target_link_libraries(dismantler PRIVATE
+        ${BOOST_PYTHON_LIB}
+        ${Python3_LIBRARIES}
+        ${GRAPH_TOOL_CORE_LIB}
+    )
+    
+    message(STATUS "Windows: linking explicitly to Python and graph_tool")
 endif()
-
-# Link libraries
-# Note: On macOS, we use -undefined dynamic_lookup and link only to Boost.Python
-# to avoid symbol conflicts between multiple Python libraries
-target_link_libraries(dismantler PRIVATE
-    ${BOOST_PYTHON_LIB}
-)
 
 # Add include directories to target (modern CMake approach)
 target_include_directories(dismantler PRIVATE

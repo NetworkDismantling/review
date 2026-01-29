@@ -6,37 +6,60 @@ from typing import Callable, Dict, List, Tuple, Optional
 from graph_tool import Graph
 import numpy as np
 
+from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
 
 # from traceback import print_tb
 
 
 def test_network_callback(network: Graph):
-    from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
-
     from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     remove_parallel_edges(network)
     remove_self_loops(network)
 
     static_id = network.vertex_properties["static_id"]
+    
     edges = list(
         map(lambda e: (static_id[e.source()], static_id[e.target()]), network.edges())
     )
 
-    if len(edges) == 0:
-        raise RuntimeError("No edges in network")
+    print(f"External dismantler: loaded network with {network.num_vertices()} vertices and {len(edges)} edges.", flush=True)
+    # print(f"Edges (type {type(edges)}): {edges}", flush=True)
 
-    return ExternalGraph(edges)
+    # if len(edges) == 0:
+    #     raise RuntimeError("No edges in network")
+
+    eg = ExternalGraph(network.graph_properties["filename"])
+    eg.addNodes(range(network.num_vertices()))
+    eg.addEdgeList(edges)
+
+    return eg
 
 
-cache: Dict[str, object] = dict()
+cache: Dict[str, ExternalGraph] = dict()
 
 
-def add_dismantling_edges(filename: str, network: Graph):
-    cache[filename] = test_network_callback(network)
+# def add_dismantling_edges(filename: str, network: Graph) -> ExternalGraph:
+#     cache[filename] = test_network_callback(network)
 
-    return cache[filename]
+#     return cache[filename]
 
+def getExternalGraph(network: Graph, logger: logging.Logger) -> ExternalGraph:
+    from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
+
+    filename = network.graph_properties["filename"]
+
+    try:
+        external_network = cache[filename]
+        logger.debug(f"Using cached ExternalGraph for {filename}, creating deep copy")
+        # Create a deep copy to avoid side effects from dismantling operations
+        return external_network.deepCopy()
+    except KeyError:
+        logger.debug(f"Creating new ExternalGraph for {filename}")
+        external_network = test_network_callback(network)
+        cache[filename] = external_network
+        # Return a deep copy, keeping the original in cache
+        return external_network.deepCopy()
 
 # def _threshold_dismantler(network, predictions, generator_args, stop_condition, dismantler):
 def _threshold_dismantler(
@@ -48,7 +71,7 @@ def _threshold_dismantler(
     logger: logging.Logger = logging.getLogger("dummy"),
     **kwargs,
 ) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
-    from network_dismantling.common.external_dismantlers.dismantler import Graph
+    from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
 
     network_name = generator_args["network_name"]
 
@@ -67,15 +90,9 @@ def _threshold_dismantler(
     removal_order = removal_order.tolist()
 
     network_size = network.num_vertices()
-    filename = network.graph_properties["filename"]
 
-    try:
-        external_network = cache[filename]
-    except:
-        external_network = add_dismantling_edges(filename, network)
-
-    external_network = Graph(external_network)
-
+    external_network: ExternalGraph = getExternalGraph(network, logger)
+    
     logger.debug(f"{network_name}: Invoking the external dismantler.")
     start_time = perf_counter_ns()
 
@@ -175,14 +192,8 @@ def _iterative_threshold_dismantler(
 
     logger = generator_args["logger"]
     network_name = generator_args["network_name"]
-    filename = network.graph_properties["filename"]
-
-    try:
-        external_network = cache[filename]
-    except:
-        external_network = add_dismantling_edges(filename, network)
-
-    external_network = Graph(external_network)
+    
+    external_network: ExternalGraph = getExternalGraph(network, logger)
 
     start_time = perf_counter_ns()
 

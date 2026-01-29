@@ -24,6 +24,8 @@ from typing import Callable, Union, List
 import pandas as pd
 
 from network_dismantling.common.data_structures import product_dict
+from network_dismantling.common.dismantlers import dismantler_wrapper
+
 
 dismantling_methods = {}
 

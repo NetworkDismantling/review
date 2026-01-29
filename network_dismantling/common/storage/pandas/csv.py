@@ -54,7 +54,13 @@ def read_without_columns(
     if read_index is not None:
         if isinstance(read_index, int):
             indices_to_read = [read_index]
-
+        elif isinstance(read_index, (list, np.ndarray, pd.Series, set, tuple)):
+            indices_to_read = sorted(read_index)
+        else:
+            raise ValueError(
+                f"read_index must be an int or a list of ints. Found {type(read_index)}."
+            )
+        
         buffer = []
         for index_to_read in indices_to_read:
             read_df = pd.read_csv(

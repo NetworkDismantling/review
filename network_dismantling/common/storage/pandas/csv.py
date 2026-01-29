@@ -8,6 +8,8 @@ from typing import Callable, List, Union, Dict
 import numpy as np
 import pandas as pd
 
+from network_dismantling.common.storage.pandas.base import BaseDataFrameWriter
+
 
 def get_df_columns(file: Path):
     # Read column names from file
@@ -339,3 +341,68 @@ def start_df_writer(output_file: Path,
     )
     dp.start()
     return dp
+
+
+class CSVDataFrameWriter(BaseDataFrameWriter):
+    """Thread-safe CSV writer for incremental DataFrame writing.
+    
+    This class manages a background thread that writes DataFrames to a CSV file
+    in append mode. It provides the same interface as ParquetDataFrameWriter.
+    
+    Usage:
+        with CSVDataFrameWriter(output_file, columns, logger) as writer:
+            for run_data in runs:
+                writer.write(run_data)
+    """
+    
+    def __init__(self, 
+                 output_file: Union[Path, str],
+                 columns: Union[str, List[str]],
+                 logger: logging.Logger = logging.getLogger("dummy"),
+                 queue: Union[Queue, None] = None):
+        """Initialize the CSV writer.
+        
+        Args:
+            output_file: Path to output .csv file.
+            columns: Column names to write.
+            logger: Logger for messages.
+            queue: Optional existing queue to use. If None, creates a new one.
+        """
+        # Create queue before calling super().__init__
+        self._queue: Queue = queue if queue is not None else Queue()
+        
+        # Call base class constructor (will call _create_writer_thread)
+        super().__init__(output_file, columns, logger)
+    
+    def _create_writer_thread(self) -> threading.Thread:
+        """Create the CSV writer thread."""
+        return threading.Thread(
+            target=df_writer,
+            kwargs=dict(
+                queue=self._queue,
+                output_file=self.output_file,
+                output_columns=self.columns,
+                logger=self.logger,
+            ),
+            daemon=False,
+            name=f"CSVWriter-{self.output_file.name}",
+        )
+    
+    def _send_sentinel(self):
+        """Send sentinel to stop the writer thread."""
+        self._queue.put(None)
+    
+    def write(self, df: pd.DataFrame):
+        """Write a DataFrame to the CSV file.
+        
+        Args:
+            df: DataFrame to write.
+            
+        Raises:
+            ValueError: If writer is already closed.
+        """
+        if self._closed:
+            raise ValueError("Cannot write to closed CSVDataFrameWriter")
+        
+        self._queue.put(df)
+        self.logger.debug(f"Queued {len(df)} rows for writing")

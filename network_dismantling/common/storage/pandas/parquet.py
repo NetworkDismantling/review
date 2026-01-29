@@ -5,15 +5,13 @@ from bisect import bisect_right
 from collections import defaultdict
 from itertools import accumulate
 from pathlib import Path
-from typing import Callable, List, Union, Dict
+from typing import Callable, List, Union, Dict, Optional
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet
+import pyarrow as pa
+import pyarrow.parquet as pq
 from pyarrow.parquet import ParquetFile
-
-from network_dismantling.common.data_structures import dotdict
-
 
 # append to parquet
 # https://stackoverflow.com/questions/47191675/pandas-write-dataframe-to-parquet-format-with-append
@@ -24,138 +22,179 @@ from network_dismantling.common.data_structures import dotdict
 #   There will also be less overhead spent on storing statistics, since each row group
 #   stores its own statistics.
 
+# Best practices for Parquet append:
+# - Use pyarrow for both reading and writing (better performance and consistency)
+# - Row groups should be 100,000 to 1,000,000 rows for optimal compression
+# - Use ParquetWriter for efficient appending
+# - Snappy compression offers best balance between speed and compression ratio
+
 def df_writer(queue: multiprocessing.Queue,
               output_file: Union[Path, str],
-              output_columns=None,
-              logger=logging.getLogger("dummy"),
+              output_columns: Optional[List[str]] = None,
+              row_group_size: int = 100000,
+              logger: logging.Logger = logging.getLogger("dummy"),
+              error_event: Optional[threading.Event] = None,
               ):
-    """Write a dataframe to a parquet file.
+    """Write dataframes to a parquet file using pyarrow for efficient appending.
+    
     Args:
         queue: A multiprocessing queue to receive dataframes.
         output_file: The path to the output file.
         output_columns: The columns to write to the file.
+        row_group_size: Target row group size for compression optimization.
         logger: A logger to log messages.
+        error_event: Optional Event to signal fatal errors to the caller.
     """
     output_file = Path(output_file).resolve()
     if not output_file.parent.exists():
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    kwargs = {
-        "path": str(output_file),
+    writer: Optional[pq.ParquetWriter] = None
+    schema: Optional[pa.Schema] = None
+    rows_written = 0
+    
+    try:
+        while True:
+            record: Union[pd.DataFrame, None] = queue.get()
 
-        "index": False,
-        # "index": None,
+            if record is None:
+                logger.debug(f"Received sentinel. Closing writer for {output_file}.")
+                break
 
-        # "columns": output_columns,
+            if not isinstance(record, pd.DataFrame):
+                logger.error(f"Received non-DataFrame: {type(record)}. Skipping.")
+                continue
 
-        # "engine": "auto",
-        "engine": "fastparquet",
-        "compression": "snappy",
+            if len(record) == 0:
+                logger.warning(f"Received empty DataFrame. Skipping write.")
+                continue
 
-        # "partition_cols": None,
-    }
+            # Reorder columns if specified
+            if output_columns:
+                try:
+                    record = record[output_columns]
+                except KeyError as e:
+                    logger.error(f"Missing column(s) in DataFrame: {e}")
+                    raise
 
-    # if not output_file.exists():
-    #     empty_df = pd.DataFrame(data=[],
-    #                             columns=output_columns,
-    #                             )
-    #
-    #     empty_df.to_parquet(**kwargs)
-    #
-    #     print(f"Created empty file {output_file} with columns {output_columns}")
+            # Convert to PyArrow table
+            table = pa.Table.from_pandas(record, preserve_index=False)
 
-    # If dataframe exists append without writing the header
+            # Initialize writer on first write
+            if writer is None:
+                schema = table.schema
+                writer = pq.ParquetWriter(
+                    str(output_file),
+                    schema,
+                    compression='snappy',
+                    use_dictionary=True,
+                    write_statistics=True,
+                )
+                logger.info(f"Created ParquetWriter for {output_file} with schema: {schema}")
 
-    while True:
-        record: Union[pd.DataFrame, None] = queue.get()
+            # Verify schema consistency
+            if not table.schema.equals(schema):
+                logger.error(f"Schema mismatch. Expected: {schema}, Got: {table.schema}")
+                raise ValueError("Schema mismatch between DataFrames")
 
-        print(f"Received record to write:\n{record}")
-        if record is None:
-            logger.debug(f"Received sentinel None. Stopping writer thread.")
-            return
+            # Write the table
+            writer.write_table(table)
+            rows_written += len(record)
+            logger.debug(f"Wrote {len(record)} rows to {output_file}. Total: {rows_written}")
 
-        # if len(record):
-        if isinstance(record, pd.DataFrame):
-            # Reorder the columns
-            try:
-                record = record[output_columns]
-            except KeyError as e:
-                # Handle the case where the columns are not in the dataframe
-                logger.error(f"Error writing record {record} to {output_file}. "
-                             f"Missing column(s): {e}")
-                raise e
+    except Exception as e:
+        logger.exception(f"Fatal error in df_writer for {output_file}: {e}")
+        if error_event is not None:
+            error_event.set()  # Signal error to caller
+        # Don't re-raise - would cause unhandled thread exception warning
+    
+    finally:
+        if writer is not None:
+            writer.close()
+            logger.info(f"Closed ParquetWriter for {output_file}. Total rows written: {rows_written}")
+        else:
+            logger.warning(f"Writer was never initialized for {output_file}")
 
-            print(f"Writing {len(record)} rows to {output_file}:\n{record}")
-
-            if output_file.exists():
-                kwargs["append"] = True
-
-            record.to_parquet(**kwargs)
-
-            logger.debug(f"Wrote {len(record)} rows to {output_file}.")
-            print(f"Wrote {len(record)} rows to {output_file}.")
-
-        else :
-            logger.error(f"Received record {record} is not a dataframe. "
-                         f"Skipping writing to {output_file}.")
-            raise ValueError(f"Received record {record} is not a dataframe. "
-                             f"Skipping writing to {output_file}.")
-
-def start_df_writer(args: dotdict,
+def start_df_writer(output_file: Path,
+                    output_df_columns: Union[str, List[str]],
                     df_queue: multiprocessing.Queue,
+                    row_group_size: int = 100000,
                     logger: logging.Logger = logging.getLogger("dummy"),
                     ) -> threading.Thread:
-    """Start a thread to write dataframes to a parquet file.
+    """Start a non-daemon thread to write dataframes to a parquet file.
+    
+    The writer thread reads DataFrames from a queue and appends them to a single
+    Parquet file using PyArrow's ParquetWriter for efficient append operations.
+    
+    Usage pattern for run-by-run writing:
+        queue = multiprocessing.Queue()
+        writer = start_df_writer(output_file=path, output_df_columns=cols, df_queue=queue)
+        # After each run:
+        queue.put(results_df)
+        # IMPORTANT: Check if writer is still alive periodically
+        if not writer.is_alive():
+            logger.error("Writer thread died unexpectedly!")
+            raise RuntimeError("Writer thread terminated")
+        # When all runs are done:
+        queue.put(None)  # Sentinel to close writer
+        writer.join()
 
     Args:
-        args: dotdict:
-            output_file: The path to the output .parquet file.
-            output_df_columns: The columns to write to the .parquet file.
-        df_queue: multiprocessing.Queue:
-            The queue to read the dataframe from.
-        logger: logging.Logger:
-            The logger to use for logging messages.
+        output_file: Path to the output .parquet file.
+        output_df_columns: Columns to write to the .parquet file.
+        df_queue: Queue to read DataFrames from. Put None to signal end of data.
+        row_group_size: Target row group size for compression optimization (default: 100k).
+                       Smaller values for memory-constrained environments, larger for
+                       better compression (up to 1M).
+        logger: Logger for logging messages.
 
     Returns:
-        threading.Thread:
-            The thread that is writing the dataframe to the .parquet file.
-
+        The thread writing the dataframe to the .parquet file.
+        IMPORTANT: Caller should check thread.is_alive() periodically to detect errors.
     """
-    # Create and start the Dataset Writer Thread
+    # Create error event for signaling fatal errors
+    error_event = threading.Event()
+    
     dp = threading.Thread(
         target=df_writer,
         kwargs=dict(
             queue=df_queue,
-            output_file=args.output_file,
-            output_columns=args.output_df_columns,
+            output_file=output_file,
+            output_columns=output_df_columns,
+            row_group_size=row_group_size,
             logger=logger,
+            error_event=error_event,
         ),
-        daemon=True,
+        daemon=False,  # Changed to False to ensure data is written before shutdown
+        name=f"ParquetWriter-{Path(output_file).name}",
     )
+    
+    # Attach error_event to thread for caller to check
+    dp.error_event = error_event  # type: ignore
+    
     dp.start()
+    logger.info(f"Started ParquetWriter thread for {output_file}")
     return dp
 
 
 def read_parquet_schema_df(uri: str) -> pd.DataFrame:
-    """Return a Pandas dataframe corresponding to the schema of a local URI of a parquet file.
+    """Return a Pandas DataFrame with the schema of a parquet file.
 
-    The returned dataframe has the columns: column, pa_dtype
+    Returns a dataframe with columns: column, pa_dtype
 
-    Source: https://stackoverflow.com/questions/41567081/get-schema-of-parquet-file-in-python
+    Args:
+        uri: Path to the parquet file.
 
+    Returns:
+        DataFrame with schema information.
     """
-    # Ref: https://stackoverflow.com/a/64288036/
-    schema = pyarrow.parquet.read_schema(uri, memory_map=True)
-    schema = pd.DataFrame(({"column": name,
-                            "pa_dtype": str(pa_dtype)
-                            } for name, pa_dtype in zip(schema.names, schema.types)))
+    schema = pq.read_schema(uri, memory_map=True)
+    schema_df = pd.DataFrame({
+        "column": schema.names,
+        "pa_dtype": [str(dtype) for dtype in schema.types]
+    })
 
-    # Ensures columns in case the parquet file has an empty dataframe.
-    schema = schema.reindex(columns=["column", "pa_dtype"],
-                            fill_value=pd.NA,
-                            )
-
-    return schema
+    return schema_df
 
 
 def get_df_columns(file: Path):
@@ -167,7 +206,7 @@ def get_df_columns(file: Path):
 
 
 def read_without_removals(file,
-                          exclude_columns: Union[str, List[str]] = None,
+                          exclude_columns: Union[str, List[str], None] = None,
                           **kwargs,
                           ):
     if exclude_columns is None:
@@ -217,7 +256,7 @@ def read_without_columns(
         # 2. prepare sorted list of global indices
         if isinstance(read_index, int):
             indices = [read_index]
-        elif isinstance(read_index, list):
+        elif isinstance(read_index, (list, np.ndarray, pd.Series, set, tuple)):
             indices = sorted(read_index)
         else:
             raise ValueError(f"Invalid read_index {read_index} (type {type(read_index)}.")

@@ -79,44 +79,69 @@ if __name__ == "__main__":
             logger.info(f"Converting {file} to Parquet. "
                         f"Output file will be {output_file}")
 
-            df = pd.read_csv(str(file),
-                             )
-
-            df.to_parquet(str(output_file),
-                          index=False,
-                          engine="fastparquet",
-                          compression="snappy",
-                          )
-
-            parquet_df = pd.read_parquet(str(output_file))
-
-            if not parquet_df.equals(df):
-                logger.error(f"DataFrame read from {output_file} does not match the original DataFrame from {file}.")
-            else:
-                logger.info(f"Successfully converted {file} to Parquet format at {output_file}.")
-
-            # # Optionally, compress the original CSV file as a backup
-            # compressed_file = file.with_suffix(".csv.gz")
-            # if not compressed_file.exists():
-            #     logger.info(f"Compressing original CSV file {file} to {compressed_file}.")
-            #     df.to_csv(str(compressed_file), index=False, compression='gzip')
-            # else:
-            #     logger.warning(f"Compressed file {compressed_file} already exists. Skipping compression.")
-            #
-            # # Check if the compressed file was created successfully
-            # if compressed_file.exists():
-            #     df_compressed = pd.read_csv(compressed_file)
-            #     if not df_compressed.equals(df):
-            #         logger.error(f"DataFrame read from {compressed_file} does not match the original DataFrame from {file}.")
-            #     else:
-            #         logger.info(f"Compressed file created successfully: {compressed_file}.")
-            # else:
-            #     logger.error(f"Failed to create compressed file: {compressed_file}.")
-
-            # Move the original CSV file to the backup folder
             try:
-                file.rename(backup_file)
-                logger.info(f"Moved original CSV file {file} to backup folder {backup_folder}.")
+                # Step 1: Read CSV
+                logger.debug(f"Reading CSV file {file}...")
+                df = pd.read_csv(str(file))
+                logger.info(f"Read {len(df)} rows, {len(df.columns)} columns from {file}")
+
+                # Step 2: Write Parquet
+                logger.debug(f"Writing Parquet file {output_file}...")
+                df.to_parquet(str(output_file),
+                              index=False,
+                              engine="pyarrow",
+                              compression="snappy",
+                              )
+
+                # Step 3: Validate conversion
+                logger.debug(f"Validating conversion...")
+                parquet_df = pd.read_parquet(str(output_file), engine="pyarrow")
+
+                validation_passed = True
+                
+                if parquet_df.shape != df.shape:
+                    logger.error(f"Shape mismatch: Parquet {parquet_df.shape} vs CSV {df.shape}")
+                    validation_passed = False
+                
+                if list(parquet_df.columns) != list(df.columns):
+                    logger.error(f"Column mismatch: Parquet {list(parquet_df.columns)} vs CSV {list(df.columns)}")
+                    validation_passed = False
+                
+                # Check values (handling NaN comparisons)
+                if not parquet_df.equals(df):
+                    # Try comparing with NaN tolerance
+                    try:
+                        pd.testing.assert_frame_equal(parquet_df, df, check_dtype=False)
+                        logger.debug(f"DataFrames match (with dtype flexibility)")
+                    except AssertionError as e:
+                        logger.error(f"DataFrame content mismatch: {e}")
+                        validation_passed = False
+                
+                if validation_passed:
+                    # Step 4: Move original to backup (only after successful validation)
+                    logger.info(f"Moving original CSV to backup: {backup_file}")
+                    file.rename(backup_file)
+                    
+                    # Log conversion statistics
+                    logger.info(f"✓ Successfully converted {file.name}")
+                    logger.info(f"  CSV size: {backup_file.stat().st_size / 1024:.1f} KB")
+                    logger.info(f"  Parquet size: {output_file.stat().st_size / 1024:.1f} KB")
+                    compression_ratio = backup_file.stat().st_size / output_file.stat().st_size
+                    logger.info(f"  Compression: {compression_ratio:.2f}x smaller")
+                else:
+                    logger.error(f"✗ Validation failed for {output_file}")
+                    logger.error(f"  Removing invalid Parquet file...")
+                    if output_file.exists():
+                        output_file.unlink()
+                    logger.error(f"  Original CSV preserved at {file}")
+            
             except Exception as e:
-                logger.error(f"Failed to move {file} to {backup_file}: {e}")
+                logger.exception(f"Error during conversion of {file}: {e}")
+                # Clean up partial Parquet file if it exists
+                if output_file.exists():
+                    logger.info(f"Cleaning up partial Parquet file {output_file}")
+                    try:
+                        output_file.unlink()
+                    except Exception as cleanup_error:
+                        logger.error(f"Failed to clean up {output_file}: {cleanup_error}")
 

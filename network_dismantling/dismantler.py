@@ -74,7 +74,7 @@ from network_dismantling.common.dataset_providers import (
     load_single_network,
 )
 from network_dismantling.common.df_helpers import df_reader, RemovalsColumns
-from network_dismantling.common.storage.pandas.csv import start_df_writer
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 # # Remove the OpenMP threads. Use data parallelism instead
@@ -222,6 +222,7 @@ def check_dependencies(heuristics: List[str],
                 logger.debug(f"Moved dependency {depends_on.short_name} for heuristic {display_name}")
         else:
             logger.debug(f"Heuristic {display_name} does not depend on any other heuristic")
+
     # Reverse the list to run the heuristics in the correct order
     heuristics = heuristics[::-1]
 
@@ -346,6 +347,12 @@ def main(args: argparse.Namespace,
             # initargs=(multiprocessing.Lock(),),
             **pool_kwargs,
         ) as executor,
+
+        ParquetDataFrameWriter(
+            output_file=args.output_file,
+            columns=args.output_df_columns,
+            logger=logger,
+        ) as parquet_writer,
 
         tqdm(
             test_networks_list,
@@ -587,7 +594,8 @@ def main(args: argparse.Namespace,
                         network_df = pd.concat([network_df, runs_dataframe],
                                                ignore_index=True,
                                                )
-                        df_queue.put(runs_dataframe)
+                        # Write directly with the writer (checks if thread is alive)
+                        parquet_writer.write(runs_dataframe)
 
                     except Exception as e:
                         logger.exception(

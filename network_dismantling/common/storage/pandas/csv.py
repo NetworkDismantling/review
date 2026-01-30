@@ -354,8 +354,8 @@ class CSVDataFrameWriter(BaseDataFrameWriter):
             for run_data in runs:
                 writer.write(run_data)
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
                  logger: logging.Logger = logging.getLogger("dummy"),
@@ -370,10 +370,10 @@ class CSVDataFrameWriter(BaseDataFrameWriter):
         """
         # Create queue before calling super().__init__
         self._queue: Queue = queue if queue is not None else Queue()
-        
+
         # Call base class constructor (will call _create_writer_thread)
         super().__init__(output_file, columns, logger)
-    
+
     def _create_writer_thread(self) -> threading.Thread:
         """Create the CSV writer thread."""
         return threading.Thread(
@@ -387,11 +387,11 @@ class CSVDataFrameWriter(BaseDataFrameWriter):
             daemon=False,
             name=f"CSVWriter-{self.output_file.name}",
         )
-    
+
     def _send_sentinel(self):
         """Send sentinel to stop the writer thread."""
         self._queue.put(None)
-    
+
     def write(self, df: pd.DataFrame):
         """Write a DataFrame to the CSV file.
         
@@ -403,6 +403,6 @@ class CSVDataFrameWriter(BaseDataFrameWriter):
         """
         if self._closed:
             raise ValueError("Cannot write to closed CSVDataFrameWriter")
-        
+
         self._queue.put(df)
         self.logger.debug(f"Queued {len(df)} rows for writing")

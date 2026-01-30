@@ -146,7 +146,7 @@ def display_df(df, args):
 
         group_df_filtered = group_df.loc[:, [x for x in group_df.columns if
                                              x not in filtered_columns]
-                            ]
+        ]
 
         group_df_filtered["heuristic"] = group_df_filtered["heuristic"].apply(
             lambda x: dismantling_methods[x].short_name or x
@@ -204,7 +204,7 @@ def display_df(df, args):
                 num_removals = len(removals)
                 max_num_removals = max(max_num_removals, num_removals)
 
-                color = dismantling_method.plot_color # or color_mapping.get(heuristic_name, None)
+                color = dismantling_method.plot_color  # or color_mapping.get(heuristic_name, None)
                 # marker = dismantling_method.plot_marker or marker_mapping[heuristic_name]
                 marker = "o" if dismantling_method.includes_reinsertion else "s"
 

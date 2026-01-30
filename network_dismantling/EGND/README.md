@@ -4,6 +4,7 @@ These codes implement the Ensemble-GND and Ensemble-GNDR network dismantling alg
 
 Ren, Xiao-Long, and Nino Antulov-Fantulin. "Ensemble approach for generalized network dismantling." In International
 Conference on Complex Networks and Their Applications, pp. 783-793. Springer, Cham,
+
 2019. https://link.springer.com/chapter/10.1007/978-3-030-36687-2_65
 
 Related:

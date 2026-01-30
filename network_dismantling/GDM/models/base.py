@@ -22,7 +22,6 @@ from torch.nn import Module
 
 
 class BaseModel(Module):
-
     _model_parameters = []
     _affected_by_seed = False
 

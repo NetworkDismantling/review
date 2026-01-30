@@ -9,6 +9,7 @@ folder = "network_dismantling/CoreHD/"
 cd_cmd = f"cd {folder} && "
 executable = "coreHD"
 
+
 # TODO use tempfile.NamedTemporaryFile?
 # TODO use logger instead of print
 

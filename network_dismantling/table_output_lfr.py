@@ -24,8 +24,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from network_dismantling import dismantling_methods
 
+from network_dismantling import dismantling_methods
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.humanize_helper import intword
 from network_dismantling.plot import replace_labels

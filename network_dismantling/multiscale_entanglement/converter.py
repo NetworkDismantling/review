@@ -24,6 +24,7 @@ from typing import Dict
 
 import networkx as nx
 import numpy as np
+
 from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 from network_dismantling.converter import get_io_helpers, get_supported_exts
 

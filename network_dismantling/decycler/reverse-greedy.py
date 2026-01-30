@@ -1,5 +1,6 @@
-import networkx as nx
 import sys
+
+import networkx as nx
 
 G = nx.Graph()
 S = set()

@@ -42,11 +42,9 @@
 
 import argparse
 import logging
-import threading
 from ast import literal_eval
 from datetime import timedelta
 from logging.handlers import QueueHandler
-from multiprocessing import Queue
 from operator import itemgetter
 from pathlib import Path
 from time import time
@@ -57,7 +55,6 @@ import pandas as pd
 from graph_tool import Graph
 from tqdm.auto import tqdm
 
-from network_dismantling.common.logger import logger_thread
 
 try:
     from torch import multiprocessing, cuda
@@ -73,9 +70,6 @@ from network_dismantling.common.dataset_providers import (
     list_files,
     load_single_network,
 )
-from network_dismantling.common.df_helpers import df_reader, RemovalsColumns
-from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
-from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 # # Remove the OpenMP threads. Use data parallelism instead
 # from graph_tool.all import openmp_set_num_threads
@@ -129,17 +123,15 @@ def validate_heuristic_imports(heuristics: List[str],
                                ) -> List[str]:
     """Test if imports needed by heuristics are available."""
     from network_dismantling import dismantling_methods, DismantlingMethod
-    
     valid_heuristics = []
-    
     for heuristic in heuristics:
         # Check if heuristic exists
         if heuristic not in dismantling_methods:
             logger.error(f"Heuristic '{heuristic}' not found in available methods")
             continue
-            
+
         dismantling_method: DismantlingMethod = dismantling_methods[heuristic]
-        
+
         # Check if the heuristic has required imports
         if hasattr(dismantling_method, 'required_imports') and dismantling_method.required_imports:
             missing_imports = []
@@ -148,16 +140,16 @@ def validate_heuristic_imports(heuristics: List[str],
                     __import__(module_name)
                 except ImportError:
                     missing_imports.append(module_name)
-            
+
             if missing_imports:
                 logger.warning(
                     f"Heuristic {dismantling_method.short_name} requires missing imports: {', '.join(missing_imports)}. "
                     f"This heuristic will be skipped."
                 )
                 continue
-        
+
         valid_heuristics.append(heuristic)
-    
+
     return valid_heuristics
 
 
@@ -174,25 +166,25 @@ def check_dependencies(heuristics: List[str],
         """Recursively check for cyclic dependencies."""
         if heuristic_key in chain:
             return True
-        
+
         method = dismantling_methods.get(heuristic_key)
         if method is None or method.depends_on is None:
             return False
-        
+
         dependency_key = method.depends_on.key if hasattr(method.depends_on, 'key') else method.depends_on
         return check_cyclic_dependency(dependency_key, chain | {heuristic_key})
-    
+
     # Check for cyclic dependencies before processing
     for heuristic in heuristics:
         # Check if heuristic exists
         if heuristic not in dismantling_methods:
             logger.error(f"Heuristic '{heuristic}' not found in available methods")
             raise KeyError(f"Heuristic '{heuristic}' not found in available methods")
-            
+
         if check_cyclic_dependency(heuristic, set()):
             logger.error(f"Cyclic dependency detected for heuristic {heuristic}")
             raise ValueError(f"Cyclic dependency detected in heuristics chain starting from {heuristic}")
-    
+
     # Reverse the list to check the dependencies in the correct order
     heuristics = heuristics[::-1]
     for i, heuristic in enumerate(heuristics):
@@ -402,14 +394,14 @@ def main(args: argparse.Namespace,
                         # Delay the network loading until the heuristic is actually run.
                         # This is meant to avoid loading the network if it is not needed,
                         # e.g., all the heuristics have been already run on the network.
-                        
+
                         network = load_single_network(
                             network_name,
                             network_path,
                             max_num_vertices=args.max_num_vertices,
                             logger=logger,
                         )
-                        
+
                         if network is None:
                             continue
                         
@@ -422,7 +414,7 @@ def main(args: argparse.Namespace,
                             "stop_condition": int(stop_condition),
                             "threshold": args.threshold,
                         }
-                        
+
                         # Mark that we've loaded the network
                         network_loaded = True
 
@@ -452,14 +444,14 @@ def main(args: argparse.Namespace,
                         df_dependency_filtered = df_dependency_filtered.iloc[0]
 
                         logger.debug(f"df_dependency_filtered: {df_dependency_filtered}")
-                        
+
                         # Check if removals are missing or invalid
                         removals = df_dependency_filtered.get("removals", None)
                         needs_reload = (
-                            not removals or  # Handles None, "", [], etc.
-                            removals == "[]"  # String representation of empty list
+                                not removals or  # Handles None, "", [], etc.
+                                removals == "[]"  # String representation of empty list
                         )
-                        
+
                         if needs_reload:
 
                             try:
@@ -788,13 +780,14 @@ if __name__ == "__main__":
         args.heuristics = list(dismantling_methods.keys())
 
     logger.info(f"Running the following heuristics: {', '.join(args.heuristics)}")
-    
+
     # Validate that required imports are available
     args.heuristics = validate_heuristic_imports(args.heuristics, logger=logger)
-    
+
     if not args.heuristics:
         logger.error("No valid heuristics to run after import validation.")
         import sys
+
         sys.exit(1)
 
     # Check the dependencies of the heuristics

@@ -1,7 +1,8 @@
 from graph_tool import Graph
+from parse import compile
+
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
-from parse import compile
 
 targets_num_expression = compile("Vaccinated nodes {num:d}")
 

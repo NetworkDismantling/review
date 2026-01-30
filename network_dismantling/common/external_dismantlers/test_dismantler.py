@@ -2,7 +2,6 @@ import sys
 from datetime import timedelta
 from time import time
 
-import graph_tool.all as gt
 from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph, lccThresholdDismantler
 
 # from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
@@ -49,7 +48,6 @@ f = open(sys.argv[3], "w")
 for n, lcc, slcc in result:
     f.write("{0} {1} {2}\n".format(n, lcc, slcc))
 f.close()
-
 
 print("Invoking external lcc dismantler on g1")
 start_time = time()

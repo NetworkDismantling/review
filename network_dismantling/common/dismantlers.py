@@ -6,12 +6,13 @@ from typing import Dict, Callable, Union
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
 from graph_tool.topology import label_components, kcore_decomposition
+from scipy.integrate import simpson
+
 from network_dismantling.common.df_helpers import RemovalsColumns
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     threshold_dismantler as external_threshold_dismantler,
 )
 from network_dismantling.dismantler import get_predictions
-from scipy.integrate import simpson
 
 
 def get_lcc_slcc(network):
@@ -498,4 +499,3 @@ def dismantler_wrapper(
         return _decorate(original_function)
 
     return _decorate
-

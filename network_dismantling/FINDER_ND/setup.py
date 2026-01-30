@@ -1,9 +1,9 @@
 import os
 import sys
-from distutils.core import setup
-from distutils.extension import Extension
 
 from Cython.Distutils import build_ext
+from distutils.core import setup
+from distutils.extension import Extension
 
 sys.path.append(os.path.dirname(__file__) + os.sep + "../")
 print("APPENDING", os.path.dirname(__file__) + os.sep + "../")
@@ -35,8 +35,7 @@ ext_modules = [
 ]
 
 for e in ext_modules:
-    e.cython_directives = {'language_level': "3"} #all are Python-3
-
+    e.cython_directives = {'language_level': "3"}  # all are Python-3
 
 setup(
     name='FINDER_ND',

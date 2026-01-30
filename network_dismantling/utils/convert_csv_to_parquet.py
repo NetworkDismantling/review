@@ -51,7 +51,7 @@ if __name__ == "__main__":
         for file in list_of_files:
             if "csv_backup" in str(file):
                 continue
-                
+
             backup_folder = file.parent / "csv_backup"
             if not backup_folder.exists():
                 backup_folder.mkdir(parents=True, exist_ok=True)
@@ -98,15 +98,15 @@ if __name__ == "__main__":
                 parquet_df = pd.read_parquet(str(output_file), engine="pyarrow")
 
                 validation_passed = True
-                
+
                 if parquet_df.shape != df.shape:
                     logger.error(f"Shape mismatch: Parquet {parquet_df.shape} vs CSV {df.shape}")
                     validation_passed = False
-                
+
                 if list(parquet_df.columns) != list(df.columns):
                     logger.error(f"Column mismatch: Parquet {list(parquet_df.columns)} vs CSV {list(df.columns)}")
                     validation_passed = False
-                
+
                 # Check values (handling NaN comparisons)
                 if not parquet_df.equals(df):
                     # Try comparing with NaN tolerance
@@ -116,12 +116,12 @@ if __name__ == "__main__":
                     except AssertionError as e:
                         logger.error(f"DataFrame content mismatch: {e}")
                         validation_passed = False
-                
+
                 if validation_passed:
                     # Step 4: Move original to backup (only after successful validation)
                     logger.info(f"Moving original CSV to backup: {backup_file}")
                     file.rename(backup_file)
-                    
+
                     # Log conversion statistics
                     logger.info(f"✓ Successfully converted {file.name}")
                     logger.info(f"  CSV size: {backup_file.stat().st_size / 1024:.1f} KB")
@@ -134,7 +134,7 @@ if __name__ == "__main__":
                     if output_file.exists():
                         output_file.unlink()
                     logger.error(f"  Original CSV preserved at {file}")
-            
+
             except Exception as e:
                 logger.exception(f"Error during conversion of {file}: {e}")
                 # Clean up partial Parquet file if it exists
@@ -144,4 +144,3 @@ if __name__ == "__main__":
                         output_file.unlink()
                     except Exception as cleanup_error:
                         logger.error(f"Failed to clean up {output_file}: {cleanup_error}")
-

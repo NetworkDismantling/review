@@ -16,11 +16,10 @@
 #   You should have received a copy of the GNU General Public License
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
-from network_dismantling.GDM.models.GAT import GAT_Model
-
 import importlib
 import pkgutil
 
+from network_dismantling.GDM.models.GAT import GAT_Model
 from network_dismantling.GDM.models.base import BaseModel
 
 for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):

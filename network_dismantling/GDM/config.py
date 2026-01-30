@@ -26,7 +26,7 @@ threshold = {
 }
 
 all_features = ["num_vertices", "num_edges", "degree", "clustering_coefficient", "eigenvectors", "chi_degree",
-            "chi_lcc", "pagerank_out", "betweenness_centrality", "kcore"]
+                "chi_lcc", "pagerank_out", "betweenness_centrality", "kcore"]
 
 # "mean_chi_degree", "mean_chi_lcc",
 

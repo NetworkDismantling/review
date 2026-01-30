@@ -1,11 +1,8 @@
-"""Base classes for DataFrame and Log writers with thread management."""
-
 import logging
 import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union, List, Optional
-from queue import Queue
 
 import pandas as pd
 
@@ -22,7 +19,7 @@ class BaseDataFrameWriter(ABC):
     Subclasses must implement:
     - _create_writer_thread(): Create the actual worker thread
     """
-    
+
     def __init__(self,
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
@@ -37,16 +34,16 @@ class BaseDataFrameWriter(ABC):
         self.output_file = Path(output_file) if not isinstance(output_file, Path) else output_file
         self.columns = columns if isinstance(columns, list) else [columns]
         self.logger = logger
-        
+
         # Internal state
         self._closed = False
         self._thread: Optional[threading.Thread] = None
-        
+
         # Create and start writer thread (implemented by subclass)
         self._thread = self._create_writer_thread()
         self._thread.start()
         self.logger.info(f"Started {self.__class__.__name__} for {self.output_file}")
-    
+
     @abstractmethod
     def _create_writer_thread(self) -> threading.Thread:
         """Create the writer thread.
@@ -58,7 +55,7 @@ class BaseDataFrameWriter(ABC):
             Configured Thread object (not started).
         """
         pass
-    
+
     @abstractmethod
     def write(self, df: pd.DataFrame):
         """Write a DataFrame to the output file.
@@ -71,7 +68,7 @@ class BaseDataFrameWriter(ABC):
             RuntimeError: If writer thread has died.
         """
         pass
-    
+
     def close(self, timeout: float = 30.0):
         """Close the writer and wait for all data to be written.
         
@@ -84,25 +81,25 @@ class BaseDataFrameWriter(ABC):
         if self._closed:
             self.logger.warning(f"{self.__class__.__name__} already closed")
             return
-        
+
         self.logger.debug(f"Closing {self.__class__.__name__}...")
         self._send_sentinel()
-        
+
         if self._thread is not None:
             self._thread.join(timeout=timeout)
-            
+
             if self._thread.is_alive():
                 self.logger.error("Writer thread did not finish in time!")
                 raise RuntimeError("Writer thread timeout")
-        
+
         self._closed = True
         self.logger.info(f"Closed {self.__class__.__name__} for {self.output_file}")
-    
+
     @abstractmethod
     def _send_sentinel(self):
         """Send sentinel value to stop the writer thread."""
         pass
-    
+
     def is_alive(self) -> bool:
         """Check if the writer thread is still running.
         
@@ -110,13 +107,12 @@ class BaseDataFrameWriter(ABC):
             True if thread is alive, False otherwise.
         """
         return self._thread is not None and self._thread.is_alive()
-    
+
     def __enter__(self):
         """Context manager entry."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - ensures close is called."""
         self.close()
         return False  # Don't suppress exceptions
-

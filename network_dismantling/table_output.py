@@ -168,8 +168,8 @@ def display_df(args, df, print=print):
 
     # Rename heuristic names
     df.replace({
-            "heuristic": replace_labels
-        },
+        "heuristic": replace_labels
+    },
         inplace=True
     )
 

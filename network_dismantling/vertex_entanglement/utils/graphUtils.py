@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 
+
 def Lapacian(G):
     """
     计算网络的拉普拉斯矩阵
@@ -10,7 +11,8 @@ def Lapacian(G):
     A = nx.adj_matrix(G).todense()
     return np.diag(np.array(sum(A)).flatten()) - A
 
-def Spectral_Entropy(L,tau):
+
+def Spectral_Entropy(L, tau):
     """
     :param L:
     :param tau:

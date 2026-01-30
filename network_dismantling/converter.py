@@ -157,7 +157,7 @@ def main(args):
             try:
                 _, writer = get_io_helpers(ext=args.output_ext)
 
-                writer(network, str(output_file))#, data=(args.no_weights is False))
+                writer(network, str(output_file))  # , data=(args.no_weights is False))
             except ValueError as e:
                 logger.exception(e)
                 continue

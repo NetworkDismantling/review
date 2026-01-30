@@ -8,6 +8,7 @@ config_file = "config.h"
 config_r_file = "config_r.h"
 reinsertion_strategy = 2
 
+
 # TODO USE BOOST COMMAND LINE PARSER
 # TODO use tempfile.NamedTemporaryFile?
 # TODO use logger instead of print
@@ -15,7 +16,7 @@ reinsertion_strategy = 2
 
 @dismantler_wrapper
 def _ensemble_generalized_network_dismantling(
-    network, reinsertion=False, remove_strategy=3, runs=1000, **kwargs
+        network, reinsertion=False, remove_strategy=3, runs=1000, **kwargs
 ):
     import tempfile
     from os import close, remove

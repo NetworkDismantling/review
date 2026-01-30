@@ -3,13 +3,13 @@ from typing import Union
 
 
 def load_graph(
-    file: Union[Path, str],
-    fmt="auto",
-    ignore_vp=None,
-    ignore_ep=None,
-    ignore_gp=None,
-    directed=True,
-    **kwargs
+        file: Union[Path, str],
+        fmt="auto",
+        ignore_vp=None,
+        ignore_ep=None,
+        ignore_gp=None,
+        directed=True,
+        **kwargs
 ):
     import warnings
     from graph_tool import load_graph_from_csv
@@ -19,9 +19,9 @@ def load_graph(
         from graph_tool import load_graph
 
     if (
-        fmt == "auto"
-        and isinstance(file, str)
-        and Path(file).suffix[1:] in ["csv", "edgelist", "edge", "edges", "el", "txt"]
+            fmt == "auto"
+            and isinstance(file, str)
+            and Path(file).suffix[1:] in ["csv", "edgelist", "edge", "edges", "el", "txt"]
     ):
         delimiter = kwargs.get("delimiter", None)
         if delimiter is None:

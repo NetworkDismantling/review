@@ -1,9 +1,9 @@
 import multiprocessing
 from concurrent import futures
+from multiprocessing import current_process
 from typing import Callable
 
 from parse import compile
-from multiprocessing import current_process
 
 child_num_format = compile("{}-{number:d}")
 

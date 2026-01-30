@@ -12,6 +12,7 @@ try:
     import graph_tool
 except ImportError:
     import warnings
+
     warnings.warn(
         "graph_tool not available. The C++ dismantler module may fail to load.",
         ImportWarning
@@ -23,6 +24,7 @@ try:
     from . import dismantler
 except ImportError as e:
     import warnings
+
     warnings.warn(
         f"Failed to import C++ dismantler module: {e}. "
         "Some features may not be available.",

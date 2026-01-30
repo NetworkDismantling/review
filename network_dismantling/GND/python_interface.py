@@ -6,6 +6,7 @@ from typing import Union
 
 import numpy as np
 from graph_tool import Graph
+
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 from network_dismantling.common.logging.pipe import LogPipe

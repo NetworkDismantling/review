@@ -1,7 +1,7 @@
 import logging
 from glob import glob
 from pathlib import Path
-from typing import Union, List, Union, Callable
+from typing import List, Union, Callable
 
 from network_dismantling.common.loaders import load_graph
 
@@ -114,9 +114,9 @@ def storage_provider(location,
 
 
 def load_single_network(network_name: str,
-                       network_path: Path,
-                       max_num_vertices=None,
-                       logger=logging.getLogger("dummy")):
+                        network_path: Path,
+                        max_num_vertices=None,
+                        logger=logging.getLogger("dummy")):
     """Load a single network by name and validate it.
     
     Args:
@@ -129,30 +129,30 @@ def load_single_network(network_name: str,
         The loaded Graph or None if loading failed
     """
     logger.debug(f"Loading network: {network_name}")
-    
+
     networks_provider = init_network_provider(
         location=network_path.parent,
         max_num_vertices=max_num_vertices,
         filter=f"{network_name}",
         logger=logger,
     )
-    
+
     if len(networks_provider) == 0:
         logger.error(f"Network {network_name} not found!")
         return None
-    
+
     if len(networks_provider) > 1:
         logger.error(f"More than one network found for {network_name}!")
         return None
-    
+
     loaded_network_name, network = networks_provider[0]
-    
+
     if loaded_network_name != network_name:
         logger.error(
             f"Loaded network with filename {loaded_network_name} does not match the expected filename {network_name}!"
         )
         return None
-    
+
     return network
 
 

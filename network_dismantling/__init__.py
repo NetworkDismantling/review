@@ -26,7 +26,6 @@ import pandas as pd
 from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dismantlers import dismantler_wrapper
 
-
 dismantling_methods = {}
 
 logger = logging.getLogger(__name__)
@@ -98,7 +97,7 @@ class DismantlingMethod:
 
         if self.function is None:
             raise RuntimeError("DismantlingMethod must have a function defined")
-        
+
         self.key = self.function.__name__
 
         if self.name is None:
@@ -107,7 +106,7 @@ class DismantlingMethod:
             self.display_name = "".join([w[0].capitalize() for w in self.name.split("_")])
         # if self.dynamic is None:
         #     raise RuntimeError(f"Dynamic/static not defined for {self.key}")
-        
+
         if self.required_imports is None:
             self.required_imports = []
 
@@ -176,7 +175,6 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
             _module = importlib.import_module(module_name)
         except Exception as e:
             logger.warning(f"Exception: {e}\n", exc_info=True)
-
 
         if _module is None:
             # print("Error importing:", module_name, e)

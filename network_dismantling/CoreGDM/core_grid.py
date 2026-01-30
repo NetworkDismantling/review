@@ -41,12 +41,12 @@ from network_dismantling.GDM.training_data_extractor import training_data_extrac
 from network_dismantling.common.config import output_path, base_dataframes_path
 from network_dismantling.common.data_structures import product_dict
 from network_dismantling.common.dataset_providers import list_files
+from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 from network_dismantling.common.multiprocessing import (
     apply_async,
     progressbar_thread,
 )
 from network_dismantling.common.storage.pandas.csv import start_df_writer
-from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 
 def process_parameters_wrapper(

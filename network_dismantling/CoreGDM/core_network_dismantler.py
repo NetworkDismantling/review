@@ -43,7 +43,7 @@ train_wrapper
 
 def tree_breaker(network: Graph,
                  stop_condition: int,
-                 logger: logging.Logger=logging.getLogger("dummy"),
+                 logger: logging.Logger = logging.getLogger("dummy"),
                  ) -> np.ndarray:
     logger.debug("Running tree breaker!")
     from network_dismantling.CoreGDM.treebreaker import Graph, tree_breaker as minsum_tree_breaker, \

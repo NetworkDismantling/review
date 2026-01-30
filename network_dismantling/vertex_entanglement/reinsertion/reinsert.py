@@ -30,6 +30,9 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 from graph_tool import Graph
+from scipy.integrate import simpson
+from tqdm import tqdm
+
 from network_dismantling.common.dataset_providers import init_network_provider
 from network_dismantling.common.df_helpers import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler, \
@@ -37,8 +40,6 @@ from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler im
 from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.logging.pipe import LogPipe
 from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
-from scipy.integrate import simpson
-from tqdm import tqdm
 
 folder = "network_dismantling/vertex_entanglement/reinsertion/"
 cd_cmd = r"cd {} && ".format(folder)

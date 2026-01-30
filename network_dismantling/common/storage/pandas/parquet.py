@@ -15,6 +15,7 @@ from pyarrow.parquet import ParquetFile
 
 from network_dismantling.common.storage.pandas.base import BaseDataFrameWriter
 
+
 # append to parquet
 # https://stackoverflow.com/questions/47191675/pandas-write-dataframe-to-parquet-format-with-append
 #   Append could be inefficient if you write too many small row groups.
@@ -54,7 +55,7 @@ def df_writer(queue: multiprocessing.Queue,
     writer: Optional[pq.ParquetWriter] = None
     schema: Optional[pa.Schema] = None
     rows_written = 0
-    
+
     try:
         while True:
             record: Union[pd.DataFrame, None] = queue.get()
@@ -109,13 +110,14 @@ def df_writer(queue: multiprocessing.Queue,
         if error_event is not None:
             error_event.set()  # Signal error to caller
         # Don't re-raise - would cause unhandled thread exception warning
-    
+
     finally:
         if writer is not None:
             writer.close()
             logger.info(f"Closed ParquetWriter for {output_file}. Total rows written: {rows_written}")
         else:
             logger.warning(f"Writer was never initialized for {output_file}")
+
 
 def start_df_writer(output_file: Path,
                     output_df_columns: Union[str, List[str]],
@@ -155,7 +157,7 @@ def start_df_writer(output_file: Path,
     """
     # Create error event for signaling fatal errors
     error_event = threading.Event()
-    
+
     dp = threading.Thread(
         target=df_writer,
         kwargs=dict(
@@ -169,16 +171,16 @@ def start_df_writer(output_file: Path,
         daemon=False,  # Changed to False to ensure data is written before shutdown
         name=f"ParquetWriter-{Path(output_file).name}",
     )
-    
+
     # Attach error_event to thread for caller to check
     dp.error_event = error_event  # type: ignore
-    
+
     dp.start()
     logger.info(f"Started ParquetWriter thread for {output_file}")
     return dp
 
 
-def safe_queue_put(df_queue: multiprocessing.Queue, 
+def safe_queue_put(df_queue: multiprocessing.Queue,
                    data: Union[pd.DataFrame, None],
                    writer_thread: threading.Thread,
                    logger: logging.Logger = logging.getLogger("dummy"),
@@ -214,12 +216,12 @@ def safe_queue_put(df_queue: multiprocessing.Queue,
         if hasattr(writer_thread, 'error_event') and writer_thread.error_event.is_set():
             logger.error("Writer encountered a fatal error. Check logs above.")
         raise RuntimeError(f"Writer thread '{writer_thread.name}' terminated unexpectedly")
-    
+
     # Check if error was signaled
     if hasattr(writer_thread, 'error_event') and writer_thread.error_event.is_set():
         logger.error(f"Writer thread '{writer_thread.name}' signaled an error!")
         raise RuntimeError(f"Writer thread '{writer_thread.name}' encountered an error")
-    
+
     # Safe to queue
     df_queue.put(data)
     return True
@@ -245,12 +247,11 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
             for run_data in runs:
                 writer.write(run_data)
     """
-    
-    def __init__(self, 
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
+                 row_group_size: int = 100000,
                  logger: logging.Logger = logging.getLogger("dummy"),
-                 row_group_size: int = 100000):
+                 ):
         """Initialize the Parquet writer.
         
         Args:
@@ -260,14 +261,14 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
             row_group_size: Target row group size (default: 100k).
         """
         self.row_group_size = row_group_size
-        
+
         # Create queue and error event before calling super().__init__
         self._queue: multiprocessing.Queue = multiprocessing.Queue()
         self._error_event = threading.Event()
-        
+
         # Call base class constructor (will call _create_writer_thread)
         super().__init__(output_file, columns, logger)
-    
+
     def _create_writer_thread(self) -> threading.Thread:
         """Create the Parquet writer thread."""
         return threading.Thread(
@@ -283,21 +284,21 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
             daemon=False,
             name=f"ParquetWriter-{self.output_file.name}",
         )
-    
+
     def _send_sentinel(self):
         """Send sentinel to stop the writer thread."""
         self._queue.put(None)
-    
+
     def _check_writer_alive(self):
         """Check if writer thread is still alive and raise if not."""
         if not self._thread.is_alive() and not self._closed:
             self.logger.error(f"Writer thread died unexpectedly!")
             raise RuntimeError(f"Writer thread '{self._thread.name}' terminated")
-        
+
         if self._error_event.is_set():
             self.logger.error(f"Writer thread encountered an error!")
             raise RuntimeError(f"Writer thread '{self._thread.name}' signaled error")
-    
+
     def write(self, df: pd.DataFrame):
         """Write a DataFrame to the Parquet file.
         
@@ -314,7 +315,7 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
         self._check_writer_alive()
         self._queue.put(df)
         self.logger.debug(f"Queued {len(df)} rows for writing")
-    
+
     def close(self, timeout: float = 30.0):
         """Close the writer and wait for all data to be written.
         
@@ -326,12 +327,11 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
         """
         # Call parent close method
         super().close(timeout=timeout)
-        
+
         # Check if error occurred during shutdown
         if self._error_event.is_set():
             self.logger.error("Writer encountered an error during shutdown")
             raise RuntimeError("Writer thread failed during shutdown")
-
 
 
 def read_parquet_schema_df(uri: str) -> pd.DataFrame:

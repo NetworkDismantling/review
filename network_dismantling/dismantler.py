@@ -383,7 +383,9 @@ def main(args: argparse.Namespace,
                         network = load_single_network(
                             network_name,
                             network_path,
-                            max_num_vertices=args.max_num_vertices,
+                            # If the network is already in the list,
+                            #  it means it was already filtered by max_num_vertices
+                            # max_num_vertices=args.max_num_vertices,
                             logger=logger,
                         )
 

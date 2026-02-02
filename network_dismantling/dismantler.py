@@ -55,6 +55,7 @@ import pandas as pd
 from graph_tool import Graph
 from tqdm.auto import tqdm
 
+from network_dismantling.common.logging import LogQueueManager, TqdmLoggingHandler
 
 try:
     from torch import multiprocessing, cuda
@@ -257,27 +258,6 @@ def main(args: argparse.Namespace,
     # Create the Dataset Queue
     df_queue: Queue = mp_manager.Queue()
 
-    # Create the Log Queue
-    log_queue: Queue = mp_manager.Queue()
-
-    # Create and start the Logger Thread
-    lp = threading.Thread(
-        target=logger_thread,
-        args=(
-            logger,
-            log_queue,
-        ),
-    )
-    lp.start()
-
-    # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(#args=args,
-                                           output_file=args.output_file,
-                                           output_df_columns=args.output_df_columns,
-                                           df_queue=df_queue,
-                                           logger=logger,
-                                           )
-
     # List the networks. Do not load them yet to save memory and CPU time.
     test_networks_list = list_files(
         args.location,
@@ -327,11 +307,17 @@ def main(args: argparse.Namespace,
 
     # Create the pool
     with (
+        # Create the Log Queue Manager
+        LogQueueManager(
+            logger=logger,
+            mp_manager=mp_manager,
+        ) as log_mgr,
+
         ProcessPoolExecutor(
             max_workers=args.jobs,
             mp_context=mp_context,
             initializer=pool_initializer,
-            initargs=(log_queue,
+            initargs=(log_mgr.queue,
                       logger.level,
                       multiprocessing.Lock(),
                       ),
@@ -604,10 +590,8 @@ def main(args: argparse.Namespace,
             cancel_futures=False,
         )
     df_queue.put(None)
-    log_queue.put(None)
 
     dp.join()
-    lp.join()
 
 
 def get_df_columns():

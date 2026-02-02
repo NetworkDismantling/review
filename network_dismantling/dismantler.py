@@ -57,6 +57,7 @@ from tqdm.auto import tqdm
 
 from network_dismantling.common.df_helpers import RemovalsColumns
 from network_dismantling.common.removal import RemovalsList
+from network_dismantling.common.storage.pandas.parquet import df_reader, ParquetDataFrameWriter
 from network_dismantling.common.logging import LogQueueManager, TqdmLoggingHandler
 
 try:
@@ -126,7 +127,9 @@ def validate_heuristic_imports(heuristics: List[str],
                                ) -> List[str]:
     """Test if imports needed by heuristics are available."""
     from network_dismantling import dismantling_methods, DismantlingMethod
+
     valid_heuristics = []
+
     for heuristic in heuristics:
         # Check if heuristic exists
         if heuristic not in dismantling_methods:
@@ -161,10 +164,7 @@ def check_dependencies(heuristics: List[str],
                        ):
     """Check and resolve dependencies between heuristics, including cyclic dependency detection."""
     from network_dismantling import dismantling_methods, DismantlingMethod
-    
-    # Track dependency chain to detect cycles
-    dependency_chain = set()
-    
+
     def check_cyclic_dependency(heuristic_key: str, chain: set) -> bool:
         """Recursively check for cyclic dependencies."""
         if heuristic_key in chain:
@@ -256,9 +256,6 @@ def main(args: argparse.Namespace,
     mp_manager: multiprocessing.Manager = SyncManager(ctx=mp_context)
     mp_manager.start()
     # mp_manager: multiprocessing.Manager = multiprocessing.Manager()
-
-    # Create the Dataset Queue
-    df_queue: Queue = mp_manager.Queue()
 
     # List the networks. Do not load them yet to save memory and CPU time.
     test_networks_list = list_files(
@@ -391,16 +388,19 @@ def main(args: argparse.Namespace,
                         )
 
                         if network is None:
-                            continue
-                        
+                            raise RuntimeError(f"Failed to load network {network_name} from {network_path}")
+
                         # Compute network properties
                         network_size = network.num_vertices()
-                        stop_condition = np.ceil(network_size * args.threshold)
+                        stop_condition = int(np.ceil(network_size * args.threshold).astype(int))
 
                         generator_args = {
                             "network_name": network_name,
-                            "stop_condition": int(stop_condition),
+                            "stop_condition": stop_condition,
                             "threshold": args.threshold,
+                            "executor": executor,
+                            "pool_size": args.jobs,
+                            "mp_manager": mp_manager,
                         }
 
                         # Mark that we've loaded the network
@@ -443,7 +443,17 @@ def main(args: argparse.Namespace,
                         if needs_reload:
 
                             try:
-                                df_dependency_row = df_reader(df_dependency_filtered["file"],
+                                if isinstance(df_dependency_filtered["file"], (pd.Series, np.ndarray)):
+                                    dependency_file: Path = df_dependency_filtered["file"].item()
+
+                                if isinstance(df_dependency_filtered["file"], (str, Path)):
+                                    dependency_file: Path = Path(df_dependency_filtered["file"])
+                                else:
+                                    raise TypeError(
+                                        f"Unsupported type for 'file': {type(df_dependency_filtered['file'])}"
+                                    )
+
+                                df_dependency_row = df_reader(files=dependency_file,
                                                               expected_columns=args.output_df_columns,
                                                               read_index=int(df_dependency_filtered["idx"]),
                                                               include_removals=True,
@@ -512,7 +522,6 @@ def main(args: argparse.Namespace,
                                 for item in dependency_removals
                             ]
 
-                            dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
                         except Exception as e:
                             logger.error(
                                 f"Error while parsing the removals for the dependency {dismantling_method.depends_on.short_name} "
@@ -528,7 +537,8 @@ def main(args: argparse.Namespace,
                             generator_args[dismantling_method.depends_on.key] = dependency_removals
 
                     if network is None or stop_condition is None or network_size is None or generator_args is None:
-                        logger.error(f"Network {network_name} was not properly loaded. Skipping heuristic {dismantling_method.short_name}")
+                        logger.error(f"Network {network_name} was not properly loaded. "
+                                     f"Skipping heuristic {dismantling_method.short_name}")
                         continue
 
                     logger.debug(
@@ -537,12 +547,14 @@ def main(args: argparse.Namespace,
                     )
                     # logger.debug(f"dismantling_method_kwargs: {dismantling_method_kwargs}")
 
-                    generator_args["executor"] = executor
-                    generator_args["pool_size"] = args.jobs
-                    generator_args["mp_manager"] = mp_manager
+                    # generator_args["executor"] = executor
+                    # generator_args["pool_size"] = args.jobs
+                    # generator_args["mp_manager"] = mp_manager
 
                     try:
                         # TODO REMOVE THE COPY OF THE NETWORK, and move where its actually needed
+
+                        #  TODO move this run-processing to the dismantling method itself?
                         run = dismantling_method(
                             network=network.copy(),
                             threshold=args.threshold,
@@ -559,6 +571,7 @@ def main(args: argparse.Namespace,
 
                         run["network"] = network_name
                         run["threshold"] = args.threshold
+                        run["network_size"] = network_size
                         # run["heuristic"] = dismantling_method.key
 
                         if isinstance(run, pd.Series):
@@ -579,10 +592,8 @@ def main(args: argparse.Namespace,
                                 columns=args.output_df_columns,
                             )
 
-                        if "file" in runs_dataframe.columns:
-                            runs_dataframe = runs_dataframe.drop(columns=["file"])
-
                         # Update the dataframe with the new run(s)
+                        #  TODO improve this part to avoid keeping everything in memory or IDK
                         network_df = pd.concat([network_df, runs_dataframe],
                                                ignore_index=True,
                                                )
@@ -603,9 +614,6 @@ def main(args: argparse.Namespace,
             wait=True,
             cancel_futures=False,
         )
-    df_queue.put(None)
-
-    dp.join()
 
 
 def get_df_columns():

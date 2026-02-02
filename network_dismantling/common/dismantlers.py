@@ -1,7 +1,7 @@
 import logging
 from functools import wraps
 from operator import itemgetter
-from typing import Dict, Callable, Union
+from typing import Dict, Callable, Union, Optional, Tuple
 
 import numpy as np
 from graph_tool import Graph, VertexPropertyMap, GraphView
@@ -9,6 +9,7 @@ from graph_tool.topology import label_components, kcore_decomposition
 from scipy.integrate import simpson
 
 from network_dismantling.common.df_helpers import RemovalsColumns
+from network_dismantling.common.removal import Removal, RemovalsList
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
     threshold_dismantler as external_threshold_dismantler,
 )
@@ -44,8 +45,12 @@ def threshold_dismantler(
         early_stopping_auc=np.inf,
         early_stopping_removals=np.inf,
         logger=logging.getLogger("dummy"),
-):
-    removals = []
+) -> Tuple[RemovalsList, None, None]:
+    """Dismantle network using threshold strategy.
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
+    removals: RemovalsList = []
 
     network.set_fast_edge_removal(fast=True)
 
@@ -66,22 +71,22 @@ def threshold_dismantler(
         _, local_network_lcc_size, local_network_slcc_size, _ = get_lcc_slcc(network)
 
         removals.append(
-            (
-                i,
-                v_i_static,
-                float(p),
-                local_network_lcc_size / network_size,
-                local_network_slcc_size / network_size,
+            Removal(
+                removal_num=i,
+                node_id=v_i_static,
+                prediction=float(p),
+                lcc_size=local_network_lcc_size,      # absolute count
+                slcc_size=local_network_slcc_size,    # absolute count
             )
         )
 
         if local_network_lcc_size <= stop_condition:
             break
 
-        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson([r.lcc_size for r in removals], dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
-            removals.append((-1, -1, -1, -1, -1))
+            removals.append(Removal(-1, -1, -1.0, -1, -1))
 
             logger.debug("EARLY STOPPING")
             break
@@ -194,8 +199,12 @@ def lcc_threshold_dismantler(
         stop_condition: int,
         logger=logging.getLogger("dummy"),
         **kwargs
-):
-    removals = []
+) -> Tuple[RemovalsList, None, None]:
+    """Dismantle network removing only LCC nodes using threshold strategy.
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
+    removals: RemovalsList = []
 
     network.set_fast_edge_removal(fast=True)
     network_size = network.num_vertices()
@@ -233,18 +242,6 @@ def lcc_threshold_dismantler(
 
             v_gt = network.vertex(v_i_dynamic, use_index=True, add_missing=False)
 
-            # try:
-            #     assert static_id[v_i_dynamic] == v_i_static
-            #     # assert dynamic_id[static_id[v_i_dynamic]] == v_i_dynamic
-            #
-            # except Exception as e:
-            #     print("ASSERT FAILED: static_id", static_id[v_i_dynamic], "==", "v_i_static", v_i_static)
-            #     # print("A2", dynamic_id[static_id[v_i_dynamic]], "==", v_i_dynamic)
-            #     raise e
-
-            # dynamic_id[static_id[last_vertex]] = v_i_dynamic
-            # network.remove_vertex(v_gt, fast=True)
-            # last_vertex -= 1
             network.clear_vertex(v_gt)
 
             i += 1
@@ -258,12 +255,12 @@ def lcc_threshold_dismantler(
             ) = get_lcc_slcc(network)
 
             removals.append(
-                (
-                    i,
-                    v_i_static,
-                    float(p),
-                    local_network_lcc_size / network_size,
-                    local_network_slcc_size / network_size,
+                Removal(
+                    removal_num=i,
+                    node_id=v_i_static,
+                    prediction=float(p),
+                    lcc_size=local_network_lcc_size,      # absolute count
+                    slcc_size=local_network_slcc_size,    # absolute count
                 )
             )
 

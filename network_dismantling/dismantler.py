@@ -55,6 +55,8 @@ import pandas as pd
 from graph_tool import Graph
 from tqdm.auto import tqdm
 
+from network_dismantling.common.df_helpers import RemovalsColumns
+from network_dismantling.common.removal import RemovalsList
 from network_dismantling.common.logging import LogQueueManager, TqdmLoggingHandler
 
 try:
@@ -497,6 +499,18 @@ def main(args: argparse.Namespace,
 
                             if isinstance(dependency_removals, str):
                                 dependency_removals = literal_eval(dependency_removals)
+                                if not isinstance(dependency_removals, list):
+                                    # logger.error("Removals is not a list after literal_eval")
+                                    # logger.debug(f"dependency_removals: {dependency_removals} type: {type(dependency_removals)}")
+                                    # continue
+                                    raise ValueError("Removals is not a list after literal_eval")
+
+                            # dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
+                            dependency_removals: RemovalsList
+                            dependency_removals: List[int] = [
+                                item.get("id")
+                                for item in dependency_removals
+                            ]
 
                             dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
                         except Exception as e:
@@ -597,6 +611,7 @@ def main(args: argparse.Namespace,
 def get_df_columns():
     return [
         "network",
+        "network_size",
         "heuristic",
         "slcc_peak_at",
         "lcc_size_at_peak",

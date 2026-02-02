@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Tuple, Optional
 import numpy as np
 from graph_tool import Graph
 from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
+from network_dismantling.common.removal import Removal, RemovalsList
 
 
 # from traceback import print_tb
@@ -66,13 +67,17 @@ def getExternalGraph(network: Graph, logger: logging.Logger) -> ExternalGraph:
 # def _threshold_dismantler(network, predictions, generator_args, stop_condition, dismantler):
 def _threshold_dismantler(
         network: Graph,
-        predictor: Callable,
+        predictor: Callable[[Graph], List[Tuple[int, float]]],
         generator_args: Dict,
         stop_condition: int,
-        dismantler: Callable,
+        dismantler: Callable[[ExternalGraph, List[int], int], List[Tuple[int, int, int]]],
         logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs,
-) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
+) -> Tuple[RemovalsList, float, float]:
+    """Core threshold dismantler using external C++ implementation.
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
     from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
 
     network_name = generator_args["network_name"]
@@ -91,7 +96,7 @@ def _threshold_dismantler(
     removal_order = network.vertex_properties["static_id"].a[removal_indices]
     removal_order = removal_order.tolist()
 
-    network_size = network.num_vertices()
+    # network_size = network.num_vertices()
 
     external_network: ExternalGraph = getExternalGraph(network, logger)
 
@@ -123,15 +128,15 @@ def _threshold_dismantler(
         zip(network.vertex_properties["static_id"].a.tolist(), predictions.tolist())
     )
 
-    removals = []
+    removals: RemovalsList = []
     for i, (s_id, lcc_size, slcc_size) in enumerate(raw_removals, start=1):
         removals.append(
-            (
-                i,
-                s_id,
-                float(predictions_dict[s_id]),
-                lcc_size / network_size,
-                slcc_size / network_size,
+            Removal(
+                removal_num=i,
+                node_id=s_id,
+                prediction=float(predictions_dict[s_id]),
+                lcc_size=lcc_size,      # C++ returns absolute count
+                slcc_size=slcc_size,    # C++ returns absolute count
             )
         )
 
@@ -146,7 +151,11 @@ def lcc_threshold_dismantler(
         generator_args: Dict,
         stop_condition: int,
         **kwargs
-) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
+) -> Tuple[RemovalsList, float, float]:
+    """Dismantle network using LCC threshold strategy (external C++ implementation).
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
     from network_dismantling.common.external_dismantlers.dismantler import (
         lccThresholdDismantler,
     )
@@ -164,7 +173,11 @@ def threshold_dismantler(
         generator_args: Dict,
         stop_condition: int,
         **kwargs
-) -> Tuple[List[Tuple[int, int, float, float, float]], float, float]:
+) -> Tuple[RemovalsList, float, float]:
+    """Dismantle network using threshold strategy (external C++ implementation).
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
     from network_dismantling.common.external_dismantlers.dismantler import (
         thresholdDismantler,
     )
@@ -180,10 +193,14 @@ def threshold_dismantler(
 
 def _iterative_threshold_dismantler(
         network: Graph,
-        predictor: Callable,
+        predictor: Callable[[Graph], List[Tuple[int, float]]],
         generator_args: Dict,
         stop_condition: int
-) -> Tuple[List[Tuple[int, int, float, float, float]], Optional[float], Optional[float]]:
+) -> Tuple[RemovalsList, Optional[float], Optional[float]]:
+    """Iterative threshold dismantler (external C++ implementation).
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
     from network_dismantling.common.external_dismantlers.dismantler import (
         Graph,
         thresholdDismantler,
@@ -199,7 +216,7 @@ def _iterative_threshold_dismantler(
 
     start_time = perf_counter_ns()
 
-    removals = []
+    removals: RemovalsList = []
     try:
         for i, (removal_static_id, removal_value) in enumerate(
                 predictor(network, **generator_args), start=1
@@ -210,8 +227,6 @@ def _iterative_threshold_dismantler(
             ):
                 assert s_id == removal_static_id
 
-                network_size = network.num_vertices()
-
                 v_gt = network.vertex(
                     removal_static_id,
                     use_index=True,
@@ -221,12 +236,12 @@ def _iterative_threshold_dismantler(
                 network.clear_vertex(v_gt)
 
                 removals.append(
-                    (
-                        i,
-                        removal_static_id,
-                        float(removal_value),
-                        lcc_size / network_size,
-                        slcc_size / network_size,
+                    Removal(
+                        removal_num=i,
+                        node_id=removal_static_id,
+                        prediction=float(removal_value),
+                        lcc_size=lcc_size,      # C++ returns absolute count
+                        slcc_size=slcc_size,    # C++ returns absolute count
                     )
                 )
 
@@ -263,7 +278,11 @@ def iterative_threshold_dismantler(
         predictor: Callable,
         generator_args: Dict,
         stop_condition: int
-) -> Tuple[List[Tuple[int, int, float, float, float]], Optional[float], Optional[float]]:
+) -> Tuple[RemovalsList, Optional[float], Optional[float]]:
+    """Iterative threshold dismantler (external C++ implementation).
+    
+    Returns removals with ABSOLUTE counts (lcc_size, slcc_size are node counts, not fractions).
+    """
     return _iterative_threshold_dismantler(
         network, predictor, generator_args, stop_condition
     )

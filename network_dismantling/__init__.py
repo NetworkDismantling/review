@@ -170,20 +170,25 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
 
     if module_name.endswith(".python_interface"):
         # print("Importing", module_name)
+        human_module_name = module_name.replace(".python_interface", "")
         _module = None
         try:
             _module = importlib.import_module(module_name)
-        except Exception as e:
-            logger.warning(f"Exception: {e}\n", exc_info=True)
-
-        if _module is None:
-            # print("Error importing:", module_name, e)
-            logger.warning(f"Error importing {module_name.replace('.python_interface', '')}")
+        except ModuleNotFoundError as e:
+            logger.warning(f"ModuleNotFoundError while importing {human_module_name}: {e}\n", exc_info=False)
 
             continue
-        else:
+        except Exception as e:
+            logger.warning(f"Exception: while importing {human_module_name}: {e}\n", exc_info=True)
+            continue
+
+        if _module is not None:
+            # print("Error importing:", module_name, e)
             # __alldict__[module_name] = _module
             __all__.append(module_name)
             globals()[module_name] = _module
+
+        else:
+            logger.warning(f"Error importing {human_module_name}.")
 
 __alldict__ = {k: globals()[k] for k in __all__}

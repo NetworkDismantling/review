@@ -23,14 +23,15 @@ def write_parquet(tmp_path):
     Helper to write a DataFrame (or None) to parquet using df_writer.
     Returns the pathlib.Path to the output file.
     """
-    def _write(df, columns):
+    def _write(df, columns, mode='overwrite'):
         output_file = tmp_path / "test.parquet"
         queue = multiprocessing.Queue()
         writer = start_df_writer(
-            args=dotdict(output_file=str(output_file),
-                         output_df_columns=columns,
-                         logger=logger),
+            output_file=output_file,
+            output_df_columns=columns,
             df_queue=queue,
+            logger=logger,
+            mode=mode,
         )
         # push data block or just end
         if df is not None:
@@ -58,10 +59,10 @@ def test_full_write_and_read(write_parquet):
 
 def test_append_mode(write_parquet):
     first = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
-    write_parquet(first, ["a", "b"])
+    write_parquet(first, ["a", "b"], mode='overwrite')
 
     second = pd.DataFrame({"a": [3, 4], "b": ["u", "v"]})
-    write_parquet(second, ["a", "b"])
+    write_parquet(second, ["a", "b"], mode='append')
 
     path = (write_parquet.__closure__[0].cell_contents)  # recover tmp_path/test.parquet
     file = path / "test.parquet"
@@ -146,6 +147,52 @@ def test_invalid_index_raises(write_parquet):
         read_without_columns(file=str(path),
                              exclude_columns=[],
                              read_index=[5])  # out of range
+
+
+def test_fastparquet_pyarrow_dtype_compatibility(write_parquet):
+    """Test that dtypes written by fastparquet are compatible with PyArrow reading.
+    
+    This test verifies that:
+    1. Files written with fastparquet (after our type conversion) can be read by PyArrow
+    2. String columns are written as object by fastparquet, read as StringDtype by PyArrow
+    3. Numeric dtypes are preserved correctly
+    4. Categorical columns are converted to strings
+    """
+    # Create DataFrame with various dtypes
+    data = pd.DataFrame({
+        "network": ["karate", "dolphins", "polbooks"],
+        "value_int": [1, 2, 3],
+        "value_float": [1.5, 2.5, 3.5],
+        "category": pd.Categorical(["A", "B", "A"])
+    })
+    
+    path = write_parquet(data, list(data.columns))
+    
+    # Read with PyArrow engine (default for read_parquet)
+    df = pd.read_parquet(str(path), engine='pyarrow')
+    
+    logger.info(f"Original dtypes: {data.dtypes.to_dict()}")
+    logger.info(f"Read back dtypes: {df.dtypes.to_dict()}")
+    
+    # Verify string columns: fastparquet writes as object, PyArrow reads as StringDtype
+    # This is expected behavior and shows compatibility
+    assert isinstance(df["network"].dtype, pd.StringDtype), \
+        f"Expected StringDtype (PyArrow string), got {df['network'].dtype}"
+    
+    # Verify numeric dtypes are preserved
+    assert df["value_int"].dtype == "int64"
+    assert df["value_float"].dtype == "float64"
+    
+    # Verify categorical is converted to string (as per our prepare_dataframe_for_fastparquet)
+    assert isinstance(df["category"].dtype, pd.StringDtype), \
+        f"Expected StringDtype (converted from category), got {df['category'].dtype}"
+    
+    # Verify values are correct
+    assert df["network"].tolist() == ["karate", "dolphins", "polbooks"]
+    assert df["value_int"].tolist() == [1, 2, 3]
+    assert df["category"].tolist() == ["A", "B", "A"]
+    
+    logger.info("✓ Fastparquet write → PyArrow read compatibility verified")
 
 
 def test_missing_file(tmp_path):

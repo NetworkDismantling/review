@@ -37,7 +37,7 @@ def csv_writer_helper(tmp_path):
     """Helper to write DataFrame to CSV using the CSVDataFrameWriter class"""
     def _write(df, columns, filename="test.csv"):
         output_file = tmp_path / filename
-        with csv.CSVDataFrameWriter(output_file, columns, logger) as writer:
+        with csv.CSVDataFrameWriter(output_file, columns, logger=logger) as writer:
             if df is not None:
                 writer.write(df)
         return output_file
@@ -49,7 +49,7 @@ def parquet_writer_helper(tmp_path):
     """Helper to write DataFrame to Parquet using the ParquetDataFrameWriter class"""
     def _write(df, columns, filename="test.parquet"):
         output_file = tmp_path / filename
-        with parquet.ParquetDataFrameWriter(output_file, columns, logger) as writer:
+        with parquet.ParquetDataFrameWriter(output_file, columns, logger=logger) as writer:
             if df is not None:
                 writer.write(df)
         return output_file
@@ -101,21 +101,26 @@ def test_multiple_writes_equivalence(sample_dismantling_data, tmp_path):
     
     # Write to CSV: multiple writes with separate writers (append mode)
     csv_file = tmp_path / "multi.csv"
-    with csv.CSVDataFrameWriter(csv_file, columns, logger) as writer:
+    with csv.CSVDataFrameWriter(csv_file, columns, logger=logger) as writer:
         writer.write(chunk1)
-    with csv.CSVDataFrameWriter(csv_file, columns, logger) as writer:
+    with csv.CSVDataFrameWriter(csv_file, columns, logger=logger) as writer:
         writer.write(chunk2)
     
     # Write to Parquet: single writer receiving multiple chunks
     parquet_file = tmp_path / "multi.parquet"
-    with parquet.ParquetDataFrameWriter(parquet_file, columns, logger) as writer:
+    with parquet.ParquetDataFrameWriter(parquet_file, columns, logger=logger) as writer:
         writer.write(chunk1)
+    with parquet.ParquetDataFrameWriter(parquet_file, columns, mode='append', logger=logger) as writer:
         writer.write(chunk2)
     
     # Read both
     csv_df = csv.read_without_columns(file=csv_file, exclude_columns=[])
     parquet_df = parquet.read_without_columns(file=str(parquet_file), exclude_columns=[])
     
+    # Also check that lengths match the original data
+    assert len(csv_df) == len(sample_dismantling_data), f"Expected {len(sample_dismantling_data)} rows, got {len(csv_df)}"
+    assert len(parquet_df) == len(sample_dismantling_data), f"Expected {len(sample_dismantling_data)} rows, got {len(parquet_df)}"
+
     # Normalize and compare
     csv_normalized = normalize_df(csv_df)
     parquet_normalized = normalize_df(parquet_df)
@@ -269,7 +274,7 @@ def test_conversion_script_equivalence(tmp_path):
     
     # Convert to Parquet by writing with Parquet writer
     parquet_file = tmp_path / "converted.parquet"
-    with parquet.ParquetDataFrameWriter(parquet_file, list(original_data.columns), logger) as writer:
+    with parquet.ParquetDataFrameWriter(parquet_file, list(original_data.columns), logger=logger) as writer:
         writer.write(original_data)
     
     # Read back with Parquet reader
@@ -359,12 +364,12 @@ def test_multi_run_scenario(tmp_path):
     # CSV: multiple writer calls (realistic usage with append)
     csv_file = tmp_path / "multi_run.csv"
     for run_data in [run1, run2, run3]:
-        with csv.CSVDataFrameWriter(csv_file, columns, logger) as writer:
+        with csv.CSVDataFrameWriter(csv_file, columns, logger=logger) as writer:
             writer.write(run_data)
     
     # Parquet: single writer, multiple chunks (realistic usage)
     parquet_file = tmp_path / "multi_run.parquet"
-    with parquet.ParquetDataFrameWriter(parquet_file, columns, logger) as writer:
+    with parquet.ParquetDataFrameWriter(parquet_file, columns, logger=logger) as writer:
         for run_data in [run1, run2, run3]:
             writer.write(run_data)
     
@@ -390,7 +395,7 @@ def test_schema_mismatch_detection(tmp_path):
     chunk2 = pd.DataFrame({"a": [4], "b": [5], "d": [6]})  # Different column 'd' instead of 'c'
     
     parquet_file = tmp_path / "schema_mismatch.parquet"
-    writer = parquet.ParquetDataFrameWriter(parquet_file, columns1, logger)
+    writer = parquet.ParquetDataFrameWriter(parquet_file, columns1, logger=logger)
     
     try:
         writer.write(chunk1)  # This will succeed
@@ -499,7 +504,7 @@ def test_parquet_writer_context_manager(tmp_path, sample_dismantling_data):
     output_file = tmp_path / "test_context.parquet"
     
     # Use context manager
-    with parquet.ParquetDataFrameWriter(output_file, columns, logger) as writer:
+    with parquet.ParquetDataFrameWriter(output_file, columns, logger=logger) as writer:
         writer.write(sample_dismantling_data)
     
     # File should exist and be valid
@@ -513,7 +518,7 @@ def test_parquet_writer_error_detection(tmp_path):
     columns = ["a", "b", "c"]
     output_file = tmp_path / "test_error.parquet"
     
-    writer = parquet.ParquetDataFrameWriter(output_file, columns, logger)
+    writer = parquet.ParquetDataFrameWriter(output_file, columns, logger=logger)
     
     # Write valid data
     chunk1 = pd.DataFrame({"a": [1], "b": [2], "c": [3]})

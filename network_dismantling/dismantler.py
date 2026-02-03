@@ -231,19 +231,19 @@ def main(args: argparse.Namespace,
          ):
     from multiprocessing.managers import SyncManager
 
+    pool_kwargs = {}
+
     try:
         from deadpool import Deadpool as ProcessPoolExecutor
 
-        pool_kwargs = {
+        pool_kwargs.update({
             # "max_tasks_per_child": 25,
-        }
+        })
 
     except ImportError:
         logger.warning("Deadpool not found. Using ProcessPoolExecutor instead.")
 
         from concurrent.futures import ProcessPoolExecutor
-
-        pool_kwargs = {}
 
     try:
         multiprocessing.set_start_method("spawn", force=True)
@@ -270,6 +270,7 @@ def main(args: argparse.Namespace,
         logger.info(
             f"No networks found in {[str(loc) for loc in args.location]} with filters {args.filter} ."
         )
+        return
 
     reader_kwargs = dict(
         # expected_columns=args.output_df_columns,
@@ -306,12 +307,13 @@ def main(args: argparse.Namespace,
 
     # Create the pool
     with (
-        # Create the Log Queue Manager
+        # Create the Log Queue Manager to handle logging from multiple processes
         LogQueueManager(
             logger=logger,
             mp_manager=mp_manager,
         ) as log_mgr,
 
+        # Create the Process Pool Executor to run heuristics in parallel
         ProcessPoolExecutor(
             max_workers=args.jobs,
             mp_context=mp_context,
@@ -325,6 +327,7 @@ def main(args: argparse.Namespace,
             **pool_kwargs,
         ) as executor,
 
+        # Create the Parquet writer to store the results
         ParquetDataFrameWriter(
             output_file=args.output_file,
             columns=args.output_df_columns,
@@ -337,7 +340,6 @@ def main(args: argparse.Namespace,
             position=0,
         ) as tqdm_test_network_list
     ):
-        # noinspection PyTypeChecker
         for network_path in tqdm_test_network_list:
             network: Union[Graph, None] = None
             network_loaded: bool = False
@@ -354,8 +356,19 @@ def main(args: argparse.Namespace,
             # Note that the network is a categorical column
             # Avoid .loc for performance reasons
             network_df = df[df["network"] == network_name]
+            
+            # # Drop reader-added columns that shouldn't be in output
+            # network_df = network_df.drop(columns=["file", "idx"], errors="ignore")
 
             logger.debug(f"Network {network_name} has {network_df.shape[0]} rows in the dataframe\n{network_df}")
+
+            # Check if all the requested heuristics were already run on the network
+            if all(
+                heuristic in network_df["heuristic"].values
+                for heuristic in args.heuristics
+            ): 
+                logger.info(f"All heuristics already run on network {network_name}. Skipping.")
+                continue
 
             with tqdm(args.heuristics,
                       desc="Heuristics",
@@ -370,7 +383,6 @@ def main(args: argparse.Namespace,
                                 )
                     df_filtered = network_df[network_df["heuristic"] == dismantling_method.key]
 
-                    # TODO also check if all the requested metrics are present?
                     if len(df_filtered) != 0:
                         # Nothing to do. The network was already tested
                         continue
@@ -481,9 +493,9 @@ def main(args: argparse.Namespace,
 
                             dependency_removals = dependency_run.pop("removals")
 
-                            # logger.debug(f"Dependency run: {dependency_run}")
-                            # logger.debug(f"Dependency df_dependency_filtered: {df_dependency_filtered}")
-                            # logger.debug(f"Dependency removals: {dependency_removals}")
+                            logger.debug(f"Dependency run: {dependency_run}")
+                            logger.debug(f"Dependency df_dependency_filtered: {df_dependency_filtered}")
+                            logger.debug(f"Dependency removals: {dependency_removals}")
 
                             if not df_dependency_filtered.equals(dependency_run):
                                 logger.error(
@@ -535,6 +547,8 @@ def main(args: argparse.Namespace,
                             continue
 
                         dismantling_method_kwargs[dismantling_method.depends_on.key] = dependency_removals
+
+                        # TODO why would generator_args be None here? What path would lead to this?
                         if generator_args is not None:
                             generator_args[dismantling_method.depends_on.key] = dependency_removals
 
@@ -725,7 +739,7 @@ if __name__ == "__main__":
         "--verbose",
         type=str.upper,
         choices=["INFO", "DEBUG", "WARNING", "ERROR"],
-        default="info",
+        default="INFO",
         help="Verbosity level (case insensitive)",
     )
 

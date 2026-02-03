@@ -23,7 +23,8 @@ class BaseDataFrameWriter(ABC):
     def __init__(self,
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
-                 logger: logging.Logger = logging.getLogger("dummy")):
+                 logger: logging.Logger = logging.getLogger("dummy"),
+                 ):
         """Initialize the DataFrame writer.
         
         Args:

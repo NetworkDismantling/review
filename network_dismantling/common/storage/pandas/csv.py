@@ -62,7 +62,7 @@ def read_without_columns(
             raise ValueError(
                 f"read_index must be an int or a list of ints. Found {type(read_index)}."
             )
-        
+
         buffer = []
         for index_to_read in indices_to_read:
             read_df = pd.read_csv(
@@ -358,8 +358,9 @@ class CSVDataFrameWriter(BaseDataFrameWriter):
     def __init__(self,
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
+                 queue: Union[Queue, None] = None,
                  logger: logging.Logger = logging.getLogger("dummy"),
-                 queue: Union[Queue, None] = None):
+                 ):
         """Initialize the CSV writer.
         
         Args:

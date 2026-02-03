@@ -36,6 +36,27 @@ class Removal:
         """Create from tuple for backward compatibility."""
         return cls(*t)
     
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "removal_num": self.removal_num,
+            "node_id": self.node_id,
+            "prediction": self.prediction,
+            "lcc_size": self.lcc_size,
+            "slcc_size": self.slcc_size,
+        }
+    
+    @classmethod
+    def from_dict(cls, d: dict) -> 'Removal':
+        """Create from dictionary."""
+        return cls(
+            removal_num=d["removal_num"],
+            node_id=d["node_id"],
+            prediction=d["prediction"],
+            lcc_size=d["lcc_size"],
+            slcc_size=d["slcc_size"],
+        )
+    
     def __iter__(self):
         """Allow unpacking like a tuple."""
         return iter(self.to_tuple())

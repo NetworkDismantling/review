@@ -247,6 +247,8 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
             for run_data in runs:
                 writer.write(run_data)
     """
+
+    def __init__(self,
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
                  row_group_size: int = 100000,
@@ -311,7 +313,11 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
         """
         if self._closed:
             raise ValueError("Cannot write to closed ParquetDataFrameWriter")
-        
+
+        # TODO check df columns match self.columns?
+        # TODO validate df is a DataFrame?
+        # TODO check df is not empty?
+        # TODO if the thread is dead, raise error or try to restart it?
         self._check_writer_alive()
         self._queue.put(df)
         self.logger.debug(f"Queued {len(df)} rows for writing")
@@ -385,6 +391,7 @@ def read_without_columns(
         exclude_columns: Union[str, List[str]],
         read_index: Union[None, int, List[int]] = None,
         dtype_dict=None,
+        logger: logging.Logger = logging.getLogger("dummy"),
 ):
     if not isinstance(file, Path):
         file = Path(file)
@@ -419,6 +426,7 @@ def read_without_columns(
             raise ValueError(f"Invalid read_index {read_index} (type {type(read_index)}.")
 
         pf = ParquetFile(str(file))
+        logger.info(f"Attributes of ParquetFile: {dir(pf)}")
         meta = pf.metadata
 
         # 3. collect row counts and compute cumulative offsets
@@ -698,6 +706,7 @@ def df_reader(
             file,
             exclude_columns=exclude_columns,
             read_index=read_index[file] if read_index is not None else None,
+            logger=logger,
         )
 
         if (not include_removals) and (expected_columns):
@@ -750,9 +759,6 @@ def df_reader(
             df_buffer,
             ignore_index=True,
         )
-
-        df.drop_duplicates(inplace=True)
-
     # if "network" in df and df["network"].dtype != str:
     #     df["network"] = df["network"].astype(str)
 

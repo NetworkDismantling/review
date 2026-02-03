@@ -228,7 +228,11 @@ def lcc_threshold_dismantler(
     # Init removals counter
     i = 0
     while True:
-        v_i_static, p = generator.send(response)
+        try:
+            v_i_static, p = generator.send(response)
+        except StopIteration:
+            # Generator exhausted (no more nodes to remove)
+            break
 
         # Find the vertex in graph-tool and remove it
         v_i_dynamic = dynamic_id[v_i_static]

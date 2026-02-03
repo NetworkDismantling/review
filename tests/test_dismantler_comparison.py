@@ -10,6 +10,7 @@ Tests various graph types:
 - Random graphs
 """
 
+import logging
 import numpy as np
 import pytest
 from graph_tool import Graph
@@ -45,8 +46,8 @@ def create_static_id(network: Graph, filename: str = "test_graph") -> None:
         static_id[v] = int(v)
     network.vertex_properties["static_id"] = static_id
     
-    # Add filename as graph property
-    network.graph_properties["filename"] = network.new_graph_property("string", filename)
+    # Add filename as graph property - IMPORTANT: must be unique per graph for C++ cache
+    network.graph_properties["filename"] = network.new_graph_property("string", filename + str(np.random.randint(1e6)))
 
 
 def simple_predictor(network: Graph, **kwargs):
@@ -57,7 +58,7 @@ def simple_predictor(network: Graph, **kwargs):
     
     # Add tiny offset based on node ID to ensure stable ordering
     # This makes predictions unique while preserving degree-based ordering
-    predictions = degrees.astype(float) + static_id * 1e-6
+    predictions = degrees.astype(float) + static_id / (network.num_vertices() * 1e2)
     
     return predictions, 0.0  # Return (predictions, time)
 
@@ -69,13 +70,121 @@ def simple_degree_generator(network: Graph, **kwargs):
     static_id = network.vertex_properties["static_id"].get_array()
     
     # Add tiny offset based on node ID to ensure stable ordering
-    predictions = degrees.astype(float) + static_id * 1e-6
+    predictions = degrees.astype(float) + static_id / (network.num_vertices() * 1e2)
     
     # Sort by degree (descending)
     sorted_indices = np.argsort(-predictions)
     
     for idx in sorted_indices:
         yield static_id[idx], float(predictions[idx])
+
+
+def verify_predictor_generator_equivalence(network: Graph):
+    """Verify that predictor and generator produce the same node ordering.
+    
+    This is critical: if they produce different orders, comparison tests will fail
+    even if both implementations are correct.
+    """
+    # Get predictor output
+    pred_values, _ = simple_predictor(network)
+    static_id = network.vertex_properties["static_id"].get_array()
+    
+    # Get generator output
+    gen_output = list(simple_degree_generator(network))
+    gen_ids = np.array([node_id for node_id, _ in gen_output])
+    gen_predictions = np.array([pred for _, pred in gen_output])
+    
+    # Create mapping from static_id to prediction
+    pred_map = dict(zip(static_id, pred_values))
+    
+    # Verify each generator output matches predictor
+    for i, (gen_id, gen_pred) in enumerate(gen_output):
+        expected_pred = pred_map[gen_id]
+        assert np.isclose(gen_pred, expected_pred, rtol=1e-9), \
+            f"Mismatch at position {i}: generator={gen_pred}, predictor={expected_pred} for node {gen_id}"
+    
+    # Verify order: generator should produce nodes in descending prediction order
+    pred_sorted_indices = np.argsort(-pred_values)
+    pred_sorted_ids = static_id[pred_sorted_indices]
+    
+    assert len(gen_ids) == len(pred_sorted_ids), \
+        f"Generator produced {len(gen_ids)} nodes, expected {len(pred_sorted_ids)}"
+    
+    assert np.array_equal(gen_ids, pred_sorted_ids), \
+        f"Generator order differs from predictor order.\nGenerator: {gen_ids[:10]}...\nPredictor: {pred_sorted_ids[:10]}..."
+    
+    return True
+
+
+def verify_cpp_graph_structure(original_network: Graph, network_name: str):
+    """Verify that the C++ graph has the same structure as the original.
+    
+    Tests:
+    1. Same number of vertices
+    2. Same number of edges
+    """
+    from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import (
+        getExternalGraph,
+        cache as cpp_cache,
+    )
+    from network_dismantling.common.external_dismantlers.dismantler import Graph as CppGraph
+    
+    # Ensure network has filename property for cache
+    if "filename" not in original_network.graph_properties:
+        original_network.graph_properties["filename"] = original_network.new_graph_property("string", network_name)
+    
+    # Get or create C++ graph
+    logger = logging.getLogger("test")
+    cpp_graph = getExternalGraph(original_network, logger)
+    
+    # Verify it's actually a C++ Graph
+    assert isinstance(cpp_graph, CppGraph), \
+        f"Expected CppGraph, got {type(cpp_graph)}"
+    
+    # Test 1: Same number of vertices
+    orig_n = original_network.num_vertices()
+    cpp_n = cpp_graph.getNumNodes()
+    assert orig_n == cpp_n, \
+        f"Vertex count mismatch: original={orig_n}, C++={cpp_n}"
+    
+    # Test 2: Same number of edges
+    orig_m = original_network.num_edges()
+    cpp_m = cpp_graph.getNumEdges()
+    # Note: graph-tool may count self-loops differently, or the C++ implementation
+    # removes parallel edges/self-loops. Allow small discrepancy.
+    assert abs(orig_m - cpp_m) <= 2, \
+        f"Edge count mismatch (tolerance=2): original={orig_m}, C++={cpp_m}"
+    
+    return True
+
+
+def run_preliminary_checks(network: Graph, network_name: str):
+    """Run all preliminary checks before comparison tests.
+    
+    Args:
+        network: The graph to test
+        network_name: Name for C++ graph cache
+    
+    Returns:
+        bool: True if all checks pass
+        
+    Raises:
+        AssertionError: If any check fails
+    """
+    # Check 1: Predictor and generator equivalence
+    try:
+        verify_predictor_generator_equivalence(network)
+    except AssertionError as e:
+        raise AssertionError(f"Predictor-Generator equivalence check failed: {e}")
+    
+    # Check 2: C++ graph structure
+    try:
+        verify_cpp_graph_structure(network, network_name)
+    except AssertionError as e:
+        raise AssertionError(f"C++ graph structure check failed: {e}")
+    
+    return True
+
 
 
 def create_mid_sized_graph(n=50, avg_deg=4):
@@ -90,8 +199,8 @@ def create_mid_sized_graph(n=50, avg_deg=4):
         v = np.random.randint(0, n)
         if u != v:
             g.add_edge(u, v)
-    
-    create_static_id(g)
+     
+    create_static_id(g, f"mid_sized_{n}_{avg_deg}")
     return g
 
 
@@ -111,7 +220,8 @@ def create_disconnected_graph(n_components=3, component_size=20):
             for j in range(i + 1, end):
                 g.add_edge(i, j)
     
-    create_static_id(g)
+    create_static_id(g, f"disconnected_{n_components}_{component_size}")
+
     return g
 
 
@@ -132,7 +242,7 @@ def create_graph_with_multiple_edges(n=30):
         if u != v:
             g.add_edge(u, v)
     
-    create_static_id(g)
+    create_static_id(g, f"multiple_edges_{n}")
     return g
 
 
@@ -145,14 +255,14 @@ def create_star_graph(n=50):
     for i in range(1, n):
         g.add_edge(0, i)
     
-    create_static_id(g)
+    create_static_id(g, f"star_{n}")
     return g
 
 
 def create_complete_graph(n=30):
     """Create a complete graph."""
     g = complete_graph(n, directed=False)
-    create_static_id(g)
+    create_static_id(g, f"complete_{n}")
     return g
 
 
@@ -168,7 +278,8 @@ def compare_removals(python_removals, cpp_removals, stop_condition, tolerance=1e
         str: Description of any differences
     """
     if len(python_removals) != len(cpp_removals):
-        return False, f"Different number of removals: Python={len(python_removals)}, C++={len(cpp_removals)}"
+        return False, f"Different number of removals: Python={len(python_removals)}, C++={len(cpp_removals)}\n" \
+                        f"Python removals: {python_removals}\nC++ removals: {cpp_removals}"
     
     if len(python_removals) == 0:
         return True, "Both sequences are empty"
@@ -177,7 +288,8 @@ def compare_removals(python_removals, cpp_removals, stop_condition, tolerance=1e
     for i, (py_rem, cpp_rem) in enumerate(zip(python_removals, cpp_removals)):
         # vertex_id must be identical (index 1)
         if int(py_rem[1]) != int(cpp_rem[1]):
-            return False, f"Different node at removal {i}: Python={py_rem[1]}, C++={cpp_rem[1]}"
+            # Show degree and prediction for debugging
+            return False, f"Different node at removal {i}: Python={py_rem[1]} ({py_rem[2]:.6f}), C++={cpp_rem[1]} ({cpp_rem[2]:.6f})"
         
         # LCC and SLCC sizes must be identical (indices 3 and 4)
         if int(py_rem[3]) != int(cpp_rem[3]):
@@ -189,6 +301,43 @@ def compare_removals(python_removals, cpp_removals, stop_condition, tolerance=1e
     return True, f"Sequences are identical ({len(python_removals)} removals)"
 
 
+class TestPreliminaryChecks:
+    """Test preliminary conditions before running comparison tests."""
+    
+    def test_predictor_generator_equivalence(self):
+        """Verify that simple_predictor and simple_degree_generator produce same ordering."""
+        np.random.seed(42)
+        network = create_mid_sized_graph(n=50, avg_deg=4)
+        create_static_id(network, "test_pred_gen_equiv")
+        
+        assert verify_predictor_generator_equivalence(network), \
+            "Predictor and generator should produce identical node orderings"
+    
+    def test_cpp_graph_structure_preservation(self):
+        """Verify that C++ graph has same structure as Python graph."""
+        np.random.seed(42)
+        network = create_mid_sized_graph(n=50, avg_deg=4)
+        create_static_id(network, "test_cpp_struct_preserv")
+        
+        assert verify_cpp_graph_structure(network, "test_structure_check"), \
+            "C++ graph should have same structure as original"
+    
+    def test_preliminary_checks_on_various_graphs(self):
+        """Run preliminary checks on various graph types."""
+        test_cases = [
+            ("mid_sized", create_mid_sized_graph(n=50, avg_deg=4)),
+            ("star", create_star_graph(n=40)),
+            ("complete", create_complete_graph(n=25)),
+            ("disconnected", create_disconnected_graph(n_components=4, component_size=20)),
+        ]
+        
+        for name, network in test_cases:
+            try:
+                run_preliminary_checks(network, f"prelim_{name}")
+            except AssertionError as e:
+                pytest.fail(f"Preliminary checks failed for {name}: {e}")
+
+
 class TestThresholdDismantlerComparison:
     """Test threshold_dismantler Python vs C++ implementations."""
     
@@ -197,6 +346,10 @@ class TestThresholdDismantlerComparison:
         np.random.seed(42)
         network = create_mid_sized_graph(n=50, avg_deg=4)
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
+        
+        # Preliminary checks
+        run_preliminary_checks(network, network_name)
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -210,7 +363,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_mid_sized"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -221,6 +374,10 @@ class TestThresholdDismantlerComparison:
         """Test with a disconnected graph."""
         network = create_disconnected_graph(n_components=3, component_size=15)
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
+        
+        # Preliminary checks
+        run_preliminary_checks(network, network_name)
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -234,7 +391,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_disconnected"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -246,6 +403,7 @@ class TestThresholdDismantlerComparison:
         np.random.seed(123)
         network = create_graph_with_multiple_edges(n=30)
         stop_condition = 3
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -259,7 +417,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_multiple_edges"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -270,6 +428,7 @@ class TestThresholdDismantlerComparison:
         """Test with a star graph."""
         network = create_star_graph(n=40)
         stop_condition = 2
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -283,7 +442,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_star"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -294,6 +453,7 @@ class TestThresholdDismantlerComparison:
         """Test with a complete graph."""
         network = create_complete_graph(n=25)
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -307,7 +467,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_complete"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -320,9 +480,10 @@ class TestThresholdDismantlerComparison:
         network.add_vertex(10)
         for i in range(9):
             network.add_edge(i, i + 1)
-        create_static_id(network)
+        create_static_id(network, "small_10")
         
         stop_condition = 1
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -336,7 +497,7 @@ class TestThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_small"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -352,17 +513,33 @@ class TestLCCThresholdDismantlerComparison:
         degrees = network.get_out_degrees(network.get_vertices())
         static_id = network.vertex_properties["static_id"].get_array()
         
-        sorted_indices = np.argsort(-degrees)
-        
-        response = None
-        for idx in sorted_indices:
-            response = yield static_id[idx], float(degrees[idx])
+        degrees = degrees.astype(float) + static_id / (network.num_vertices() * 1e2)
+
+        masked_predictions: np.ma.masked_array = np.ma.masked_array(degrees, mask=False)
+
+        while True:
+            # Sort by highest prediction value
+            # removal_indices = np.argsort(-masked_predictions, kind="stable")
+            i = masked_predictions.argmax()
+
+            removed = yield static_id[i], degrees[i]
+
+            if removed is not False:
+                # Vertex was removed, remove it from predictions
+                degrees[i] = 0
+                # masked_predictions.data = degrees
+                # ... and start over
+                masked_predictions.mask = False
+
+            else:
+                masked_predictions.mask[i] = True
     
     def test_mid_sized_graph_lcc(self):
         """Test LCC version with a mid-sized random graph."""
         np.random.seed(42)
         network = create_mid_sized_graph(n=50, avg_deg=4)
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_lcc_threshold_dismantler(
@@ -376,7 +553,7 @@ class TestLCCThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_lcc_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_lcc_mid"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -387,6 +564,12 @@ class TestLCCThresholdDismantlerComparison:
         """Test LCC version with a disconnected graph."""
         network = create_disconnected_graph(n_components=3, component_size=15)
         stop_condition = 5
+        # Random string
+        network_name = "disconnected_graph_test_lcc"
+        # network.graph_properties["filename"]
+
+        assert run_preliminary_checks(network, network_name), \
+            "Preliminary checks failed for LCC disconnected graph"
         
         # Python version
         py_removals, _, _ = python_lcc_threshold_dismantler(
@@ -400,7 +583,7 @@ class TestLCCThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_lcc_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_lcc_disconnected"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -411,6 +594,7 @@ class TestLCCThresholdDismantlerComparison:
         """Test LCC version with a star graph."""
         network = create_star_graph(n=40)
         stop_condition = 2
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_lcc_threshold_dismantler(
@@ -424,7 +608,7 @@ class TestLCCThresholdDismantlerComparison:
         cpp_removals, _, _ = cpp_lcc_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_lcc_star"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -479,8 +663,9 @@ class TestEdgeCases:
         for i in range(10, 19):
             network.add_edge(i, i + 1)
         
-        create_static_id(network)
+        create_static_id(network, "two_component")
         stop_condition = 2
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -494,7 +679,7 @@ class TestEdgeCases:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_two_component"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -522,8 +707,9 @@ class TestEdgeCases:
                 edges_added += 1
             attempts += 1
         
-        create_static_id(network)
+        create_static_id(network, "test_dense")
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -537,7 +723,7 @@ class TestEdgeCases:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "test_dense"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -559,6 +745,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "karate")
         
         stop_condition = 5
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -572,7 +759,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "karate"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -593,6 +780,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "polbooks")
         
         stop_condition = 10
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -606,7 +794,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "polbooks"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -627,6 +815,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "football")
         
         stop_condition = 15
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -640,7 +829,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "football"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -661,6 +850,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "netscience")
         
         stop_condition = 20
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -674,7 +864,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "netscience"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -695,6 +885,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "power")
         
         stop_condition = 50
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -708,7 +899,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "power"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -729,6 +920,7 @@ class TestRealWorldNetworks:
             create_static_id(network, "hep-th")
         
         stop_condition = 80
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -742,7 +934,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "hep-th"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -751,24 +943,29 @@ class TestRealWorldNetworks:
     
     def test_large_erdos_renyi_network(self):
         """Test on large Erdős-Rényi random network (~10k nodes)."""
+
+        import graph_tool.all as gt
         np.random.seed(12345)
         n = 10000
-        p = 0.0005  # Probability of edge creation
+        p = 0.05  # Probability of edge creation
         
         # Create Erdős-Rényi random graph
-        network = random_graph(n, lambda: (np.random.random() < p), directed=False)
+        network = random_graph(n, lambda: (np.random.random() < p), model="erdos", directed=False)
         
-        # Remove isolated vertices
-        vertices_to_remove = [v for v in network.vertices() if v.out_degree() == 0]
-        for v in reversed(sorted(vertices_to_remove)):
-            network.remove_vertex(v)
+        # # Remove isolated vertices
+        # vertices_to_remove = [v for v in network.vertices() if v.out_degree() == 0]
+        # for v in reversed(sorted(vertices_to_remove)):
+        #     network.remove_vertex(v)
         
-        actual_n = network.num_vertices()
-        print(f"\nLarge ER network: {actual_n} nodes, {network.num_edges()} edges")
+        # actual_n = network.num_vertices()
+        # print(f"\nLarge ER network: {actual_n} nodes, {network.num_edges()} edges")
         
+        network = gt.extract_largest_component(network, directed=False, prune=True)
+
         create_static_id(network, "large_er")
         
         stop_condition = 100
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -782,7 +979,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "large_er"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -843,6 +1040,7 @@ class TestRealWorldNetworks:
         create_static_id(network, "large_ba")
         
         stop_condition = 100
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -856,7 +1054,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "large_ba"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         
@@ -915,6 +1113,7 @@ class TestRealWorldNetworks:
         create_static_id(network, "large_powerlaw_cluster")
         
         stop_condition = 80
+        network_name = network.graph_properties["filename"]
         
         # Python version
         py_removals, _, _ = python_threshold_dismantler(
@@ -928,7 +1127,7 @@ class TestRealWorldNetworks:
         cpp_removals, _, _ = cpp_threshold_dismantler(
             network=network.copy(),
             predictor=simple_predictor,
-            generator_args={"network_name": "large_powerlaw_cluster"},
+            generator_args={"network_name": network_name},
             stop_condition=stop_condition,
         )
         

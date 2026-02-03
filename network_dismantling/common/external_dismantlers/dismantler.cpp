@@ -26,13 +26,15 @@ using namespace std;
 using namespace tsl;
 
 #if defined(GRAPH_TOOL)
+
 // Define namespace graph_tool as gt
 namespace gt = graph_tool;
-// using gt::GraphInterface;
-// using gt:
-using NodeType = gt::GraphInterface::multigraph_t::vertex_t; // size_t; unsigned int;
+using NodeType = gt::GraphInterface::multigraph_t::vertex_t;
+
 #else
+
 using NodeType = size_t;
+
 #endif
 
 
@@ -56,6 +58,8 @@ private:
     // Private initialization methods
 #ifdef GRAPH_TOOL
     void initFromGraphInterface(gt::GraphInterface &graphInterface) {
+        directed = graphInterface.get_directed();
+        
         auto const &adj_list = graphInterface.get_graph();
         g = robin_map<NodeType, forward_list<NodeType>>();
         g.reserve(graphInterface.get_num_vertices());
@@ -302,6 +306,22 @@ public:
         }
     }
 
+    bool clearNode(const NodeType nodeID) {
+        // Clear all edges from a node but keep the node itself (matches Python clear_vertex)
+        if (g.count(nodeID) == 0) {
+            cout << "ERROR: Node " << nodeID << " not present in the graph: " << name << endl;
+            return false;
+        } else {
+            // Remove this node from all neighbors' adjacency lists
+            for (auto neighbor: g[nodeID]) {
+                g[neighbor].remove(nodeID);
+            }
+            // Clear this node's adjacency list
+            g[nodeID].clear();
+            return true;
+        }
+    }
+
     bool addEdge(const unsigned int srcNode, const unsigned int dstNode) {
         g[srcNode].push_front(dstNode);
         g[dstNode].push_front(srcNode);
@@ -515,12 +535,15 @@ public:
         }
 
         auto itc = component.begin();
-        size_t maxID = itc->first;
-        size_t max = itc->second->size();
 
+        // Initialize max and maxID with the first component found
+        ComponentType maxID = itc->first;
+        size_t max = itc->second->size();
         // cout << "Current component ID: " << maxID << " with size " << max << endl;
-        ComponentType smax = 0;
-        ComponentType smaxID = -1;
+
+        size_t smax = 0; // Second largest component size
+        ComponentType smaxID = -1; // Second largest component ID
+        // cout << "Initializing second largest component size to 0." << endl;
 
         if (component.size() == 1) {
             // cout << "Only one component present." << endl;
@@ -530,16 +553,21 @@ public:
         }
 
         for (++itc; itc != component.end(); ++itc) {
-            ComponentType tmpMax = itc->second->size();
+            size_t tmpMax = itc->second->size();
+            ComponentType tmpID = itc->first;
+            // cout << "Current component ID: " << tmpID << " with size " << tmpMax << endl;
             if (tmpMax > max) {
+                // If current Component is larger than max, update both max and smax
                 smax = max;
                 smaxID = maxID;
 
                 max = tmpMax;
-                maxID = itc->first;
-            } else if ((tmpMax > smax) && (tmpMax != max)) {
+                maxID = tmpID;
+            } else if ((tmpMax > smax) && (tmpID != maxID)) {
+                // If current Component is larger than secondary max but smaller than largest max,
+                // update only smax (also check that IDs are different)
                 smax = tmpMax;
-                smaxID = itc->first;
+                smaxID = tmpID;
             }
         }
 
@@ -600,6 +628,7 @@ void lccThresholdDismantler(Graph *g, list<NodeType> &nodes, ComponentType stopC
             continue;
         }
 
+        // g->clearNode(nodeToRemove);
         g->removeNode(nodeToRemove);
         nodes.erase(it);
         it = nodes.begin();
@@ -647,6 +676,7 @@ void thresholdDismantler(Graph *g, list<NodeType> &nodes, NodeType stopCondition
     auto it = nodes.begin();
     while (it != nodes.end()) {
         unsigned int nodeToRemove = *it;
+        // g->clearNode(nodeToRemove);
         g->removeNode(nodeToRemove);
 
         //nodeToRemove is still il lccID --> should be removed, but it is costly!!!
@@ -815,23 +845,6 @@ int main(int argc, char **argv) {
 
 #ifdef BOOST
 
-#ifdef GRAPH_TOOL
-// Factory function to create Graph from graph_tool.Graph Python object
-Graph* createGraphFromGraphTool(boost::python::object gtGraph) {
-    try {
-        // Try to extract the internal _Graph__graph attribute (GraphInterface)
-        boost::python::object graphInterface = gtGraph.attr("_Graph__graph");
-        gt::GraphInterface& gi = boost::python::extract<gt::GraphInterface&>(graphInterface);
-        return new Graph(gi);
-    } catch (boost::python::error_already_set&) {
-        // Not a graph_tool.Graph, might be a list - try that
-        PyErr_Clear();
-        boost::python::list edgeList = boost::python::extract<boost::python::list>(gtGraph);
-        return new Graph(edgeList);
-    }
-}
-#endif
-
 struct my_exception : std::exception
 {
   char const* what() const throw() {
@@ -860,9 +873,7 @@ BOOST_PYTHON_MODULE (dismantler) {
     auto a = class_<Graph>("Graph", init<>());
 
     a.def(init<Graph *>())
-     .def(init<string>())
-     .def(init<boost::python::list&>())
-     .def(init<boost::python::object>())  // Universal constructor with type checking
+     .def(init<boost::python::object>())  // Universal constructor: handles string, list, graph_tool.Graph
      
      .def("addNode", &Graph::addNode)
      .def("addNodes", &Graph::addNodes_python)
@@ -876,16 +887,13 @@ BOOST_PYTHON_MODULE (dismantler) {
      .def("printCC", &Graph::printCC)
     //  .def("computeCC", &Graph::computeCC);
      .def("getNumNodes", &Graph::getNumNodes)
-     .def("getNumEdges", &Graph::getNumEdges);
+     .def("getNumEdges", &Graph::getNumEdges)
+     .def("isEmpty", &Graph::isEmpty)
+     .def("removeNode", &Graph::removeNode)
+     .def("clearNode", &Graph::clearNode);
 
-#ifdef GRAPH_TOOL
-    a.def(init<gt::GraphInterface &>());  // Direct GraphInterface (for advanced use)
-    
-    // Factory function as alternative method
-    def("from_graph_tool", createGraphFromGraphTool, 
-        return_value_policy<manage_new_object>(),
-        "Create a Graph from a graph_tool.Graph object (alternative to constructor)");
-#endif
+    // Note: Direct GraphInterface and factory function removed to avoid converter conflicts
+    // Universal constructor handles all cases (string, list, graph_tool.Graph)
 
     // Export standalone functions 
     def("lccThresholdDismantler", lcc_dismantler_wrapper);

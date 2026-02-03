@@ -32,8 +32,11 @@ def test_network_callback(network: Graph):
     #     raise RuntimeError("No edges in network")
 
     eg = ExternalGraph(network.graph_properties["filename"])
-    eg.addNodes(range(network.num_vertices()))
+    eg.addNodes(static_id.a.tolist())
     eg.addEdgeList(edges)
+
+    assert eg.getNumNodes() == network.num_vertices()
+    assert eg.getNumEdges() == network.num_edges()
 
     return eg
 

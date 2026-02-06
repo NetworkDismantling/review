@@ -32,8 +32,8 @@ class BaseDataFrameWriter(ABC):
             columns: Column names to write.
             logger: Logger for messages.
         """
-        self.output_file = Path(output_file) if not isinstance(output_file, Path) else output_file
-        self.columns = columns if isinstance(columns, list) else [columns]
+        self.output_file = Path(output_file) # if not isinstance(output_file, Path) else output_file
+        self.columns = columns if isinstance(columns, (list, pd.Index)) else [columns]
         self.logger = logger
 
         # Internal state

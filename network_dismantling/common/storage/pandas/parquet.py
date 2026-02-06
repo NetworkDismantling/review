@@ -36,37 +36,11 @@ from network_dismantling.common.removal import RemovalsList, Removal
 # - Files are compatible between fastparquet and pyarrow (both follow Apache Parquet standard)
 
 
-def prepare_dataframe_for_fastparquet(df: pd.DataFrame) -> pd.DataFrame:
-    """Prepare DataFrame for fastparquet writing by converting problematic types.
     
-    Fastparquet doesn't handle PyArrow-backed dtypes well. This function converts:
-    - PyArrow string types -> object dtype
-    - StringDtype -> object dtype  
-    - Category dtypes with PyArrow storage -> object dtype
     
-    Args:
-        df: Input DataFrame (will be modified in place)
         
-    Returns:
-        The same DataFrame with converted types
-    """
-    for col in df.columns:
-        dtype = df[col].dtype
         
-        # Handle pandas StringDtype (PyArrow-backed by default in pandas 2.x)
-        if isinstance(dtype, pd.StringDtype):
-            df[col] = df[col].astype(object)
-        if isinstance(dtype, pd.CategoricalDtype) and isinstance(dtype.categories.dtype, pd.StringDtype):
-            df[col] = df[col].astype(object)
-        # Handle PyArrow-backed types
-        elif hasattr(dtype, 'pyarrow_dtype'):
-            df[col] = df[col].astype(object)
-        # Handle categorical with PyArrow storage
-        elif isinstance(dtype, pd.CategoricalDtype):
-            # Convert to string first to avoid issues
-            df[col] = df[col].astype(str)
     
-    return df
 
 
 def get_removals_schema() -> pa.DataType:
@@ -105,21 +79,40 @@ def convert_removals_to_struct(removals_list: RemovalsList) -> List[Dict[str, Un
     Returns:
         List of dicts with named fields, or None if input is None/empty.
     """
-    if removals_list is None or not removals_list:
+    if removals_list is None or len(removals_list) == 0:
         return None
     
+    # Handle both CSV (string) and Parquet (already deserialized) formats
     if isinstance(removals_list, str):
-        # Should not happen, but handle it
-        from ast import literal_eval
-        removals_list = literal_eval(removals_list)
+        raise ValueError("Expected removals_list to be a list of Removal objects or tuples, got string. This likely indicates a parsing error where the list was read as a string. Check your data loading code.")
+    
+    #     # Should not happen, but handle it
+    #     from ast import literal_eval
+    #     removals_list = literal_eval(removals_list)
+    # elif isinstance(removals_list, np.ndarray):
+    #     # Parquet format: numpy array -> list
+    #     removals_list = removals_list.tolist()
+    # # else: already a list, use as-is
     
     # Import Removal to check type
     from network_dismantling.common.removal import Removal
     
     # # Convert Removal objects to tuples if needed
-    if removals_list and isinstance(removals_list[0], Removal):
+    if len(removals_list) == 0:
+        pass
+    elif isinstance(removals_list[0], Removal):
         removals_list = [r.to_tuple() for r in removals_list]
-    # elif removals_list and isinstance(removals_list[0], tuple):
+    elif isinstance(removals_list[0], tuple):
+        pass  # already in tuple format
+    elif isinstance(removals_list[0], dict):
+        # Already in dict format, just ensure keys are correct and values are absolute
+        expected_keys = {'removal_num', 'id', 'prediction', 'lcc_size', 'slcc_size'}
+        if not all(isinstance(r, dict) and expected_keys.issubset(r.keys()) for r in removals_list):
+            raise ValueError(f"Invalid removals_list format: expected list of dicts with keys {expected_keys}")
+        # Assume values are already absolute counts
+        return removals_list
+    else:
+        raise ValueError(f"Invalid removals_list format: expected list of Removal or tuples, got {type(removals_list[0])}")
 
     # Convert list of tuples to list of dicts (values already absolute)
     return [
@@ -145,35 +138,42 @@ def convert_removals_from_struct(removals_list):
     Returns:
         List of tuples (removal_num, id, prediction, lcc_size_absolute, slcc_size_absolute).
     """
-    if removals_list is None or not removals_list:
+    if removals_list is None or len(removals_list) == 0:
         return []
     
-    # Convert list of dicts to list of tuples (values stay absolute)
     return [
-        (
-            int(r['removal_num']),
-            int(r['id']),
-            float(r['prediction']),
-            int(r['lcc_size']),       # absolute (no division)
-            int(r['slcc_size']),      # absolute (no division)
-        )
-        for r in removals_list
+        # Removal(
+        #     removal_num=r['removal_num'],
+        #     node_id=r['id'],
+        #     prediction=r['prediction'],
+        #     lcc_size=r['lcc_size'],       # absolute (no division)
+        #     slcc_size=r['slcc_size'],      # absolute (no division)
+        # )
+        Removal.from_dict(r) for r in removals_list
     ]
 
-
-def convert_numpy_to_python(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert numpy types to Python types in DataFrame (in place)."""
-    return df
 
 def df_writer(queue: multiprocessing.Queue,
               output_file: Union[Path, str],
               output_columns: Optional[List[str]] = None,
-              mode: Literal['overwrite', 'append'] = 'overwrite',
+              mode: Literal["overwrite", "append"] = "overwrite",
               row_group_size: int = 100000,
               error_event: Optional[threading.Event] = None,
               logger: logging.Logger = logging.getLogger("dummy"),
               ):
-    """Write dataframes to a parquet file using fastparquet with native append support.
+    """Write dataframes to a parquet file using PyArrow ParquetWriter with struct support.
+    
+    Uses PyArrow ParquetWriter for efficient incremental writes with proper columnar format.
+    Converts removals column to efficient list<struct> format instead of JSON strings.
+    
+    **Append behavior:**
+    
+    - **Within-session append** (same writer instance): Incremental row group writes.
+      ParquetWriter appends row groups without re-reading the file. Very efficient.
+      
+    - **Cross-session append** (mode='append' with existing file): Reads existing file,
+      buffers new data, and writes merged result at close. Less efficient but transparent.
+      File is read once at start, merged once at end. Preserves struct schema.
     
     Args:
         queue: A multiprocessing queue to receive dataframes.
@@ -181,7 +181,7 @@ def df_writer(queue: multiprocessing.Queue,
         output_columns: The columns to write to the file.
         row_group_size: Target row group size for compression optimization.
         error_event: Optional Event to signal fatal errors to the caller.
-        mode: Write mode - 'overwrite' (default) or 'append'.
+        mode: Write mode - 'overwrite' (default) or 'append' (reads existing file if present).
         logger: A logger to log messages.
     """
     output_file = Path(output_file).resolve()
@@ -189,7 +189,20 @@ def df_writer(queue: multiprocessing.Queue,
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
     rows_written = 0
-    first_write = True
+    parquet_writer = None
+    tables_buffer = []  # Buffer for cross-session append
+    existing_table = None  # For cross-session append
+    
+    # For cross-session append: read existing file upfront
+    if output_file.exists() and mode == 'append':
+        logger.info(f"Append mode: reading existing file {output_file.name} for merge")
+        try:
+            existing_table = pq.read_table(str(output_file))
+            logger.debug(f"Loaded existing table: {existing_table.num_rows} rows")
+        except Exception as e:
+            logger.error(f"Failed to read existing file for append: {e}")
+            # Fall back to overwrite
+            existing_table = None
     
     try:
         while True:
@@ -208,49 +221,71 @@ def df_writer(queue: multiprocessing.Queue,
                 continue
 
             # Reorder columns if specified
-            if output_columns:
+            if output_columns is not None:
                 try:
                     record = record[output_columns]
                 except KeyError as e:
                     logger.error(f"Missing column(s) in DataFrame: {e}")
-                    raise
+                    logger.debug(f"Available columns: {record.columns.tolist()}\n{record.head()}")
+                    # raise
+                    continue # Skip this batch but keep writer alive... hopefully next batches are correct
 
             # Convert removals column to struct format if present (values already absolute)
-            if 'removals' in record.columns:
-                record['removals'] = record['removals'].apply(convert_removals_to_struct)
+            if "removals" in record.columns:
+                record["removals"] = record["removals"].apply(convert_removals_to_struct)
 
-            # Prepare DataFrame for fastparquet (convert PyArrow types to native types)
-            record = prepare_dataframe_for_fastparquet(record)
-
-            # Determine write mode for this iteration
-            if first_write:
-                # First write: use mode parameter (overwrite or append)
-                # If file doesn't exist, we must use overwrite regardless of mode
-                if output_file.exists() and mode == 'append':
-                    write_mode = 'append'
-                else:
-                    write_mode = 'overwrite'
+            # Convert DataFrame to PyArrow Table with explicit schema for struct support
+            # This ensures proper columnar storage instead of JSON serialization
+            table = pa.Table.from_pandas(record, preserve_index=False)
+            
+            # If removals column exists, ensure it uses proper struct schema
+            if "removals" in table.column_names:
+                # Replace removals column with properly typed version
+                removals_col_idx = table.column_names.index("removals")
+                removals_schema = get_removals_schema()
                 
-                first_write = False
-                logger.info(f"First write to {output_file} with mode='{write_mode}'")
-            else:
-                # Subsequent writes: always append
-                write_mode = 'append'
+                # Convert to pyarrow arrays with proper schema
+                removals_arrays = []
+                for val in record["removals"]:
+                    if val is None or len(val) == 0:
+                        removals_arrays.append([])
+                    else:
+                        removals_arrays.append(val)
+                
+                removals_array = pa.array(removals_arrays, type=removals_schema)
+                
+                # Replace column in table
+                table = table.set_column(removals_col_idx, "removals", removals_array)
 
-            logger.info(f"Writing {len(record)} rows to {output_file} (mode={write_mode})\n{record.dtypes}\n{record.head()}")
+            logger.debug(f"Processing {len(record)} rows for {output_file} (mode={mode})\n{table.schema}")
 
-            # Write using fastparquet
-            record.to_parquet(
-                str(output_file),
-                engine='fastparquet',
-                compression='snappy',
-                append=(write_mode == 'append'),
-                row_group_offsets=row_group_size,
-                index=False,
-            )
+            # For cross-session append, buffer all tables for merge at end
+            if existing_table is not None:
+                tables_buffer.append(table)
+                rows_written += len(record)
+                logger.debug(f"Buffered {len(record)} rows for cross-session append. Total buffered: {rows_written}")
+                continue
+            
+            # Normal path: within-session incremental write
+            # Initialize PyArrow ParquetWriter on first write
+            if parquet_writer is None:
+                schema = table.schema
+                
+                # Create ParquetWriter with schema
+                logger.debug(f"Creating PyArrow ParquetWriter for {output_file}")
+                parquet_writer = pq.ParquetWriter(
+                    str(output_file),
+                    schema,
+                    compression="snappy",
+                    # version='2.6',
+                    write_statistics=False,
+                )
+            
+            # Write table incrementally - no file re-reading!
+            parquet_writer.write_table(table)
             
             rows_written += len(record)
-            logger.debug(f"Wrote {len(record)} rows to {output_file} (mode={write_mode}). Total: {rows_written}")
+            logger.debug(f"Wrote {len(record)} rows to {output_file}. Total: {rows_written}")
 
     except Exception as e:
         logger.exception(f"Fatal error in df_writer for {output_file}: {e}")
@@ -259,7 +294,56 @@ def df_writer(queue: multiprocessing.Queue,
         # Don't re-raise - would cause unhandled thread exception warning
 
     finally:
-        logger.info(f"Writer finished for {output_file}. Total rows written: {rows_written}")
+        # For cross-session append: merge existing + new tables and write once
+        if existing_table is not None and len(tables_buffer) > 0:
+            try:
+                logger.info(f"Merging {existing_table.num_rows} existing + {rows_written} new rows")
+                
+                # Concat existing + all buffered tables
+                all_tables = [existing_table] + tables_buffer
+                merged_table = pa.concat_tables(all_tables)
+                
+                logger.debug(f"Writing merged table with {merged_table.num_rows} rows to {output_file}")
+                
+                # Write merged table (overwrites file)
+                pq.write_table(
+                    merged_table,
+                    str(output_file),
+                    compression="snappy",
+                    write_statistics=False,
+                )
+                
+                logger.info(f"Cross-session append complete: {merged_table.num_rows} total rows")
+                rows_written = merged_table.num_rows
+                
+            except Exception as e:
+                logger.error(f"Failed to merge tables for cross-session append: {e}")
+                raise
+        
+        # Close PyArrow ParquetWriter to finalize file (for normal writes)
+        if parquet_writer is not None:
+            try:
+                parquet_writer.close()
+                logger.debug(f"Closed PyArrow ParquetWriter for {output_file}")
+            except Exception as e:
+                logger.error(f"Error closing ParquetWriter: {e}")
+        
+        logger.debug(f"Writer finished for {output_file}. Total rows written: {rows_written}")
+        
+        # Verify schema if file was written successfully
+        if rows_written > 0 and output_file.exists():
+            try:
+                verify_removals_schema(output_file, logger)
+                stats = get_parquet_stats(output_file)
+                logger.info(
+                    f"📊 {output_file.name}: {stats['num_rows']:,} rows, "
+                    f"{stats['size_mb']:.2f} MB, "
+                    f"{stats['avg_bytes_per_row']:.1f} bytes/row, "
+                    f"removals={stats['removals_format']}"
+                )
+            except Exception as e:
+                logger.debug(f"Could not verify schema: {e}")
+
 
 
 def start_df_writer(output_file: Path,
@@ -370,6 +454,7 @@ def safe_queue_put(df_queue: multiprocessing.Queue,
 
     # Safe to queue
     df_queue.put(data)
+
     return True
 
 
@@ -398,7 +483,8 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
                  output_file: Union[Path, str],
                  columns: Union[str, List[str]],
                  row_group_size: int = 100000,
-                 mode: str = "overwrite",
+                 mode: Literal["overwrite", "append"] = "append",
+                 queue: Optional[multiprocessing.Queue] = None,
                  logger: logging.Logger = logging.getLogger("dummy"),
                  ):
         """Initialize the Parquet writer.
@@ -410,12 +496,14 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
             row_group_size: Target row group size (default: 100k).
             mode: Write mode - 'overwrite' (default) or 'append'.
                   With fastparquet, append is natively supported (no file re-reading).
+            queue: Optional pre-created Queue for cross-process sharing.
+                   If None, creates a new Queue (only works within same process).
         """
         self.row_group_size = row_group_size
         self.mode = mode
 
-        # Create queue and error event before calling super().__init__
-        self._queue: multiprocessing.Queue = multiprocessing.Queue()
+        # Use provided queue or create a new one
+        self._queue: multiprocessing.Queue = queue if queue is not None else multiprocessing.Queue()
         self._error_event = threading.Event()
 
         # Call base class constructor (will call _create_writer_thread)
@@ -511,6 +599,98 @@ def read_parquet_schema_df(uri: str) -> pd.DataFrame:
     return schema_df
 
 
+def verify_removals_schema(file_path: Union[Path, str], 
+                          logger: logging.Logger = logging.getLogger("dummy")) -> bool:
+    """Verify that removals column uses efficient struct format, not string/dict.
+    
+    Efficient:   list<struct<removal_num: uint32, id: uint32, ...>>
+    Inefficient: list<string>, list<binary>, or repeated dict keys
+    
+    Args:
+        file_path: Path to Parquet file.
+        logger: Logger for messages.
+        
+    Returns:
+        True if removals is stored as list<struct>, False otherwise.
+        
+    Example:
+        if not verify_removals_schema(output_file):
+            logger.warning("File uses inefficient removals format!")
+    """
+    file_path = Path(file_path)
+    schema = pq.read_schema(str(file_path))
+    
+    if "removals" not in schema.names:
+        logger.warning(f"File {file_path} has no \"removals\" column")
+        return True  # No removals to check
+    
+    removals_type = schema.field("removals").type
+    removals_type_str = str(removals_type)
+    
+    logger.debug(f"Removals column type: {removals_type_str}")
+    
+    # Check for efficient struct format
+    # PyArrow may write as "list<struct" or "list<element: struct" or "list<item: struct"
+    if ('list<struct' in removals_type_str or 
+        'list<element: struct' in removals_type_str or 
+        'list<item: struct' in removals_type_str):
+        logger.debug(f"✅ {file_path.name}: removals stored efficiently as {removals_type_str[:80]}...")
+        return True
+    
+    # Check for inefficient formats
+    if 'string' in removals_type_str.lower() or 'binary' in removals_type_str.lower():
+        logger.error(
+            f"❌ {file_path.name}: removals stored INEFFICIENTLY as {removals_type_str}\n"
+            f"   This wastes space by repeating field names for every element.\n"
+            f"   Fix: Use convert_removals_to_struct() before writing."
+        )
+        return False
+    
+    logger.warning(f"⚠️  {file_path.name}: removals has unexpected type {removals_type_str}")
+    return False
+
+
+def get_parquet_stats(file_path: Union[Path, str]) -> Dict[str, Union[int, float, str]]:
+    """Get statistics about a Parquet file (rows, size, compression, etc).
+    
+    Args:
+        file_path: Path to Parquet file.
+        
+    Returns:
+        Dict with keys: num_rows, num_row_groups, size_mb, avg_bytes_per_row,
+                       removals_format (efficient/inefficient/none)
+    """
+    file_path = Path(file_path)
+    metadata = pq.read_metadata(str(file_path))
+    schema = pq.read_schema(str(file_path))
+    
+    size_bytes = file_path.stat().st_size
+    num_rows = metadata.num_rows
+    
+    # Check removals format
+    removals_format = 'none'
+    if "removals" in schema.names:
+        removals_type_str = str(schema.field("removals").type)
+        # Check for efficient struct format (various PyArrow representations)
+        if ('list<struct' in removals_type_str or 
+            'list<element: struct' in removals_type_str or 
+            'list<item: struct' in removals_type_str):
+            removals_format = 'efficient'
+        elif 'string' in removals_type_str.lower() or 'binary' in removals_type_str.lower():
+            removals_format = 'inefficient'
+        else:
+            removals_format = 'unknown'
+    
+    return {
+        'num_rows': num_rows,
+        'num_row_groups': metadata.num_row_groups,
+        'size_mb': size_bytes / 1024 / 1024,
+        'size_bytes': size_bytes,
+        'avg_bytes_per_row': size_bytes / num_rows if num_rows > 0 else 0,
+        'removals_format': removals_format,
+    }
+
+
 def get_df_columns(file: Path):
     schema = read_parquet_schema_df(str(file))
 
@@ -539,7 +719,7 @@ def read_without_removals(file,
 
 def read_without_columns(
         file,
-        exclude_columns: Union[str, List[str]],
+        exclude_columns: Optional[Union[str, List[str]]],
         read_index: Union[None, int, List[int]] = None,
         dtype_dict=None,
         logger: logging.Logger = logging.getLogger("dummy"),
@@ -629,7 +809,6 @@ def read_without_columns(
         df["idx"] = df.index
 
     df["file"] = f"{file}"
-    # df["file"] = df["file"].astype("category")
 
     # 6. cast dtypes
     if dtype_dict is None:
@@ -836,6 +1015,7 @@ def df_reader(
         elif (isinstance(read_index, int) or
               np.issubdtype(read_index, np.integer)):
             read_index = {file: int(read_index) for file in files}
+
         else:
             raise ValueError(f"Invalid read_index {read_index} (type {type(read_index)}.")
 

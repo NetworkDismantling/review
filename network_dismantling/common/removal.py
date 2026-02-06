@@ -51,7 +51,7 @@ class Removal:
         """Create from dictionary."""
         return cls(
             removal_num=d["removal_num"],
-            node_id=d["node_id"],
+            node_id=d["id"],
             prediction=d["prediction"],
             lcc_size=d["lcc_size"],
             slcc_size=d["slcc_size"],

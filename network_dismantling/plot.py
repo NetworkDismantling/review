@@ -18,17 +18,18 @@
 
 
 import logging
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from ast import literal_eval
-from operator import itemgetter
+from operator import attrgetter, itemgetter
 from pathlib import Path
 
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.ticker import MaxNLocator
 
 from network_dismantling import dismantling_methods
-from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.storage.pandas.parquet import df_reader
 from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
 column_duplicates = [
@@ -96,13 +97,13 @@ filtered_columns = ["network", "removals", "model_seed", "seed",
                     "bias", "concat", "removals_num", "dropout"]
 
 
-def load_and_display_df(args):
+def load_and_display_df(args: Namespace) -> None:
     df = df_reader(args.file, include_removals=True)
 
     display_df(df, args)
 
 
-def prepare_df(df, args):
+def prepare_df(df: pd.DataFrame, args: Namespace) -> None:
     if args.sort_column == "average_dmg":
         df["average_dmg"] = (1 - df["lcc_size_at_peak"]) / df["slcc_peak_at"]
 
@@ -132,11 +133,11 @@ def prepare_df(df, args):
     if args.query is not None:
         df.query(args.query, inplace=True)
 
-    df.loc[:, "lcc_size_at_peak"] *= 100
-    df.loc[:, "slcc_size_at_peak"] *= 100
+    # df.loc[:, "lcc_size_at_peak"] *= 100
+    # df.loc[:, "slcc_size_at_peak"] *= 100
 
 
-def display_df(df, args):
+def display_df(df: pd.DataFrame, args: Namespace) -> None:
     prepare_df(df, args)
 
     print(f"Storing to {args.output}")
@@ -200,7 +201,7 @@ def display_df(df, args):
 
                 infos = heuristic_df.loc[0, :]
 
-                removals = literal_eval(infos.pop("removals"))
+                removals = infos.pop("removals")
                 num_removals = len(removals)
                 max_num_removals = max(max_num_removals, num_removals)
 
@@ -209,11 +210,10 @@ def display_df(df, args):
                 marker = "o" if dismantling_method.includes_reinsertion else "s"
 
                 # TODO Improve this
-                x = list(map(itemgetter(0), removals))
-                y = list(map(itemgetter(3), removals))
+                x = list(map(itemgetter("removal_num"), removals))
+                y = list(map(itemgetter("lcc_size"), removals))
 
                 plt.plot(x, y,
-                         # marker=
                          f'-{marker}',
                          markersize=4,
                          linewidth=2,

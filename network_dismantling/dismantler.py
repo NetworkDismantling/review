@@ -108,9 +108,9 @@ def pool_initializer(log_queue,
 def get_predictions(
         network: Graph,
         sorting_function: Callable,
-        logger=logging.getLogger("dummy"),
+        logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs,
-):
+) -> tuple[np.ndarray, float]:
     logger.debug(f"Calling the sorting function...")
     start_time = time()
 
@@ -613,6 +613,12 @@ def main(args: argparse.Namespace,
                         network_df = pd.concat([network_df, runs_dataframe],
                                                ignore_index=True,
                                                )
+                        # Drop reader-added columns that shouldn't be in output
+                        runs_dataframe.drop(columns=["file", "idx"], 
+                                            errors="ignore", 
+                                            inplace=True,
+                                            )
+
                         # Write directly with the writer (checks if thread is alive)
                         parquet_writer.write(runs_dataframe)
 

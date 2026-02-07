@@ -207,18 +207,18 @@ def test(args, model, networks_provider, print_model=True, logger=logging.getLog
 
             removals, prediction_time, dismantle_time = dismantler(network, predictor, generator_args, stop_condition)
 
-            peak_slcc = max(removals, key=itemgetter(4))
+            peak_slcc = max(removals, key=lambda r: r.slcc_size)
 
             run = {
                 "network": filename,
 
-                "removals": removals,
+                "removals": np.array(removals, dtype=object),
 
-                "slcc_peak_at": peak_slcc[0],
-                "lcc_size_at_peak": peak_slcc[3],
-                "slcc_size_at_peak": peak_slcc[4],
+                "slcc_peak_at": peak_slcc.removal_num,
+                "lcc_size_at_peak": peak_slcc.lcc_size,
+                "slcc_size_at_peak": peak_slcc.slcc_size,
 
-                "r_auc": simpson(list(r[3] for r in removals), dx=1),
+                "r_auc": simpson([r.lcc_size for r in removals], dx=1),
                 "rem_num": len(removals),
 
                 "prediction_time": prediction_time,

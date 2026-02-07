@@ -180,7 +180,7 @@ def static_predictor(
 #
 #     # TODO IMPROVE SORTING!
 #     # Sort by highest prediction value
-#     sorted_predictions = sorted(predictions, key=itemgetter(1), reverse=True)
+#     sorted_predictions = sorted(predictions, key=itemgetter("id"), reverse=True)
 #     logger.info("Done predicting dismantling order. Took {} (including GPU access time and sorting)".format(
 #         timedelta(seconds=(time() - start_time)))
 #     )

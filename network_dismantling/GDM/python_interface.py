@@ -8,12 +8,14 @@
 # 6. Extract the best runs from the CSV file and store them in the heuristics.csv file
 import logging
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
 from graph_tool import Graph
 from torch import multiprocessing
 
 from network_dismantling._sorters import dismantling_method
-from network_dismantling.common.storage.pandas.csv import start_df_writer
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 
 try:
     from deadpool import as_completed, Executor
@@ -81,16 +83,16 @@ df = None
 
 
 def grid(
-        df,
-        args,
-        nn_model,
-        test_networks_provider,
+        df: pd.DataFrame,
+        args: Any,
+        nn_model: Any,
+        test_networks_provider: Any,
         executor: Executor,
         pool_size: int,
         mp_manager: multiprocessing.Manager,
         logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs,
-):
+) -> pd.DataFrame:
     import threading
     from queue import Queue
 
@@ -122,18 +124,14 @@ def grid(
     )
 
     # Init queues
-    df_queue: Queue = mp_manager.Queue()
     params_queue: Queue = mp_manager.Queue()
     # device_queue: Queue = mp_manager.Queue()
     iterations_queue: Queue = mp_manager.Queue()
+    df_queue: Queue = mp_manager.Queue()  # Create queue for cross-process sharing
 
     # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(args=args,
-                                           df_queue=df_queue,
-                                           logger=logger,
-                                           )
-
     devices = []
+    
     locks = dict()
     if cuda.is_available() and not args.force_cpu:
         logger.debug("Using GPU(s).")
@@ -175,13 +173,24 @@ def grid(
     models_not_found = 0
 
     logger.debug(f"df columns: {df.columns}")
-    with tqdm(
+    with (
+        tqdm(
             total=len(params_list),
             # ascii=True,
             ascii=False,
             desc="Parameters",
             leave=False,
-    ) as pb:
+        ) as pb,
+
+        ParquetDataFrameWriter(
+            output_file=args.output_file,
+            columns=args.output_df_columns,
+            mode="append",
+            queue=df_queue,  # Pass the shared queue
+            logger=logger,
+        ) as parquet_writer,
+
+    ):
         # Create and start the ProgressBar Thread
         pbt = threading.Thread(
             target=progressbar_thread,
@@ -207,7 +216,7 @@ def grid(
                     params_queue=params_queue,
                     train_networks=None,
                     test_networks=test_networks_provider,
-                    df_queue=df_queue,
+                    df_queue=df_queue,  # Use the shared queue directly
                     iterations_queue=iterations_queue,
                     logger=logger,
                 )
@@ -229,11 +238,6 @@ def grid(
         # Close the progress bar thread
         iterations_queue.put(None)
         pbt.join()
-
-    # Gracefully close the daemons
-    df_queue.put(None)
-
-    dp.join()
 
     new_df_runs = pd.DataFrame(new_runs_buffer, columns=df.columns)
 
@@ -263,10 +267,11 @@ def _GDM(
         stop_condition: int,
         reinsertion: bool,
         threshold: float,
-        parameters=default_gdm_params,
-        logger=logging.getLogger("dummy"),
+        parameters: str = default_gdm_params,
+        logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs,
-):
+) -> pd.DataFrame:
+    
     import pandas as pd
 
     from network_dismantling.common.data_structures import dotdict
@@ -279,7 +284,7 @@ def _GDM(
         main as reinsert,
         parse_parameters as reinsert_parse_parameters,
     )
-    from network_dismantling.common.df_helpers import df_reader
+    from network_dismantling.common.storage.pandas.parquet import df_reader
     from network_dismantling.common.helpers import extend_filename
 
     global df
@@ -317,15 +322,12 @@ def _GDM(
         ]
 
     if df is None:
-        if (args.output_file.exists()) and (args.output_file.is_file()):
-            df = df_reader(
-                args.output_file,
-                include_removals=False,
-                raise_on_missing_file=True,
-                # expected_columns=args.output_df_columns,
-            )
-        else:
-            df = pd.DataFrame(columns=args.output_df_columns)
+        df = df_reader(
+            args.output_file,
+            include_removals=False,
+            raise_on_missing_file=True,
+            expected_columns=args.output_df_columns,
+        )
 
     new_df_runs = grid(
         df=df,
@@ -433,7 +435,7 @@ method_info = dict(
     includes_reinsertion=False,
     **method_info,
 )
-def GDM(network, **kwargs):
+def GDM(network: Graph, **kwargs) -> pd.DataFrame:
     return _GDM(network, reinsertion=False, **kwargs)
 
 
@@ -444,5 +446,5 @@ def GDM(network, **kwargs):
     includes_reinsertion=True,
     **method_info,
 )
-def GDMR(network, **kwargs):
+def GDMR(network: Graph, **kwargs) -> pd.DataFrame:
     return _GDM(network, reinsertion=True, **kwargs)

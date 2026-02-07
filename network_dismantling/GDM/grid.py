@@ -243,7 +243,7 @@ def main(args, nn_model):
     from network_dismantling.common.data_structures import product_dict
     from network_dismantling.GDM.dataset_providers import init_network_provider
     from network_dismantling.common.dataset_providers import list_files
-    from network_dismantling.common.df_helpers import df_reader
+    from network_dismantling.common.storage.pandas.parquet import df_reader
     from network_dismantling.common.multiprocessing import (
         progressbar_thread,
         apply_async,
@@ -302,10 +302,12 @@ def main(args, nn_model):
     iterations_queue: Queue = mp_manager.Queue()
 
     # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(args=args,
-                                           df_queue=df_queue,
-                                           logger=logger,
-                                           )
+    dp: threading.Thread = start_df_writer(
+        output_file=args.output_file,
+        output_df_columns=args.output_df_columns,
+        df_queue=df_queue,
+        logger=logger,
+    )
 
     # mpl = multiprocessing.log_to_stderr()
     # mpl.setLevel(logging.INFO)
@@ -744,9 +746,9 @@ def parse_parameters(
     if not args.static_dismantling:
         suffix += "_DYNAMIC"
 
-    args.output_file = dataframes_path / (nn_model.get_name() + suffix + ".csv")
+    args.output_file = dataframes_path / (nn_model.get_name() + suffix + ".parquet")
     if args.output_extension is not None:
-        args.output_file = args.output_file.with_suffix(f".{args.output_extension}.csv")
+        args.output_file = args.output_file.with_suffix(f".{args.output_extension}.parquet")
 
     logger.debug(f"Output DF: {args.output_file}")
 
@@ -781,7 +783,7 @@ if __name__ == "__main__":
         progressbar_thread,
         apply_async,
     )
-    from network_dismantling.common.storage.pandas.csv import start_df_writer
+    from network_dismantling.common.storage.pandas.parquet import start_df_writer
     from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
     logger = logging.getLogger(__name__)

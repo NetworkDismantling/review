@@ -16,6 +16,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with GDM.  If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
 import logging
 from ast import literal_eval
 from errno import ENOSPC
@@ -25,7 +26,7 @@ from pathlib import Path
 from subprocess import run, CalledProcessError
 from tempfile import NamedTemporaryFile
 from time import time
-from typing import Dict, List
+from typing import Callable, Dict, Iterable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -33,13 +34,15 @@ from graph_tool import Graph
 from scipy.integrate import simpson
 from tqdm import tqdm
 
+from network_dismantling.common.data_structures import dotdict
 from network_dismantling.common.dataset_providers import init_network_provider
-from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.storage.pandas.parquet import df_reader
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import lcc_threshold_dismantler, \
     threshold_dismantler
 from network_dismantling.common.helpers import extend_filename
 from network_dismantling.common.logging.pipe import LogPipe
 from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 
 folder = "network_dismantling/GDM/reinsertion/"
 cd_cmd = r"cd {} && ".format(folder)
@@ -68,11 +71,11 @@ cached_networks: Dict[Path, str] = {}
 
 def get_predictions(
         network: Graph,
-        removals: List,
+        removals: List[Dict[str, Union[int, float]]],
         stop_condition: int,
         logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs
-):
+) -> tuple[np.ndarray, float]:
     start_time = time()
 
     logger.debug("Running reinsertion algorithm")
@@ -91,10 +94,10 @@ def get_predictions(
 
 def reinsert(
         network: Graph,
-        removals: List,
+        removals: List[Dict[str, Union[int, float]]],
         stop_condition: int,
         logger: logging.Logger = logging.getLogger("dummy"),
-):
+) -> np.ndarray:
     network_path = get_network_file(network)
 
     nodes = []
@@ -231,41 +234,51 @@ def cleanup_cache():
 
 
 def main(
-        args,
-        df=None,
-        test_networks=None,
-        predictor=get_predictions,
-        dismantler=lcc_threshold_dismantler,
-        threshold: float = None,
-        logger=logging.getLogger("dummy"),
-):
+        args: Union[dotdict, argparse.Namespace],
+        test_networks: Dict[str, Graph],
+        df: Optional[pd.DataFrame] = None,
+        predictor: Optional[Callable[[Graph], Iterable]] = get_predictions,
+        dismantler: Optional[Callable[[Graph], Iterable]] = lcc_threshold_dismantler,
+        threshold: Optional[float] = None,
+        logger: logging.Logger = logging.getLogger("dummy"),
+) -> List[Dict]:
+    reader_kwargs = dict(
+        at_least_one_file=False,
+        dtype_dict={
+            "network": "category",
+            "heuristic": "category",
+            # "rem_num"
+        },
+        logger=logger,
+    )
     if df is None:
         # Load the runs dataframe...
         df = df_reader(args.file,
                        include_removals=True,
                        raise_on_missing_file=True,
+                        **reader_kwargs,
                        )
 
         if args.query is not None:
             # ... and query it
             df.query(args.query, inplace=True)
 
-    df_columns = df.columns
+    df_columns: List[str] = df.columns.to_list()
 
-    if args.output_file.exists():
-        try:
-            output_df = pd.read_csv(args.output_file)
-        except Exception as e:
-            logger.error(f"Error while reading the output file {args.output_file}: {e}", exc_info=True)
-            raise e
-    else:
-        output_df = pd.DataFrame(columns=df.columns)
+    output_df: pd.DataFrame = df_reader(
+        files=args.output_file,
 
+        expected_columns=df_columns,
+        include_removals=False,
+        raise_on_missing_file=False,
+    )
+    
     # Filter the networks in the folder
     df = df.loc[(df["network"].isin(test_networks.keys()))]
 
     if df.shape[0] == 0:
         logger.warning("No networks to reinsert!")
+        return []
 
     if args.sort_column == "average_dmg":
         df["average_dmg"] = (1 - df["lcc_size_at_peak"]) / df["slcc_peak_at"]
@@ -279,23 +292,44 @@ def main(
 
     all_runs = []
     groups = df.groupby("network")
+    
+    # Open the Parquet writer once for all runs (if output file specified)
+    output_path = Path(args.output_file)
+    write_mode = 'append' if output_path.exists() else 'overwrite'
+    
     for network_name, network_df in groups:
-        with tqdm(
+        with (
+            tqdm(
                 network_df.iterrows(),
                 ascii=False,
                 desc="Reinserting",
                 leave=False,
-        ) as runs_iterable:
+            ) as runs_iterable,
+
+            ParquetDataFrameWriter(
+                output_file=output_path,
+                columns=df_columns,
+                mode=write_mode,
+                logger=logger,
+            ) as parquet_writer,
+        ):
             runs_iterable.set_description(network_name)
 
             run: pd.Series
             for _, run in runs_iterable:
                 network = test_networks[network_name]
 
-                run.drop(run_columns, inplace=True, errors="ignore")
                 # Get the removals
                 removals = run.pop("removals")
-                removals = literal_eval(removals)
+                
+                # # Handle both CSV (string) and Parquet (already deserialized) formats
+                # if isinstance(removals, str):
+                #     # Legacy CSV format: parse string
+                #     removals = literal_eval(removals)
+                # elif isinstance(removals, np.ndarray):
+                #     # Parquet format: numpy array -> list
+                #     removals = removals.tolist()
+                # # else: already a list, use as-is
 
                 # Remove the columns that are not needed
                 run.drop(run_columns,
@@ -321,36 +355,38 @@ def main(
                 #                         removals[-1][3],
                 #                         )
 
-                threshold = removals[-1][3]
-                stop_condition = np.ceil(network.num_vertices() * threshold)
-
+                # threshold = removals[-1][3]
+                threshold = removals[-1]["lcc_size"]
+                # stop_condition = np.ceil(network.num_vertices() * threshold)
+                stop_condition = threshold # already absolute value
+                
                 logger.debug(f"Threshold: {threshold}, stop condition: {stop_condition}")
-
-                generator_args = {
-                    "removals": list(map(itemgetter(1), removals)),
-                    "stop_condition": stop_condition,
-                    "network_name": network_name,
-                    "logger": logger,
-                }
+                logger.debug(f"Removals dtype {type(removals)} dtype of first element {type(removals[0])}"
+                             f"Removals:\n{removals}")
 
                 removals, _, _ = dismantler(
                     network=network.copy(),
                     predictor=predictor,
-                    generator_args=generator_args,
+                    generator_args={
+                        "removals": list(map(itemgetter("id"), removals)),
+                        "stop_condition": stop_condition,
+                        "network_name": network_name,
+                        "logger": logger,
+                    },
                     stop_condition=stop_condition,
                     dismantler=dismantler,
                     logger=logger,
                 )
 
-                peak_slcc = max(removals, key=itemgetter(4))
+                peak_slcc = max(removals, key=lambda r: r.slcc_size)
 
                 _run = {
                     "network": network_name,
-                    "removals": removals,
-                    "slcc_peak_at": peak_slcc[0],
-                    "lcc_size_at_peak": peak_slcc[3],
-                    "slcc_size_at_peak": peak_slcc[4],
-                    "r_auc": simpson(list(r[3] for r in removals), dx=1),
+                    "removals": np.array(removals, dtype=object),
+                    "slcc_peak_at": peak_slcc.removal_num,
+                    "lcc_size_at_peak": peak_slcc.lcc_size,
+                    "slcc_size_at_peak": peak_slcc.slcc_size,
+                    "r_auc": simpson(list(r.lcc_size for r in removals), dx=1),
                     "rem_num": len(removals),
                     "threshold": threshold,
                 }
@@ -359,7 +395,7 @@ def main(
                     run[key] = value
 
                 # Check if something is wrong with the removals
-                if removals[-1][2] == 0:
+                if removals[-1].prediction == 0:
                     # for removal in removals:
                     #     logger.info(
                     #         "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
@@ -370,7 +406,7 @@ def main(
                     logger.error(f"Had to remove too many nodes ({len(removals)}): {removals[-1]}")
                     last_valid_index = 0
                     for i, removal in enumerate(removals):
-                        if removal[2] > 0:
+                        if removal.prediction > 0:
                             last_valid_index = i
                         else:
                             break
@@ -382,20 +418,9 @@ def main(
 
                 run_df = pd.DataFrame(data=[run], columns=network_df.columns)
 
-                if args.output_file is not None:
-                    kwargs = {
-                        "path_or_buf": Path(args.output_file),
-                        "index": False,
-                        # header='column_names',
-                        "columns": df_columns,
-                    }
-
-                    # If dataframe exists append without writing the header
-                    if kwargs["path_or_buf"].exists():
-                        kwargs["mode"] = "a"
-                        kwargs["header"] = False
-
-                    run_df.to_csv(**kwargs)
+                # Write to parquet if writer is open
+                if parquet_writer is not None:
+                    parquet_writer.write(run_df)
 
         cleanup_cache()
 

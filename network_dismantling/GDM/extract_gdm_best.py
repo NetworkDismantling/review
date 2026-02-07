@@ -18,14 +18,21 @@
 
 from argparse import ArgumentParser
 from pathlib import Path
-
+from typing import Union
+import argparse
+import logging
 import pandas as pd
 
-from network_dismantling.common.df_helpers import df_reader, get_df_columns
+from network_dismantling.common.data_structures import dotdict
+from network_dismantling.common.storage.pandas.parquet import df_reader, get_df_columns
 from network_dismantling.common.helpers import extend_filename
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 
 
-def load_and_clean_df(args):
+
+def load_and_clean_df(args : Union[dotdict, argparse.Namespace], 
+                      logger: logging.Logger = logging.getLogger("dummy"),
+                      ):
     if args.output_file is None:
         args.output_file = extend_filename(args.file, "_best_runs")
 
@@ -38,36 +45,31 @@ def load_and_clean_df(args):
                    include_removals=True,
                    )
 
-    kwargs = {
-        "path_or_buf": str(args.output_file),
-        "index": False,
-    }
-
-    if args.output_file.exists():
-        print(f"Output file {args.output_file} exists. Appending to it.")
-
-        kwargs["mode"] = "a"
-        kwargs["header"] = False
-
-        current_df_columns = get_df_columns(args.output_file)
-
-    else:
-        current_df_columns = None
-
-        # current_df = pd.read_csv(args.output_file)
-
     extracted_df = extract_best_runs(args=args,
                                      df=df,
                                      )
 
-    if current_df_columns is not None:
-        extracted_df = extracted_df[:, current_df_columns]
+    # Determine write mode based on file existence
+    write_mode = 'append' if args.output_file.exists() else 'overwrite'
+    
+    if args.output_file.exists():
+        print(f"Output file {args.output_file} exists. Appending to it.")
+        current_df_columns = get_df_columns(args.output_file)
+        if current_df_columns is not None:
+            extracted_df = extracted_df[current_df_columns]
+    
+    # Use ParquetDataFrameWriter for efficient writing
+    with ParquetDataFrameWriter(
+        output_file=args.output_file,
+        columns=list(extracted_df.columns),
+        mode=write_mode,
+        logger=logger,
+    ) as writer:
+        writer.write(extracted_df)
 
-    extracted_df.to_csv(**kwargs)
 
-
-def extract_best_runs(args, df, heuristic_name=None):
-    df.drop_duplicates(inplace=True)
+def extract_best_runs(args: dotdict, df: pd.DataFrame, heuristic_name=None):
+    df.drop_duplicates(df.columns.difference(["removals"]), inplace=True)  # Keep duplicates only if they differ in 'removals'
 
     if args.query is not None:
         df.query(args.query, inplace=True)
@@ -111,7 +113,7 @@ def extract_best_runs(args, df, heuristic_name=None):
     # print("Output DF", extracted_df)
 
     # Remove duplicates in case of multiple sorting columns
-    extracted_df.drop_duplicates(inplace=True)
+    extracted_df.drop_duplicates(extracted_df.columns.difference(["removals"]), inplace=True)  # Keep duplicates only if they differ in 'removals'
     return extracted_df
 
 
@@ -167,6 +169,7 @@ def parse_parameters(parse_string=None):
 
 
 if __name__ == "__main__":
+    logger: logging.Logger = logging.getLogger(__name__)
     args = parse_parameters()
 
-    load_and_clean_df(args)
+    load_and_clean_df(args, logger=logger)

@@ -97,7 +97,45 @@ of [Min-Sum](https://github.com/abraunst/decycler/).
 See the [Citations file](CITATIONS.md) for more information.**
 
 ## Setup
-> Expected time for this step: 30m - 1h
+
+> **NEW: Simplified Setup with Pixi (Recommended)**  
+> We now use [Pixi](https://pixi.sh/) for environment management, which simplifies the setup significantly.  
+> See the detailed [SETUP_GUIDE.md](SETUP_GUIDE.md) for the new workflow.
+
+**Quick Start:**
+```bash
+# Install Pixi (if not already): https://pixi.sh/latest/#installation
+curl -fsSL https://pixi.sh/install.sh | bash
+
+# Clone and setup
+cd review
+pixi install              # Install dependencies
+pixi run setup-all        # Install PyTorch + compile C++ code
+```
+
+**Why Pixi?**
+- ✅ Automatic CUDA version detection for PyTorch
+- ✅ Proper handling of build dependencies (Boost, CMake, graph-tool)
+- ✅ Single command setup (no multiple conda environments)
+- ✅ Cross-platform support (Linux, macOS, Windows WSL)
+
+> Expected time for this step: 10-20 minutes
+
+---
+
+<details>
+<summary><b>Legacy Setup (Manual Conda - Click to Expand)</b></summary>
+
+> ⚠️ **Note**: The manual Conda setup is still supported but more complex.  
+> The main issues with the old approach:
+> - Requires multiple environments for different algorithms
+> - Hardcoded PyTorch/CUDA versions
+> - Manual compilation steps
+> - Build failures due to missing dependencies
+>
+> If you're starting fresh, we strongly recommend using Pixi (see above).
+
+### Legacy: Expected time for this step: 30m - 1h
 
 This package is written in Python (tested with version 3.9), and uses graph-tool[1] for the graph processing.
 The bundled scripts should take cake of building and setting up the included algorithms.
@@ -207,6 +245,10 @@ export GCC=/usr/bin/gcc-8
 python setup.py clean
 python setup.py build
 ````
+
+</details>
+
+---
 
 ## Dataset
 

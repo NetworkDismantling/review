@@ -1,86 +1,128 @@
+# ============================================================================
+# Network Dismantling Framework - Pixi Configuration
+# ============================================================================
+# This configuration manages conda dependencies for the Network Dismantling 
+# framework. PyTorch and PyTorch Geometric are installed separately via 
+# dynamic detection to handle different CUDA versions correctly.
+#
+# Complete Setup Workflow:
+#   1. pixi install                    # Install conda dependencies
+#   2. pixi run setup-pytorch          # Auto-detect CUDA and install PyTorch/PyG
+#   3. pixi run install-local          # Compile and install local package
+#
+# Or use the all-in-one command:
+#   pixi run setup-all
+# ============================================================================
+
 [workspace]
+name = "network-dismantling"
 authors = ["Marco Grassia <666024+eMarco@users.noreply.github.com>"]
 channels = ["conda-forge"]
-name = "Network Dismantling framework"
 homepage = "https://github.com/NetworkDismantling/review/"
 repository = "https://github.com/NetworkDismantling/review/"
 documentation = "https://github.com/NetworkDismantling/review/"
-#license-file =
 readme = "README.md"
-
-platforms = [
-    "osx-arm64",
-     "linux-64",
-    # "win-64",
-]
 version = "0.1.0"
 
-# [project]
-# name = "pytorch-conda-forge"
+platforms = ["osx-arm64", "linux-64"]
 
-[tasks]
+# ============================================================================
+# Common Dependencies (all environments)
+# ============================================================================
 
 [dependencies]
-pip = ">=25.3"
+# Core Python packages
+pip = ">=26.0.1"
+python = ">=3.12,<3.14"
+
+# Data Science Stack
 pandas = ">=3.0.0"
-tqdm = ">=4.67.1"
-seaborn = ">=0.13.2"
-dill = ">=0.4.0,<0.5"
-numpy = ">=2.3.5"
+numpy = ">=2.4.2"
 scipy = ">=1.17.0,<2"
-matplotlib = ">=3.9.1.post1"
-pandas-stubs = ">=2.3.3.260113"
+matplotlib = ">=3.10.8"
+seaborn = ">=0.13.2"
+pandas-stubs = ">=3.0.0.260204"
+
+# Utilities
+tqdm = ">=4.67.3"
+dill = ">=0.4.1,<0.5"
+parse = ">=1.21.0,<2"
+
+# Data formats
+pyarrow = ">=23.0.0,<24"
+fastparquet = ">=2025.12.0,<2026"
+
+# Jupyter
 ipywidgets = ">=8.1.8"
 jupyter = ">=1.1.1"
-jupyterlab = ">=4.5.0"
+jupyterlab = ">=4.5.3"
 
-graph-tool = ">=2.98,<3"
-libboost = ">=1.86.0,<2"
-libboost-devel = ">=1.86.0,<2"
-libboost-headers = ">=1.86.0,<2"
-libboost-python = ">=1.86.0,<2"
-libboost-python-devel = ">=1.86.0,<2"
+# Graph-tool (conda-only, reason we use Pixi!)
+graph-tool = ">=2.95"
+libboost = ">=1.86.0"
+libboost-devel = ">=1.86.0"
+libboost-headers = ">=1.86.0"
+libboost-python = ">=1.86.0"
+libboost-python-devel = ">=1.86.0"
+
+# Build tools
 cmake = ">=4.2.1"
-pytest = "9.0.2.*"
-pixi-pycharm = ">=0.0.10,<0.0.11"
-parse = ">=1.20.2,<2"
 
+# Testing
+pytest = ">=9.0.2"
+
+# IDE integration
+pixi-pycharm = ">=0.0.10,<0.0.11"
+
+# ============================================================================
+# PyPI Dependencies
+# ============================================================================
 
 [pypi-dependencies]
+# PyPI-only packages
+deadpool-executor = ">=2025.2.2"
 
-[pypi-options]
-no-build-isolation = ["NetworkDismantling"]
-networkdismantling = { path = ".", editable = true }
+# NOTE: PyTorch and PyTorch Geometric are NOT installed here!
+# They are installed dynamically via: pixi run setup-pytorch
+# This allows automatic detection of CUDA version and installation of 
+# the correct wheels without hardcoding versions.
 
-##### Pytorch
+# NOTE: Local package (NetworkDismantling) is NOT installed here!
+# It must be installed AFTER the environment is ready using: pixi run install-local
+# This is because setup.py requires graph-tool, Boost, and other conda dependencies
+# to be available in an activated environment (CONDA_PREFIX must be set for Makefiles).
 
-[tool.pixi.project]
-channels = ["https://prefix.dev/conda-forge"]
-platforms = ["linux-64"]
-# ##### Pytorch
-torch = { version = ">=2.9.1", index = "https://download.pytorch.org/whl/cu130" }
-torchvision = { version = ">=0.24.1", index = "https://download.pytorch.org/whl/cu130" }
+# ============================================================================
+# Tasks
+# ============================================================================
 
-[target.osx.pypi-dependencies]
-# OSX has no CUDA support so use the CPU here
-torch = { version = ">=2.9.1", index = "https://download.pytorch.org/whl/cpu" }
-torchvision = { version = ">=0.24.1", index = "https://download.pytorch.org/whl/cpu" }
+[tasks]
+# === Setup Tasks (run after pixi install) ===
 
+# Step 1: Install PyTorch and PyG with automatic CUDA detection
+setup-pytorch = { cmd = "python setup_pytorch.py", description = "Auto-detect CUDA and install PyTorch/PyG" }
 
-[pypi-options]
-no-build-isolation = ["networkdismantling"]
+# Step 2: Compile and install local package (requires activated environment)
+install-local = { cmd = "pip install -e . --no-build-isolation", description = "Install NetworkDismantling package" }
+install-local-clean = { cmd = "pip install -e . --no-build-isolation --force-reinstall", description = "Reinstall NetworkDismantling package" }
 
+# All-in-one setup (recommended for first-time setup)
+setup-all = { cmd = "python setup_pytorch.py && pip install -e . --no-build-isolation", description = "Complete setup: PyTorch + local package" }
 
-[tool.pixi.feature.gpu.dependencies]
-cuda-version = "12.*.*"
-pytorch-gpu = "*"
+# === Testing ===
+test = "python -m pytest tests/ -v"
+test-verbose = "python -m pytest tests/ -v -s"
+test-quick = "python -m pytest tests/ -v -x"
 
-[tool.pixi.feature.cpu.dependencies]
-pytorch-cpu = "*"
+# === Jupyter ===
+jupyter = "jupyter lab"
+notebook = "jupyter notebook"
 
-[tool.pixi.environments]
-cpu = ["cpu"]
-default = ["gpu"]
+# === Environment Info ===
+info = { cmd = "python -c \"import sys; print(f'Python: {sys.version}'); import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else None}'); import torch_geometric; print(f'PyG: {torch_geometric.__version__}')\"", description = "Show environment information" }
+verify = { cmd = "python verify_env.py", description = "Verify environment setup" }
 
-[build-dependencies]
-cmake = ">=3.25.0,<4"
+# === Maintenance ===
+clean-cache = "rm -rf .pixi/envs/*/lib/python*/site-packages/__pycache__"
+clean-build = { cmd = "find . -name '*.o' -delete && find . -name '*.so' -delete && find network_dismantling -type d -name build -exec rm -rf {} + 2>/dev/null || true", description = "Clean compiled artifacts" }
+

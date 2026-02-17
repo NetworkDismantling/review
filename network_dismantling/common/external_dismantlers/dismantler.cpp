@@ -433,7 +433,7 @@ public:
     }
 
     void computeCC() {
-        cout << "Computing Connected Components..." << endl;
+        // cout << "Computing Connected Components..." << endl;
         // robin_map<unsigned int, forward_list<unsigned int> >::iterator itm, mend;
         // forward_list<unsigned int>::iterator itl, lend;
         vector<NodeType> *pCom;
@@ -442,7 +442,7 @@ public:
         NodeType snode, node, nnode;
 
         size_t gSize = g.size();
-        cout << "Graph size: " << gSize << endl;
+        // cout << "Graph size: " << gSize << endl;
 
         //initialization
         component.clear();

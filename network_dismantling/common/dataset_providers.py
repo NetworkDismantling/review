@@ -95,7 +95,10 @@ def storage_provider(location,
         if (max_num_vertices is not None) and (network.num_vertices() > max_num_vertices):
             continue
 
-        assert not network.is_directed()
+        # assert not network.is_directed()
+        if network.is_directed():
+            logger.warning(f"Network {filename} is directed. Converting to undirected by ignoring edge directions.")
+            network.set_directed(False)
 
         if "static_id" not in network.vertex_properties:
             # TODO turn into a unsigned int?

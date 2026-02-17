@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from network_dismantling.common.storage.pandas.parquet import start_df_writer
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 
 
 def test_cross_session_append():
@@ -21,7 +21,6 @@ def test_cross_session_append():
         
         # Session 1: Write initial data
         print("\n=== Session 1: Initial write ===")
-        queue1 = mp.Queue()
         
         df1 = pd.DataFrame({
             'network': ['net1'] * 3,
@@ -33,16 +32,12 @@ def test_cross_session_append():
             ]
         })
         
-        writer1 = start_df_writer(
+        with ParquetDataFrameWriter(
             output_file=output_file,
-            output_df_columns=['network', 'run', 'removals'],
-            df_queue=queue1,
+            columns=['network', 'run', 'removals'],
             mode='overwrite',
-        )
-        
-        queue1.put(df1)
-        queue1.put(None)  # Sentinel
-        writer1.join()
+        ) as writer1:
+            writer1.write(df1)
         
         # Verify session 1 wrote correctly
         table1 = pq.read_table(str(output_file))
@@ -51,7 +46,6 @@ def test_cross_session_append():
         
         # Session 2: Append more data
         print("\n=== Session 2: Append mode ===")
-        queue2 = mp.Queue()
         
         df2 = pd.DataFrame({
             'network': ['net1'] * 2,
@@ -62,16 +56,12 @@ def test_cross_session_append():
             ]
         })
         
-        writer2 = start_df_writer(
+        with ParquetDataFrameWriter(
             output_file=output_file,
-            output_df_columns=['network', 'run', 'removals'],
-            df_queue=queue2,
-            mode='append',  # Cross-session append!
-        )
-        
-        queue2.put(df2)
-        queue2.put(None)  # Sentinel
-        writer2.join()
+            columns=['network', 'run', 'removals'],
+            mode='append',
+        ) as writer2:
+            writer2.write(df2)
         
         # Verify both sessions' data is present
         final_table = pq.read_table(str(output_file))
@@ -109,7 +99,6 @@ def test_multiple_appends():
         # Write 3 sessions
         for session in range(1, 4):
             print(f"\n=== Session {session} ===")
-            queue = mp.Queue()
             
             df = pd.DataFrame({
                 'session': [session] * 2,
@@ -117,16 +106,12 @@ def test_multiple_appends():
             })
             
             mode = 'overwrite' if session == 1 else 'append'
-            writer = start_df_writer(
+            with ParquetDataFrameWriter(
                 output_file=output_file,
-                output_df_columns=['session', 'value'],
-                df_queue=queue,
+                columns=['session', 'value'],
                 mode=mode,
-            )
-            
-            queue.put(df)
-            queue.put(None)
-            writer.join()
+            ) as writer:
+                writer.write(df)
             
             total_rows += len(df)
         
@@ -141,11 +126,4 @@ def test_multiple_appends():
             assert len(session_data) == 2, f"Session {session} data missing or incomplete"
         
         print("✅ Multiple appends test PASSED")
-
-
-if __name__ == "__main__":
-    test_cross_session_append()
-    test_multiple_appends()
-    print("\n" + "="*60)
-    print("All cross-session append tests PASSED! 🎉")
     print("="*60)

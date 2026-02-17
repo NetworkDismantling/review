@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 import pyarrow.parquet as pq
 
+from network_dismantling.common.removal import Removal
 from network_dismantling.common.storage.pandas.parquet import (
     ParquetDataFrameWriter,
     convert_removals_to_struct,
@@ -195,14 +196,17 @@ class TestParquetStructFormat:
         assert struct_data[0]['lcc_size'] == 900
         assert struct_data[0]['slcc_size'] == 50
         
-        # Convert back to tuples
-        tuples_data = convert_removals_from_struct(struct_data)
+        # Convert back from struct — now returns Removal dataclass objects
+        removal_objects = convert_removals_from_struct(struct_data)
         
-        assert isinstance(tuples_data, list)
-        assert len(tuples_data) == 3
-        assert isinstance(tuples_data[0], tuple)
-        assert tuples_data[0] == (0, 123, 0.5, 900, 50)
-        assert tuples_data == removals
+        assert isinstance(removal_objects, list)
+        assert len(removal_objects) == 3
+        assert isinstance(removal_objects[0], Removal)
+        assert removal_objects[0].removal_num == 0
+        assert removal_objects[0].node_id == 123
+        assert removal_objects[0].prediction == 0.5
+        assert removal_objects[0].lcc_size == 900
+        assert removal_objects[0].slcc_size == 50
     
     def test_empty_removals(self, temp_dir):
         """Test handling of empty removals."""

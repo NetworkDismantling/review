@@ -514,7 +514,12 @@ def test_parquet_writer_context_manager(tmp_path, sample_dismantling_data):
 
 
 def test_parquet_writer_error_detection(tmp_path):
-    """Test that ParquetDataFrameWriter detects errors properly"""
+    """Test that ParquetDataFrameWriter tolerates batches with missing columns.
+    
+    The writer skips malformed batches (logging an error) and continues
+    accepting valid data.  The final file should contain only the valid rows.
+    """
+    import time
     columns = ["a", "b", "c"]
     output_file = tmp_path / "test_error.parquet"
     
@@ -524,26 +529,23 @@ def test_parquet_writer_error_detection(tmp_path):
     chunk1 = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
     writer.write(chunk1)
     
-    # Write invalid data (missing column)
+    # Write invalid data (missing column 'c', extra column 'd')
     chunk2 = pd.DataFrame({"a": [4], "b": [5], "d": [6]})
+    writer.write(chunk2)
+    time.sleep(0.5)  # Give writer thread time to process
     
-    # This should fail but be caught by the writer
-    try:
-        writer.write(chunk2)
-        # Give thread time to process
-        import time
-        time.sleep(0.5)
-        
-        # Next write should detect the error
-        chunk3 = pd.DataFrame({"a": [7], "b": [8], "c": [9]})
-        with pytest.raises(RuntimeError, match="error"):
-            writer.write(chunk3)
-    finally:
-        # Close should also work even after error
-        try:
-            writer.close()
-        except RuntimeError:
-            pass  # Expected if error occurred
+    # Writer should still be alive — next valid write should succeed
+    chunk3 = pd.DataFrame({"a": [7], "b": [8], "c": [9]})
+    writer.write(chunk3)
+    
+    writer.close()
+    
+    # Verify: only chunk1 and chunk3 are in the file (chunk2 was skipped)
+    import pandas as pd
+    result = pd.read_parquet(str(output_file))
+    assert len(result) == 2, f"Expected 2 rows (chunk1 + chunk3), got {len(result)}"
+    assert result["a"].tolist() == [1, 7]
+    assert result["c"].tolist() == [3, 9]
 
 
 if __name__ == "__main__":

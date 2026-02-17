@@ -145,7 +145,12 @@ target/
 .ipynb_checkpoints
 
 # pyenv
-.python-version
+# .python-version  # Commented out - we want to track this for UV
+
+# UV specific
+uv.lock
+.venv/
+.uv/
 
 # celery beat schedule file
 celerybeat-schedule

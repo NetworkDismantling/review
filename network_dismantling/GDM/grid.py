@@ -301,120 +301,112 @@ def main(args, nn_model):
     params_queue: Queue = mp_manager.Queue()
     iterations_queue: Queue = mp_manager.Queue()
 
-    # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(
+    # Use context manager to guarantee the writer is closed even on exceptions
+    with ParquetDataFrameWriter(
         output_file=args.output_file,
-        output_df_columns=args.output_df_columns,
-        df_queue=df_queue,
+        columns=args.output_df_columns,
+        queue=df_queue,
         logger=logger,
-    )
+    ) as parquet_writer:
 
-    # mpl = multiprocessing.log_to_stderr()
-    # mpl.setLevel(logging.INFO)
+        devices = []
+        locks = dict()
 
-    devices = []
-    locks = dict()
-
-    logger.info(f"Using package {network_dismantling.__file__}")
-    if cuda.is_available() and not args.force_cpu:
-        logger.info("Using GPU(s).")
-        for device in range(cuda.device_count()):
-            device = "cuda:{}".format(device)
+        logger.info(f"Using package {network_dismantling.__file__}")
+        if cuda.is_available() and not args.force_cpu:
+            logger.info("Using GPU(s).")
+            for device in range(cuda.device_count()):
+                device = "cuda:{}".format(device)
+                devices.append(device)
+                locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
+        else:
+            logger.info("Using CPU.")
+            device = "cpu"
             devices.append(device)
             locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
-    else:
-        logger.info("Using CPU.")
-        device = "cpu"
-        devices.append(device)
-        locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
-
-    # # Put all available devices in the queue
-    # for device in devices:
-    #     for _ in range(args.simultaneous_access):
-    #         # Allow simultaneous access to the same device
-    #         device_queue.put(device)
-
-    args.devices = devices
-    args.locks = locks
-
-    for network_name in tqdm(
-            test_networks_list,
-            desc="Networks",
-            leave=False,
-    ):
-        logger.info(f"Loading network: {network_name}")
-
-        test_networks = init_network_provider(
-            args.location_test,
-            max_num_vertices=args.max_num_vertices,
-            features_list=args.features,
-            filter=f"{network_name}",
-            targets=None,
-            # manager=mp_manager,
-        )
-
-        # Fill the params queue
-        # TODO ANY BETTER WAY?
-        for i, params in enumerate(params_list):
-            # device = devices[i % len(devices)]
-            # params.device = device
-            # params.lock = locks[device]
-            params_queue.put(params)
-
-        # Create the pool
-        with multiprocessing.Pool(
-                processes=args.jobs,
-                initializer=tqdm.set_lock,
-                initargs=(multiprocessing.Lock(),),
-        ) as p:
-            with tqdm(total=len(params_list),
-                      ascii=True) as pb:
-                # Create and start the ProgressBar Thread
-                pbt = threading.Thread(
-                    target=progressbar_thread,
-                    args=(
-                        iterations_queue,
-                        pb,
-                    ),
-                    daemon=True,
-                )
-                pbt.start()
-
-                for i in range(args.jobs):
-                    # torch.cuda._lazy_init()
-
-                    # p.apply_async(
-                    apply_async(
-                        pool=p,
-                        func=process_parameters_wrapper,
-                        kwargs=dict(
-                            args=args,
-                            df=df,
-                            nn_model=nn_model,
-                            params_queue=params_queue,
-                            test_networks=test_networks,
-                            train_networks=train_networks,
-                            df_queue=df_queue,
-                            iterations_queue=iterations_queue,
-                            # device_queue=device_queue,
-                            logger=logger,
+    
+        # # Put all available devices in the queue
+        # for device in devices:
+        #     for _ in range(args.simultaneous_access):
+        #         # Allow simultaneous access to the same device
+        #         device_queue.put(device)
+    
+        args.devices = devices
+        args.locks = locks
+    
+        for network_name in tqdm(
+                test_networks_list,
+                desc="Networks",
+                leave=False,
+        ):
+            logger.info(f"Loading network: {network_name}")
+    
+            test_networks = init_network_provider(
+                args.location_test,
+                max_num_vertices=args.max_num_vertices,
+                features_list=args.features,
+                filter=f"{network_name}",
+                targets=None,
+                # manager=mp_manager,
+            )
+    
+            # Fill the params queue
+            # TODO ANY BETTER WAY?
+            for i, params in enumerate(params_list):
+                # device = devices[i % len(devices)]
+                # params.device = device
+                # params.lock = locks[device]
+                params_queue.put(params)
+    
+            # Create the pool
+            with multiprocessing.Pool(
+                    processes=args.jobs,
+                    initializer=tqdm.set_lock,
+                    initargs=(multiprocessing.Lock(),),
+            ) as p:
+                with tqdm(total=len(params_list),
+                          ascii=True) as pb:
+                    # Create and start the ProgressBar Thread
+                    pbt = threading.Thread(
+                        target=progressbar_thread,
+                        args=(
+                            iterations_queue,
+                            pb,
                         ),
-                        # callback=_callback,
-                        error_callback=partial(logger.exception, exc_info=True),
+                        daemon=True,
                     )
-
-                # Close the pool
-                p.close()
-                p.join()
-
-                # Close the progress bar thread
-                iterations_queue.put(None)
-                pbt.join()
-
-    # Gracefully close the daemons
-    df_queue.put(None)
-
-    dp.join()
+                    pbt.start()
+    
+                    for i in range(args.jobs):
+                        # torch.cuda._lazy_init()
+    
+                        # p.apply_async(
+                        apply_async(
+                            pool=p,
+                            func=process_parameters_wrapper,
+                            kwargs=dict(
+                                args=args,
+                                df=df,
+                                nn_model=nn_model,
+                                params_queue=params_queue,
+                                test_networks=test_networks,
+                                train_networks=train_networks,
+                                df_queue=df_queue,
+                                iterations_queue=iterations_queue,
+                                # device_queue=device_queue,
+                                logger=logger,
+                            ),
+                            # callback=_callback,
+                            error_callback=partial(logger.exception, exc_info=True),
+                        )
+    
+                    # Close the pool
+                    p.close()
+                    p.join()
+    
+                    # Close the progress bar thread
+                    iterations_queue.put(None)
+                    pbt.join()
 
 
 def parse_parameters(
@@ -783,7 +775,7 @@ if __name__ == "__main__":
         progressbar_thread,
         apply_async,
     )
-    from network_dismantling.common.storage.pandas.parquet import start_df_writer
+    from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
     from network_dismantling.common.logging.tqdm_logging_handler import TqdmLoggingHandler
 
     logger = logging.getLogger(__name__)

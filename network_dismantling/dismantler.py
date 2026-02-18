@@ -45,7 +45,7 @@ import logging
 from ast import literal_eval
 from datetime import timedelta
 from logging.handlers import QueueHandler
-from operator import itemgetter
+from operator import attrgetter, itemgetter
 from pathlib import Path
 from time import time
 from typing import Callable, Union, Dict, List
@@ -55,8 +55,7 @@ import pandas as pd
 from graph_tool import Graph
 from tqdm.auto import tqdm
 
-from network_dismantling.common.df_helpers import RemovalsColumns
-from network_dismantling.common.removal import RemovalsList
+from network_dismantling.common.removal import Removal, RemovalsList
 from network_dismantling.common.storage.pandas.parquet import df_reader, ParquetDataFrameWriter
 from network_dismantling.common.logging import LogQueueManager, TqdmLoggingHandler
 
@@ -450,8 +449,9 @@ def main(args: argparse.Namespace,
                         # Check if removals are missing or invalid
                         removals = df_dependency_filtered.get("removals", None)
                         needs_reload = (
-                                not removals or  # Handles None, "", [], etc.
-                                removals == "[]"  # String representation of empty list
+                                removals is None or 
+                                 (isinstance(removals, str) and (removals == "None" or removals == "[]")) or
+                                  (isinstance(removals, list) and len(removals) == 0)
                         )
 
                         if needs_reload:
@@ -520,21 +520,40 @@ def main(args: argparse.Namespace,
                             continue
 
                         try:
-
+                            # Handle both CSV (string) and Parquet (already deserialized) formats
                             if isinstance(dependency_removals, str):
-                                dependency_removals = literal_eval(dependency_removals)
+                                raise RuntimeError("Dependency removals cannot be a string here anymore.")
+                            
+                                # dependency_removals = literal_eval(dependency_removals)
                                 if not isinstance(dependency_removals, list):
                                     # logger.error("Removals is not a list after literal_eval")
                                     # logger.debug(f"dependency_removals: {dependency_removals} type: {type(dependency_removals)}")
                                     # continue
                                     raise ValueError("Removals is not a list after literal_eval")
-
+                            elif isinstance(dependency_removals, np.ndarray):
+                                dependency_removals = dependency_removals.tolist()
+                            # else: already a list, use as-is
+                            elif not isinstance(dependency_removals, list):
+                                raise ValueError(f"Removals is not a list: {dependency_removals} type: {type(dependency_removals)}")
+                            
                             # dependency_removals = list(map(itemgetter(RemovalsColumns.ID), dependency_removals))
                             dependency_removals: RemovalsList
-                            dependency_removals: List[int] = [
-                                item.get("id")
-                                for item in dependency_removals
-                            ]
+                            
+                            # assert isinstance(dependency_removals, list), f"Dependency removals is not a list: {dependency_removals} type: {type(dependency_removals)}"
+                            # assert isinstance(dependency_removals[0], Removal), f"Dependency removals is not a list of Removal: {dependency_removals} type: {type(dependency_removals[0])}"
+
+                            # TODO This should not happend. What code path leads to dictionaries or tuples here? Maybe it is a problem of the reader that does not properly deserialize the removals?
+                            if len(dependency_removals) > 0:
+                                if isinstance(dependency_removals[0], dict):
+                                    dependency_removals = list(map(itemgetter("id"), dependency_removals))
+
+                                elif isinstance(dependency_removals[0], Removal):
+                                    dependency_removals = list(map(attrgetter("node_id"), dependency_removals))
+                                # elif isinstance(dependency_removals[0], tuple):
+                                else:
+                                    raise ValueError(f"Unsupported format for dependency removals: {dependency_removals[0]} type: {type(dependency_removals[0])}")
+                            else:
+                                dependency_removals = []
 
                         except Exception as e:
                             logger.error(
@@ -590,12 +609,20 @@ def main(args: argparse.Namespace,
                         run["network_size"] = network_size
                         # run["heuristic"] = dismantling_method.key
 
+                        # Also compute the normalized AUC to allow old runs to be compared with new ones with different thresholds
+                        # The old way to compute the AUC was to integrate the relative LCC size (i.e., LCC size divided by the original network size) over the relative number of removals (i.e., number of removals divided by the original network size).
+                        normalized_r_auc = run['r_auc'] / network_size if network_size > 0 else 0
+                        # run["normalized_r_auc"] = normalized_r_auc
+
                         if isinstance(run, pd.Series):
                             run = run.to_dict()
 
                         if isinstance(run, dict):
                             logger.info(f"{dismantling_method.short_name} run info on {network_name}: "
-                                        f"{run['rem_num']} removals, AUC {run['r_auc']:.3f}")
+                                        f"{run['rem_num']} removals, "
+                                        f"AUC {run['r_auc']:.3f}, "
+                                        f"Normalized AUC {normalized_r_auc:.3f}"
+                                        )
 
                         if isinstance(run, pd.DataFrame):
                             logger.info(f"{dismantling_method.short_name} run(s) for {network_name}:\n"

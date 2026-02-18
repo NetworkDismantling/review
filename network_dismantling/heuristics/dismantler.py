@@ -5,21 +5,24 @@ from operator import itemgetter
 from pathlib import Path
 from time import time
 from types import GeneratorType
+from typing import Any, Callable, Generator, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from graph_tool import Graph
 from scipy.integrate import simpson
 from tqdm.auto import tqdm
 
 from network_dismantling.common.dataset_providers import list_files, init_network_provider
-from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.storage.pandas.parquet import df_reader
 from network_dismantling.common.dismantlers import threshold_dismantler
 from network_dismantling.common.external_dismantlers.lcc_threshold_dismantler import \
     threshold_dismantler as external_threshold_dismantler
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 from network_dismantling.heuristics import sorters
 
 
-def incremental_dynamic_generator(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
+def incremental_dynamic_generator(network: Graph, sorting_function: Callable, *args, logger: logging.Logger = logging.getLogger('dummy'), **kwargs) -> Generator[Tuple[int, float], None, None]:
     generator = sorting_function(network)  # , generator=True)
 
     last_removal = None
@@ -38,7 +41,7 @@ def incremental_dynamic_generator(network, sorting_function, *args, logger=loggi
         yield node, value
 
 
-def dynamic_generator(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
+def dynamic_generator(network: Graph, sorting_function: Callable, *args, logger: logging.Logger = logging.getLogger('dummy'), **kwargs) -> Generator[Tuple[int, float], None, None]:
     for _ in range(network.num_vertices()):
         values = sorting_function(network)
 
@@ -51,7 +54,7 @@ def dynamic_generator(network, sorting_function, *args, logger=logging.getLogger
         yield node, value
 
 
-def static_generator(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
+def static_generator(network: Graph, sorting_function: Callable, *args, logger: logging.Logger = logging.getLogger('dummy'), **kwargs) -> Generator[Tuple[int, float], None, None]:
     values, _ = get_predictions(network, sorting_function, logger)
     pairs = list(zip([network.vertex_properties["static_id"][v] for v in network.vertices()], values))
 
@@ -62,34 +65,38 @@ def static_generator(network, sorting_function, *args, logger=logging.getLogger(
         yield node, value
 
 
-def get_predictions(network, sorting_function, *args, logger=logging.getLogger('dummy'), **kwargs):
+def get_predictions(network: Graph,
+                    sorting_function: Callable,
+                    *args,
+                    logger: logging.Logger = logging.getLogger('dummy'), 
+                    **kwargs) -> Tuple[np.ndarray, Optional[float]]:
     sorting_function_name = sorting_function.__name__
     if sorting_function_name in network.vertex_properties.keys():
-        logger.info("{} values already computed!".format(sorting_function_name))
+        logger.debug("{} values already computed!".format(sorting_function_name))
 
         values = network.vertex_properties[sorting_function_name].get_array()
 
         time_spent = None
     else:
-        logger("{} computing values!".format(sorting_function_name))
+        logger.debug("{} computing values!".format(sorting_function_name))
 
         start_time = time()
 
-        values = sorting_function(network)
+        values = sorting_function(network, logger=logger, **kwargs)
 
         time_spent = time() - start_time
 
         if isinstance(values, GeneratorType):
             values = next(values)
 
-        logger.info("Heuristics returned. Took {}".format(timedelta(seconds=(time_spent))))
+        logger.debug("Heuristics returned. Took {}".format(timedelta(seconds=(time_spent))))
 
     # pairs = list(zip([network.vertex_properties["static_id"][v] for v in network.vertices()], values))
     # return pairs, time_spent
     return values, time_spent
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     print = tqdm.write
 
     # TODO
@@ -157,123 +164,124 @@ def main(args):
 
         # Compute stop condition
         stop_condition = np.ceil(network_size * args.threshold)
+        
+        # Open Parquet writer once per network (instead of per heuristic)
+        output_path = Path(args.output_file)
+        write_mode = 'append' if output_path.exists() else 'overwrite'
+        with ParquetDataFrameWriter(
+                output_file=output_path,
+                columns=args.output_df_columns,
+                mode=write_mode,
+                logger=logging.getLogger(__name__),
+            ) as parquet_writer:
+        
+            for heuristic in tqdm(
+                    args.heuristics,
+                    position=1,
+                    desc="Heuristics",
+            ):
+                # for heuristic in progressbar(
+                #         # list(product_dict(_callback=sorter.parameters_combination_validator, **parameters_to_try)),
+                #         args.heuristics,
+                #         redirect_stdout=True
+                # ):
+                display_name = ' '.join(heuristic.split("_")).upper()
 
-        for heuristic in tqdm(
-                args.heuristics,
-                position=1,
-                desc="Heuristics",
-        ):
-            # for heuristic in progressbar(
-            #         # list(product_dict(_callback=sorter.parameters_combination_validator, **parameters_to_try)),
-            #         args.heuristics,
-            #         redirect_stdout=True
-            # ):
-            display_name = ' '.join(heuristic.split("_")).upper()
+                # TODO improve me
+                filter = {
+                    "heuristic": heuristic
+                }
+                # add_run_parameters(params, filter)
+                # sorter.add_run_parameters(filter)
 
-            # TODO improve me
-            filter = {
-                "heuristic": heuristic
-            }
-            # add_run_parameters(params, filter)
-            # sorter.add_run_parameters(filter)
+                df_filtered = network_df.loc[
+                    (network_df[list(filter.keys())] == list(filter.values())).all(axis='columns'),
+                    ["network", "static"]  # , "seed" ]
+                ]
 
-            df_filtered = network_df.loc[
-                (network_df[list(filter.keys())] == list(filter.values())).all(axis='columns'),
-                ["network", "static"]  # , "seed" ]
-            ]
+                generator_args = {
+                    "sorting_function": sorters.__all_dict__[heuristic],
+                    "logger": print,
+                    "network_name": name,
+                }
+                # for name, network in tqdm(networks_provider,
+                #                           desc="Networks",
+                #                           position=1,
+                #                           ascii=True,
+                #                           ):
 
-            generator_args = {
-                "sorting_function": sorters.__all_dict__[heuristic],
-                "logger": print,
-                "network_name": name,
-            }
-            # for name, network in tqdm(networks_provider,
-            #                           desc="Networks",
-            #                           position=1,
-            #                           ascii=True,
-            #                           ):
+                runs = []
+                for mode in static_modes:
+                    filtered_network_df = df_filtered.loc[(df_filtered["static"] == mode)]
 
-            runs = []
-            for mode in static_modes:
-                filtered_network_df = df_filtered.loc[(df_filtered["static"] == mode)]
+                    if len(filtered_network_df) != 0:
+                        # Nothing to do. Network was already tested
+                        continue
 
-                if len(filtered_network_df) != 0:
-                    # Nothing to do. Network was already tested
-                    continue
+                    if mode:
+                        # External (fast) C++ dismantler.
+                        # WARNING: It won't work if you try to remove nodes that only have self loops in the original network.
+                        generator = get_predictions
+                        dismantler = external_threshold_dismantler
 
-                if mode:
-                    # External (fast) C++ dismantler.
-                    # WARNING: It won't work if you try to remove nodes that only have self loops in the original network.
-                    generator = get_predictions
-                    dismantler = external_threshold_dismantler
-
-                    # generator = static_generator
-                    # dismantler = threshold_dismantler
-                else:
-                    # TODO REMOVE THIS. IT'S ONLY FOR DEBUGGING
-                    if "collective_influence" in heuristic:
-                        generator = incremental_dynamic_generator
+                        # generator = static_generator
+                        # dismantler = threshold_dismantler
                     else:
-                        generator = dynamic_generator
+                        # TODO REMOVE THIS. IT'S ONLY FOR DEBUGGING
+                        if "collective_influence" in heuristic:
+                            generator = incremental_dynamic_generator
+                        else:
+                            generator = dynamic_generator
 
-                    # dismantler = external_iterative_threshold_dismantler
-                    dismantler = threshold_dismantler
+                        # dismantler = external_iterative_threshold_dismantler
+                        dismantler = threshold_dismantler
 
-                print("Dismantling {} according to {}. Aiming to LCC size {} ({})".format(name,
-                                                                                          (
-                                                                                              "STATIC" if mode is True else "DYNAMIC") + " " + display_name,
-                                                                                          stop_condition,
-                                                                                          stop_condition / network_size))
-                removals, prediction_time, dismantle_time = dismantler(network=network.copy(),
-                                                                       predictor=generator,
-                                                                       generator_args=generator_args,
-                                                                       stop_condition=stop_condition,
-                                                                       )
+                    print("Dismantling {} according to {}. Aiming to LCC size {} ({})".format(name,
+                                                                                              (
+                                                                                                  "STATIC" if mode is True else "DYNAMIC") + " " + display_name,
+                                                                                              stop_condition,
+                                                                                              stop_condition / network_size))
+                    removals, prediction_time, dismantle_time = dismantler(network=network.copy(),
+                                                                           predictor=generator,
+                                                                           generator_args=generator_args,
+                                                                           stop_condition=stop_condition,
+                                                                           )
 
-                peak_slcc = max(removals, key=itemgetter(4))
+                    peak_slcc = max(removals, key=lambda r: r.slcc_size)
 
-                run = {
-                    "network": name,
-                    "removals": removals,
-                    "slcc_peak_at": peak_slcc[0],
-                    "lcc_size_at_peak": peak_slcc[3],
-                    "slcc_size_at_peak": peak_slcc[4],
-                    "heuristic": heuristic,
-                    "static": mode,
-                    "r_auc": simpson(list(r[3] for r in removals), dx=1)
-                }
+                    run = {
+                        "network": name,
+                        "removals": np.array(removals, dtype=object),
+                        "slcc_peak_at": peak_slcc.removal_num,
+                        "lcc_size_at_peak": peak_slcc.lcc_size,
+                        "slcc_size_at_peak": peak_slcc.slcc_size,
+                        "heuristic": heuristic,
+                        "static": mode,
+                        "r_auc": simpson([r.lcc_size for r in removals], dx=1)
+                    }
 
-                runs.append(run)
+                    runs.append(run)
 
-                if args.verbose == 2:
-                    for removal in run["removals"]:
-                        print("\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(removal[0],
-                                                                                                  removal[1],
-                                                                                                  removal[2],
-                                                                                                  removal[3],
-                                                                                                  removal[4]
-                                                                                                  ))
+                    if args.verbose == 2:
+                        for removal in run["removals"]:
+                            logger.debug(
+                                "\t{}-th removal: node {} ({}). LCC size: {}, SLCC size: {}".format(
+                                    removal.removal_num,
+                                    removal.node_id,
+                                    removal.prediction,
+                                    removal.lcc_size,
+                                    removal.slcc_size,
+                                )
+                            )
+                runs_dataframe = pd.DataFrame(data=runs, columns=args.output_df_columns)
 
-            runs_dataframe = pd.DataFrame(data=runs, columns=args.output_df_columns)
-
-            if args.output_file is not None:
-
-                kwargs = {
-                    "path_or_buf": Path(args.output_file),
-                    "index": False,
-                    # header='column_names',
-                    "columns": args.output_df_columns
-                }
-
-                # If dataframe exists append without writing the header
-                if kwargs["path_or_buf"].exists():
-                    kwargs["mode"] = "a"
-                    kwargs["header"] = False
-
-                runs_dataframe.to_csv(**kwargs)
+                # Write to parquet if writer is open
+                if parquet_writer is not None and len(runs_dataframe) > 0:
+                    parquet_writer.write(runs_dataframe)
+    
 
 
-def get_df_columns():
+def get_df_columns() -> List[str]:
     return ["network", "heuristic", "slcc_peak_at", "lcc_size_at_peak",
             "slcc_size_at_peak", "removals", "static", "r_auc"]
 
@@ -295,7 +303,7 @@ if __name__ == "__main__":
         "-o",
         "--output",
         type=Path,
-        default=Path("heuristics.csv"),
+        default=Path("heuristics.parquet"),
         required=False,
         help="Heuristics output file. Will be used to store the results of the runs.",
     )

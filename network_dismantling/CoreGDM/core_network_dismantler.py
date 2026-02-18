@@ -325,12 +325,10 @@ def test(args, model, early_stopping_dict: dict = None, networks_provider=None, 
 
         best_dismantling = removals[-1]
 
-        r_auc = simpson(list(r[3] for r in removals), dx=1)
-        rem_num = best_dismantling[0]
-        # rem_num = len(removals)
-        min_lcc_size = best_dismantling[3]
-
-        if 0 <= min_lcc_size <= stop_condition:
+    r_auc = simpson(list(r.lcc_size for r in removals), dx=1)
+    rem_num = best_dismantling.removal_num
+    # rem_num = len(removals)
+    min_lcc_size = best_dismantling.lcc_size
             # logger.debug("UPDATING EARLY STOPPING VALUES")
 
             default_value = early_stopping_dict.get(filename, {
@@ -342,15 +340,15 @@ def test(args, model, early_stopping_dict: dict = None, networks_provider=None, 
                 "rem_num": min(default_value["rem_num"], rem_num),
             }
 
-        peak_slcc = max(removals, key=itemgetter(4))
+        peak_slcc = max(removals, key=lambda r: r.slcc_size) if rem_num > 0 else None
 
         run = {
             "network": filename,
 
-            "removals": removals if rem_num > 0 else [],
-            "slcc_peak_at": peak_slcc[0] if rem_num > 0 else np.inf,
-            "lcc_size_at_peak": peak_slcc[3] if rem_num > 0 else np.inf,
-            "slcc_size_at_peak": peak_slcc[4] if rem_num > 0 else np.inf,
+            "removals": np.array(removals, dtype=object) if rem_num > 0 else np.array([], dtype=object),
+            "slcc_peak_at": peak_slcc.removal_num if peak_slcc else np.inf,
+            "lcc_size_at_peak": peak_slcc.lcc_size if peak_slcc else np.inf,
+            "slcc_size_at_peak": peak_slcc.slcc_size if peak_slcc else np.inf,
 
             "r_auc": r_auc if rem_num > 0 else np.inf,
             "rem_num": rem_num if rem_num > 0 else np.inf,

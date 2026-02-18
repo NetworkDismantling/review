@@ -15,11 +15,11 @@ import pytest
 from graph_tool import Graph
 from graph_tool.generation import random_graph
 
-from network_dismantling.common.reinsertion.reinsertion_gt import (
+from network_dismantling.greedy_reinsertion.reinsertion_gt import (
     is_available as gt_is_available,
     reverse_greedy_reinsertion_gt,
 )
-from network_dismantling.common.reinsertion.reverse_greedy import (
+from network_dismantling.greedy_reinsertion.reverse_greedy import (
     reverse_greedy_reinsertion as subprocess_reinsertion,
     cleanup_network_cache,
 )

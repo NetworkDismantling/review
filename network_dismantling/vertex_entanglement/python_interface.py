@@ -229,9 +229,9 @@ def vertex_entanglement_reinsertion(network: Graph,
 
                                     logger: Logger = getLogger("dummy"),
                                     **kwargs):
-    from network_dismantling.vertex_entanglement.reinsertion import reinsert
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
-    predictions = reinsert(
+    predictions = reverse_greedy_reinsertion(
         network=network,
         removals=vertex_entanglement,
         stop_condition=stop_condition,

@@ -98,88 +98,14 @@ def reinsert(
         stop_condition: int,
         logger: logging.Logger = logging.getLogger("dummy"),
 ) -> np.ndarray:
-    network_path = get_network_file(network)
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
-    nodes = []
-    output = np.zeros(network.num_vertices(),
-                      dtype=int,
-                      )
-    with (
-        NamedTemporaryFile("w+") as broken_fd,
-        NamedTemporaryFile("w+") as output_fd,
-    ):
-
-        broken_path = broken_fd.name
-        output_path = output_fd.name
-
-        for removal in removals:
-            broken_fd.write(f"{removal}\n")
-
-        broken_fd.flush()
-
-        cmds = [
-            # Build the reinsertion program, if necessary
-            "make",
-
-            # Run the reinsertion algorithm
-            f"./{reinsertion_executable} "
-            f"--NetworkFile {network_path} "
-            f'--IDFile "{broken_path}" '
-            f'--OutFile "{output_path}" '
-            f"--TargetSize {int(stop_condition)} "
-            f"--SortStrategy {reinsertion_strategy} ",
-        ]
-
-        with (LogPipe(logger=logger,
-                      level=logging.INFO,
-                      ) as stdout_pipe,
-
-              LogPipe(logger=logger,
-                      level=logging.ERROR,
-                      ) as stderr_pipe):
-
-            for cmd in cmds:
-                try:
-                    logger.debug(f"Running command: {cd_cmd + cmd}")
-                    run(cd_cmd + cmd,
-                        shell=True,
-                        stdout=stdout_pipe,
-                        stderr=stderr_pipe,
-                        text=True,
-                        check=True,
-                        )
-                except CalledProcessError as e:
-                    logger.error(f"ERROR while running reinsertion algorithm: {e}", exc_info=True)
-                    raise RuntimeError(f"ERROR! {e}")
-                except Exception as e:
-                    raise RuntimeError("ERROR! {}".format(e))
-
-        with open(output_path, "r") as output_fd:
-            # Read the output file
-            # Count the number of lines
-            num_removals = 0
-            for _ in output_fd.readlines():
-                num_removals += 1
-
-            assert num_removals > 0
-
-            output_fd.seek(0)
-            for i, line in enumerate(output_fd.readlines(), start=0):
-                node = int(line.strip())
-                # node -= 1
-
-                nodes.append(node)
-
-                output[node] = num_removals - i
-
-                if output[node] <= 0:
-                    raise RuntimeError(f"Node {node} was not removed: {output[node]}")
-
-    logger.debug("Reinsertion algorithm finished")
-    logger.debug(f"Original number of removals: {len(removals)}")
-    logger.debug(f"Number of final removals: {num_removals}")
-
-    return output
+    return reverse_greedy_reinsertion(
+        network=network,
+        removals=removals,
+        stop_condition=stop_condition,
+        logger=logger,
+    )
 
 
 def get_network_file(network: Graph) -> str:
@@ -265,6 +191,11 @@ def main(
 
     df_columns: List[str] = df.columns.to_list()
 
+    if "idx" in df_columns:
+        df_columns.remove("idx")
+    if "file" in df_columns:
+        df_columns.remove("file")
+        
     output_df: pd.DataFrame = df_reader(
         files=args.output_file,
 

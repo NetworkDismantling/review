@@ -1,13 +1,13 @@
 """Reverse-greedy reinsertion algorithm (subprocess-based).
 
-This module provides the *common* implementation of the reverse-greedy
-reinsertion.  The C++ source lives in ``GDM/reinsertion/`` and is compiled
-once via ``make``.  All algorithms that need reinsertion (GDM, CoreGDM,
-multiscale-entanglement, vertex-entanglement, GND, …) should call
-:func:`reverse_greedy_reinsertion` instead of maintaining their own wrapper.
+This module provides the subprocess-based implementation of the
+reverse-greedy reinsertion.  The C++ source (``reinsertion.cpp``) is
+compiled via CMake into the ``reinsertion`` binary in this folder.
 
-Future work: replace the subprocess call with a Boost.Python compiled
-extension (in-process, no temp-file I/O).
+Prefer :func:`greedy_reinsertion.reverse_greedy_reinsertion` (the
+auto-selecting wrapper in ``__init__.py``) over importing this module
+directly — it transparently picks the graph-tool C++ extension when
+available.
 """
 
 import logging
@@ -146,8 +146,16 @@ def reverse_greedy_reinsertion(
         broken_fd.flush()
 
         cd_cmd = f"cd {reinsertion_dir} && "
+
+        # Build if necessary.  Prefer CMake (if build/ exists); fall back to make.
+        build_dir = reinsertion_dir / "build"
+        if build_dir.is_dir():
+            build_cmd = "cd build && cmake .. && make"
+        else:
+            build_cmd = "mkdir -p build && cd build && cmake .. && make"
+
         cmds = [
-            "make",
+            build_cmd,
             (
                 f"./{executable} "
                 f"--NetworkFile {network_path} "

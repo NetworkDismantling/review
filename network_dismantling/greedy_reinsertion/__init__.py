@@ -1,21 +1,23 @@
-"""Common reinsertion framework.
+"""Greedy (reverse-greedy) reinsertion algorithm.
 
-Provides a unified interface to reinsertion algorithms so that every dismantling
-algorithm can share the same compiled binary and Python wrapper.
+Given a dismantled network and its set of removed nodes, this algorithm
+re-inserts nodes one at a time — choosing at each step the node whose
+reinsertion causes the *smallest* increase in the largest connected
+component (LCC) — until the LCC reaches a target size.
 
-Two back-ends are available:
+Two interchangeable back-ends are provided:
 
 1. **Graph-tool C++ extension** (``libreinsertion_gt.so``): operates directly
    on :class:`graph_tool.Graph` objects — no temp files, no subprocess.
-   Build with ``make libreinsertion_gt.so``.  Preferred when available.
+   Preferred when available.  Build with ``cmake --build build``.
 
 2. **Subprocess** (``reinsertion`` binary): writes graph to a temp file,
-   invokes the C++ binary, reads back results.  Always available after
-   ``make reinsertion``.
+   invokes the compiled C++ binary, reads back results.  Always available
+   after building.
 
-Usage::
+The public API auto-selects the best available back-end::
 
-    from network_dismantling.common.reinsertion import reverse_greedy_reinsertion
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
     predictions = reverse_greedy_reinsertion(
         network=graph,
@@ -23,13 +25,22 @@ Usage::
         stop_condition=100,
     )
 
-:func:`reverse_greedy_reinsertion` automatically uses the C++ extension if
-available, falling back to the subprocess implementation.
+This module is auto-discovered via ``reinsertion_interface.py`` and
+registered in :data:`network_dismantling.reinsertion_methods`.
+
+.. note::
+
+   The subprocess binary has a known off-by-one bug in its ``sort_nodes_by_degree``
+   function (``degree(i + 1, g)`` and ``W[nodes[i] - 1]``).  Since the BGL graph
+   uses 0-indexed vertices, vertex 0's degree is read from vertex 1, and index -1
+   is accessed.  The bug only affects the *sort order* of final outputs (strategy
+   ≠ 0), not the *set* of selected nodes.  The graph-tool C++ extension does NOT
+   have this bug.
 """
 
 import logging as _logging
 
-from network_dismantling.common.reinsertion.reverse_greedy import (
+from network_dismantling.greedy_reinsertion.reverse_greedy import (
     reverse_greedy_reinsertion as _reverse_greedy_subprocess,
     get_network_tempfile,
     cleanup_network_cache,
@@ -37,7 +48,7 @@ from network_dismantling.common.reinsertion.reverse_greedy import (
 
 # Try importing the graph-tool C++ extension wrapper
 try:
-    from network_dismantling.common.reinsertion.reinsertion_gt import (
+    from network_dismantling.greedy_reinsertion.reinsertion_gt import (
         reverse_greedy_reinsertion_gt,
         is_available as _gt_is_available,
     )
@@ -52,7 +63,7 @@ def reverse_greedy_reinsertion(network, removals, stop_condition, **kwargs):
     """Run reverse-greedy reinsertion, auto-selecting the best back-end.
 
     If the graph-tool C++ extension is compiled and loadable, it is used
-    (in-process, no temp files).  Otherwise, the subprocess-based
+    (in-process, no temp files).  Otherwise the subprocess-based
     implementation is used as fallback.
 
     See :func:`reverse_greedy_reinsertion_gt` and

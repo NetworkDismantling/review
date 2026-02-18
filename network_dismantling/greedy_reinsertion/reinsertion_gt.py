@@ -9,7 +9,7 @@ subprocess-based implementation in ``reverse_greedy.py``).
 
 Build the extension with::
 
-    cd network_dismantling/common/reinsertion && make libreinsertion_gt.so
+    cd network_dismantling/greedy_reinsertion && mkdir -p build && cd build && cmake .. && make
 """
 
 import logging
@@ -34,7 +34,7 @@ def _load_extension():
     try:
         # graph_tool must be imported first (provides symbols via dynamic lookup)
         import graph_tool as _gt  # noqa: F401
-        from network_dismantling.common.reinsertion import libreinsertion_gt
+        from network_dismantling.greedy_reinsertion import libreinsertion_gt
 
         return libreinsertion_gt
     except ImportError:
@@ -80,7 +80,7 @@ def reverse_greedy_reinsertion_gt(
     if ext is None:
         raise ImportError(
             "C++ reinsertion extension (libreinsertion_gt) not compiled.  "
-            "Run 'make libreinsertion_gt.so' in common/reinsertion/."
+            "Build the extension: cd greedy_reinsertion && mkdir -p build && cd build && cmake .. && make"
         )
 
     static_id = network.vertex_properties["static_id"]

@@ -22,7 +22,7 @@ from functools import wraps
 from pathlib import Path
 from typing import List, Callable
 
-from network_dismantling import DismantlingMethod, dismantling_methods, reinsertion_methods
+from network_dismantling import DismantlingMethod, ReinsertionMethod, dismantling_methods, reinsertion_methods
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +65,7 @@ def dismantling_method(name: str | None = None,
                        authors: str | List[str] | None = None,
                        source: str | None = None,
                        depends_on: str | Callable | None = None,
+                       reinsertion_function: Callable | None = None,
                        **kwargs,
                        ):
     """Register a function as a dismantling method.
@@ -81,6 +82,10 @@ def dismantling_method(name: str | None = None,
         authors: Author name(s).
         source: URL to the original implementation.
         depends_on: A :class:`DismantlingMethod` or its key that must run first.
+        reinsertion_function: Callable to auto-chain reinsertion after
+            dismantling.  When set, :meth:`DismantlingMethod.__call__` runs
+            the reinsertion after the main function and stores the output
+            in ``output["reinsertion_predictions"]``.
         **kwargs: Extra attributes forwarded to :class:`DismantlingMethod`.
     """
 
@@ -109,6 +114,7 @@ def dismantling_method(name: str | None = None,
             license_file=license_file,
             citation_file=citation_file,
             depends_on=depends_on,
+            reinsertion_function=reinsertion_function,
             **kwargs,
         )
 
@@ -131,23 +137,25 @@ def reinsertion_method(name: str | None = None,
 
     Reinsertion methods take a set of removed nodes and a graph,
     then return an optimised (smaller) removal set.  They are stored
-    in ``reinsertion_methods`` and auto-discovered from modules
-    named ``*.reinsertion_interface``.
+    in ``reinsertion_methods`` as :class:`ReinsertionMethod` instances
+    and auto-discovered from modules named ``*.reinsertion_interface``.
 
     Args:
         name: Human-readable name.
         short_name: Abbreviated display name (required).
         description: Free-text description.
-        citation: BibTeX or plain-text citation.
+        citation: BibTeX or plain-text citation.  Auto-discovered from
+                  ``CITATION.*`` files if *None*.
         authors: Author name(s).
         source: URL to the original implementation.
-        **kwargs: Extra attributes forwarded to storage.
+        **kwargs: Extra attributes forwarded to :class:`ReinsertionMethod`.
     """
 
     @wraps(reinsertion_method)
     def wrapper(funct):
-        key = funct.__name__.replace("get_", "")
-        method_name = name if name is not None else key
+        key, method_name, license_file, citation_text, citation_file = (
+            _resolve_method_metadata(funct, name, short_name, citation)
+        )
 
         if key in reinsertion_methods:
             _logger.warning(
@@ -155,18 +163,22 @@ def reinsertion_method(name: str | None = None,
                 f"previous registration."
             )
 
-        reinsertion_methods[key] = {
-            "name": method_name,
-            "short_name": short_name,
-            "description": description,
-            "citation": citation,
-            "authors": authors,
-            "source": source,
-            "function": funct,
+        method = ReinsertionMethod(
+            name=method_name,
+            short_name=short_name,
+            description=description,
+            citation=citation_text,
+            authors=authors,
+            source=source,
+            function=funct,
+            license_file=license_file,
+            citation_file=citation_file,
             **kwargs,
-        }
+        )
 
-        return funct
+        reinsertion_methods[key] = method
+
+        return method
 
     return wrapper
 

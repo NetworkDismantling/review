@@ -45,9 +45,9 @@ def network_entanglement_small_reinsertion(network: Graph,
                                            network_entanglement_small: Union[list, np.ndarray],
                                            logger: Logger = getLogger("dummy"),
                                            **kwargs):
-    from network_dismantling.multiscale_entanglement.reinsertion import reinsert
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
-    predictions = reinsert(
+    predictions = reverse_greedy_reinsertion(
         network=network,
         removals=network_entanglement_small,
         stop_condition=stop_condition,
@@ -87,9 +87,9 @@ def network_entanglement_mid_reinsertion(network: Graph,
                                          network_entanglement_mid: Union[list, np.ndarray],
                                          logger: Logger = getLogger("dummy"),
                                          **kwargs):
-    from network_dismantling.multiscale_entanglement.reinsertion import reinsert
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
-    predictions = reinsert(
+    predictions = reverse_greedy_reinsertion(
         network=network,
         removals=network_entanglement_mid,
         stop_condition=stop_condition,
@@ -129,9 +129,9 @@ def network_entanglement_large_reinsertion(network: Graph,
                                            network_entanglement_large: Union[list, np.ndarray],
                                            logger: Logger = getLogger("dummy"),
                                            **kwargs):
-    from network_dismantling.multiscale_entanglement.reinsertion import reinsert
+    from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
 
-    predictions = reinsert(
+    predictions = reverse_greedy_reinsertion(
         network=network,
         removals=network_entanglement_large,
         stop_condition=stop_condition,

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from graph_tool import Graph
 from parse import compile
@@ -8,12 +9,8 @@ from network_dismantling._sorters import dismantling_method
 
 targets_num_expression = compile("Vaccinated nodes {num:d}")
 
-folder = "network_dismantling/EI/"
-cd_cmd = "cd {} && ".format(folder)
+_EI_DIR = Path(__file__).resolve().parent
 executable = "exploimmun"
-
-
-# TODO use tempfile.NamedTemporaryFile?
 
 
 def _explosive_immunization(
@@ -24,14 +21,15 @@ def _explosive_immunization(
         logger: logging.Logger = logging.getLogger("dummy"),
         **kwargs
 ):
-    import tempfile
-    from os import close, remove
     from subprocess import run, CalledProcessError
+    from tempfile import NamedTemporaryFile
 
     import numpy as np
     from graph_tool.all import remove_parallel_edges, remove_self_loops
 
     from network_dismantling.common.logging.pipe import LogPipe
+
+    cd_cmd = f"cd {_EI_DIR} && "
 
     # Not sure if EI supports parallel edges or self-loops.
     # Remove them as this fixes a bug and as they do not alter the dismantling set
@@ -45,76 +43,45 @@ def _explosive_immunization(
             static_id.a.max() == network.num_vertices() - 1
     ), "Static id must be consecutive"
 
-    network_fd, network_path = tempfile.mkstemp()
-    output_fd, output_path = tempfile.mkstemp()
-    threshold_condition_fd, threshold_condition_path = tempfile.mkstemp()
-
-    tmp_file_handles = [network_fd, output_fd, threshold_condition_fd]
-    tmp_file_paths = [network_path, output_path, threshold_condition_path]
-
-    # vaccinated_nodes = []
     unvaccinated_nodes = []
-    try:
-        with open(network_fd, "w+") as tmp:
-            tmp.write("{}\n".format(network.num_vertices()))
-            for edge in network.edges():
-                tmp.write(
-                    "{} {}\n".format(static_id[edge.source()], static_id[edge.target()])
-                )
+
+    with (
+        NamedTemporaryFile("w+", suffix=".ei_net") as network_f,
+        NamedTemporaryFile("r+", suffix=".ei_out") as output_f,
+        NamedTemporaryFile("w+", suffix=".ei_thr") as threshold_f,
+        LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+        LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+    ):
+        network_f.write("{}\n".format(network.num_vertices()))
+        for edge in network.edges():
+            network_f.write(
+                "{} {}\n".format(static_id[edge.source()], static_id[edge.target()])
+            )
+        network_f.flush()
 
         cmds = [
-            # 'make clean && make',
             "make -C Library",
-            f"./{executable} {candidates} {network_path} {output_path} {stop_condition} {sigma} {threshold_condition_path}",
+            f"./{executable} {candidates} {network_f.name} {output_f.name} {stop_condition} {sigma} {threshold_f.name}",
         ]
 
-        with (
-            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
-            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
-        ):
-            for cmd in cmds:
-                try:
-                    logger.debug(f"Running: {cd_cmd + cmd}")
-                    run(
-                        cd_cmd + cmd,
-                        shell=True,
-                        stdout=stdout_pipe,
-                        stderr=stderr_pipe,
-                        text=True,
-                        check=True,
-                    )
-                except CalledProcessError as e:
-                    raise RuntimeError(f"EI binary failed on cmd '{cmd}': {e}") from e
-
-        # # Safety check
-        # with open(threshold_condition_fd, 'r+') as tmp:
-        #     for line in tmp.readlines():
-        #         node, vaccinated = line.strip().split()
-        #
-        #         vaccinated = int(vaccinated)
-        #
-        #         if vaccinated:
-        #             vaccinated_nodes.append(int(node))
-
-        with open(output_fd, "r+") as tmp:
-            for line in tmp.readlines():
-                node = line.strip()
-
-                unvaccinated_nodes.append(node)
-
-    finally:
-        for fd, path in zip(tmp_file_handles, tmp_file_paths):
+        for cmd in cmds:
             try:
-                close(fd)
+                logger.debug(f"Running: {cd_cmd + cmd}")
+                run(
+                    cd_cmd + cmd,
+                    shell=True,
+                    stdout=stdout_pipe,
+                    stderr=stderr_pipe,
+                    text=True,
+                    check=True,
+                )
+            except CalledProcessError as e:
+                raise RuntimeError(f"EI binary failed on cmd '{cmd}': {e}") from e
 
-            except:
-                pass
-
-            try:
-                remove(path)
-
-            except:
-                pass
+        output_f.seek(0)
+        for line in output_f:
+            node = line.strip()
+            unvaccinated_nodes.append(node)
 
     output = np.arange(start=1, stop=network.num_vertices() + 1)
 

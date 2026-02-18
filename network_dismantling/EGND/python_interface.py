@@ -1,10 +1,10 @@
 import logging
+from pathlib import Path
 
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
-folder = "network_dismantling/EGND/"
-cd_cmd = "cd {} && ".format(folder)
+_EGND_DIR = Path(__file__).resolve().parent
 config_file = "config.h"
 
 config_r_file = "config_r.h"
@@ -12,7 +12,6 @@ reinsertion_strategy = 2
 
 
 # TODO USE BOOST COMMAND LINE PARSER
-# TODO use tempfile.NamedTemporaryFile?
 
 
 @dismantler_wrapper
@@ -20,38 +19,41 @@ def _ensemble_generalized_network_dismantling(
         network, reinsertion=False, remove_strategy=3, runs=1000,
         logger: logging.Logger = logging.getLogger("dummy"), **kwargs
 ):
-    import tempfile
-    from os import close, remove
-    from os.path import relpath, dirname, realpath
+    from os.path import relpath
     from subprocess import run, CalledProcessError
+    from tempfile import NamedTemporaryFile
 
     import numpy as np
 
     from network_dismantling.common.logging.pipe import LogPipe
 
+    cd_cmd = f"cd {_EGND_DIR} && "
+
     static_id = network.vertex_properties["static_id"]
-
-    network_fd, network_path = tempfile.mkstemp()
-    broken_fd, broken_path = tempfile.mkstemp()
-    output_fd, output_path = tempfile.mkstemp()
-    plot_fd, plot_path = tempfile.mkstemp()
-    seed_fd, seed_path = tempfile.mkstemp()
-
-    tmp_file_handles = [network_fd, broken_fd, output_fd, plot_fd, seed_fd]
-    tmp_file_paths = [network_path, broken_path, output_path, plot_path, seed_path]
 
     nodes = []
 
-    try:
-        with open(network_fd, "w+") as tmp:
-            for edge in network.edges():
-                tmp.write(
-                    "{} {}\n".format(
-                        static_id[edge.source()] + 1, static_id[edge.target()] + 1
-                    )
+    with (
+        NamedTemporaryFile("w+", suffix=".egnd_net") as network_f,
+        NamedTemporaryFile("r+", suffix=".egnd_brk") as broken_f,
+        NamedTemporaryFile("r+", suffix=".egnd_out") as output_f,
+        NamedTemporaryFile("w+", suffix=".egnd_plt") as plot_f,
+        NamedTemporaryFile("w+", suffix=".egnd_seed") as seed_f,
+        LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+        LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+    ):
+        # Write edge list (1-indexed)
+        for edge in network.edges():
+            network_f.write(
+                "{} {}\n".format(
+                    static_id[edge.source()] + 1, static_id[edge.target()] + 1
                 )
+            )
+        network_f.flush()
 
-        with open(folder + config_file, "w+") as f:
+        # Write config.h with relative paths for the C++ binary
+        config_path = _EGND_DIR / config_file
+        with open(config_path, "w") as f:
             f.write(
                 (
                     "const int NODE_NUM = {};                  // the number of nodes\n"
@@ -66,10 +68,10 @@ def _ensemble_generalized_network_dismantling(
                     "int C = {};                               // number of different run of GND\n"
                 ).format(
                     network.num_vertices(),
-                    "../" + relpath(network_path, dirname(realpath(__file__))),
-                    "../" + relpath(broken_path, dirname(realpath(__file__))),
-                    "../" + relpath(plot_path, dirname(realpath(__file__))),
-                    "../" + relpath(seed_path, dirname(realpath(__file__))),
+                    "../" + relpath(network_f.name, _EGND_DIR),
+                    "../" + relpath(broken_f.name, _EGND_DIR),
+                    "../" + relpath(plot_f.name, _EGND_DIR),
+                    "../" + relpath(seed_f.name, _EGND_DIR),
                     kwargs["stop_condition"],
                     remove_strategy,
                     network.num_vertices()
@@ -82,46 +84,26 @@ def _ensemble_generalized_network_dismantling(
 
         if reinsertion is True:
             raise NotImplementedError
-        else:
-            output = broken_fd
 
-        with (
-            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
-            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
-        ):
-            for cmd in cmds:
-                try:
-                    logger.debug(f"Running: {cd_cmd + cmd}")
-                    run(
-                        cd_cmd + cmd,
-                        shell=True,
-                        stdout=stdout_pipe,
-                        stderr=stderr_pipe,
-                        text=True,
-                        check=True,
-                    )
-                except CalledProcessError as e:
-                    raise RuntimeError(f"EGND binary failed on cmd '{cmd}': {e}") from e
-
-        with open(output, "r+") as tmp:
-            for line in tmp.readlines():
-                node = line.strip()
-
-                nodes.append(node)
-
-    finally:
-        for fd, path in zip(tmp_file_handles, tmp_file_paths):
+        for cmd in cmds:
             try:
-                close(fd)
+                logger.debug(f"Running: {cd_cmd + cmd}")
+                run(
+                    cd_cmd + cmd,
+                    shell=True,
+                    stdout=stdout_pipe,
+                    stderr=stderr_pipe,
+                    text=True,
+                    check=True,
+                )
+            except CalledProcessError as e:
+                raise RuntimeError(f"EGND binary failed on cmd '{cmd}': {e}") from e
 
-            except:
-                pass
-
-            try:
-                remove(path)
-
-            except:
-                pass
+        # Read output (broken file contains removed node IDs)
+        broken_f.seek(0)
+        for line in broken_f:
+            node = line.strip()
+            nodes.append(node)
 
     output = np.zeros(network.num_vertices())
 

@@ -83,7 +83,10 @@ def _threshold_dismantler(
     """
     from network_dismantling.common.external_dismantlers.dismantler import Graph as ExternalGraph
 
-    network_name = generator_args["network_name"]
+    network_name = generator_args.get(
+        "network_name",
+        network.graph_properties.get("filename", "unknown"),
+    )
 
     predictions, prediction_time = predictor(network, **generator_args)
 
@@ -212,8 +215,11 @@ def _iterative_threshold_dismantler(
     # network = network.copy()
     network.set_fast_edge_removal(fast=True)
 
-    logger = generator_args["logger"]
-    network_name = generator_args["network_name"]
+    logger = generator_args.get("logger", logging.getLogger("dummy"))
+    network_name = generator_args.get(
+        "network_name",
+        network.graph_properties.get("filename", "unknown"),
+    )
 
     external_network: ExternalGraph = getExternalGraph(network, logger)
 

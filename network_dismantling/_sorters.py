@@ -17,86 +17,156 @@
 #   along with the code.  If not, see <http://www.gnu.org/licenses/>.
 
 import inspect
+import logging
 from functools import wraps
 from pathlib import Path
-from typing import Union, List, Callable
+from typing import List, Callable
 
-from network_dismantling import DismantlingMethod, dismantling_methods
+from network_dismantling import DismantlingMethod, dismantling_methods, reinsertion_methods
+
+_logger = logging.getLogger(__name__)
 
 
-def dismantling_method(name: str = None,
-                       short_name: str = None,
+def _resolve_method_metadata(funct, name, short_name, citation):
+    """Resolve common metadata (key, name, license, citation) for a method."""
+    key = funct.__name__.replace("get_", "")
+
+    method_name = name if name is not None else key
+
+    frame = inspect.stack()[2]
+    method_path = Path(frame[0].f_code.co_filename).resolve().parent
+
+    license_file = method_path / "LICENSE"
+    if not license_file.exists():
+        license_file = None
+
+    citation_text = ""
+    citation_file = None
+
+    if citation is None:
+        for citation_file in method_path.glob("CITATION.*"):
+            if citation_file.is_file():
+                citation_text = citation_file.read_text().strip()
+                break
+            else:
+                citation_file = None
+    else:
+        citation_text = citation
+
+    return key, method_name, license_file, citation_text, citation_file
+
+
+def dismantling_method(name: str | None = None,
+                       short_name: str | None = None,
                        includes_reinsertion: bool = False,
-                       description: str = None,
-                       citation: str = None,
-                       authors: Union[str, List[str]] = None,
-                       source: str = None,
-                       depends_on: Union[str, Callable] = None,
-                       # plot_color: str = None,
-                       # plot_marker: str = None,
+                       method_type: str | None = None,
+                       description: str | None = None,
+                       citation: str | None = None,
+                       authors: str | List[str] | None = None,
+                       source: str | None = None,
+                       depends_on: str | Callable | None = None,
                        **kwargs,
                        ):
+    """Register a function as a dismantling method.
+
+    Args:
+        name: Human-readable name.
+        short_name: Abbreviated display name (required).
+        includes_reinsertion: Whether this method already includes reinsertion.
+        method_type: Category — "heuristic", "ml_based", "spectral",
+                     "optimization", etc.  Used for filtering/grouping.
+        description: Free-text description.
+        citation: BibTeX or plain-text citation. Auto-discovered from
+                  ``CITATION.*`` files if *None*.
+        authors: Author name(s).
+        source: URL to the original implementation.
+        depends_on: A :class:`DismantlingMethod` or its key that must run first.
+        **kwargs: Extra attributes forwarded to :class:`DismantlingMethod`.
+    """
+
     @wraps(dismantling_method)
     def wrapper(funct):
-        key = funct.__name__
-        key = key.replace("get_", "")
+        key, method_name, license_file, citation_text, citation_file = (
+            _resolve_method_metadata(funct, name, short_name, citation)
+        )
 
-        if name is None:
-            method_name = key
-        elif short_name is None:
-            method_name = name
-        else:
-            method_name = name
+        if key in dismantling_methods:
+            _logger.warning(
+                f"Duplicate dismantling method key '{key}' — overwriting "
+                f"previous registration from {dismantling_methods[key].function.__module__}"
+            )
 
-        frame = inspect.stack()[1]
-        p = frame[0].f_code.co_filename
-        p = Path(p).resolve()
-
-        method_path = p.parent
-
-        # if
-        license_file = method_path / "LICENSE"
-        if license_file.exists():
-            # dismantling_methods_license_file[key] = license_file
-            pass
-        else:
-            license_file = None
-
-        citation_text = ""
-        citation_file = None
-
-        if citation is None:
-            # TODO sort files according to some priority...
-            for citation_file in method_path.glob("CITATION.*"):
-                if citation_file.is_file():
-                    citation_text = citation_file.read_text().strip()
-                    # dismantling_methods_citation[key] = citation_file
-
-                    break
-                else:
-                    citation_file = None
-
-        else:
-            citation_text = citation
-
-        method = DismantlingMethod(name=method_name,
-                                   short_name=short_name,
-                                   description=description,
-                                   citation=citation_text,
-                                   authors=authors,
-                                   function=funct,
-                                   includes_reinsertion=includes_reinsertion,
-                                   source=source,
-                                   license_file=license_file,
-                                   citation_file=citation_file,
-                                   depends_on=depends_on,
-                                   **kwargs,
-                                   )
+        method = DismantlingMethod(
+            name=method_name,
+            short_name=short_name,
+            description=description,
+            citation=citation_text,
+            authors=authors,
+            function=funct,
+            includes_reinsertion=includes_reinsertion,
+            method_type=method_type,
+            source=source,
+            license_file=license_file,
+            citation_file=citation_file,
+            depends_on=depends_on,
+            **kwargs,
+        )
 
         dismantling_methods[key] = method
 
-        # return funct
         return method
+
+    return wrapper
+
+
+def reinsertion_method(name: str | None = None,
+                       short_name: str | None = None,
+                       description: str | None = None,
+                       citation: str | None = None,
+                       authors: str | List[str] | None = None,
+                       source: str | None = None,
+                       **kwargs,
+                       ):
+    """Register a function as a reinsertion method.
+
+    Reinsertion methods take a set of removed nodes and a graph,
+    then return an optimised (smaller) removal set.  They are stored
+    in ``reinsertion_methods`` and auto-discovered from modules
+    named ``*.reinsertion_interface``.
+
+    Args:
+        name: Human-readable name.
+        short_name: Abbreviated display name (required).
+        description: Free-text description.
+        citation: BibTeX or plain-text citation.
+        authors: Author name(s).
+        source: URL to the original implementation.
+        **kwargs: Extra attributes forwarded to storage.
+    """
+
+    @wraps(reinsertion_method)
+    def wrapper(funct):
+        key = funct.__name__.replace("get_", "")
+        method_name = name if name is not None else key
+
+        if key in reinsertion_methods:
+            _logger.warning(
+                f"Duplicate reinsertion method key '{key}' — overwriting "
+                f"previous registration."
+            )
+
+        reinsertion_methods[key] = {
+            "name": method_name,
+            "short_name": short_name,
+            "description": description,
+            "citation": citation,
+            "authors": authors,
+            "source": source,
+            "function": funct,
+            **kwargs,
+        }
+
+        return funct
 
     return wrapper
 

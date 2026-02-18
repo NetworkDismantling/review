@@ -1,25 +1,27 @@
+import logging
+
 from graph_tool import Graph
 
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
-
 # TODO use tempfile.NamedTemporaryFile?
-# TODO use logger instead of print
 
 # @dismantler_wrapper
-def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
+def _collective_influence_l(network: Graph,
+                            l: int,
+                            stop_condition: int,
+                            logger: logging.Logger = logging.getLogger("dummy"),
+                            **kwargs):
     """
     Implements interface to Collective Influence.
     This function merges the GetSolution and EvaluateSolution functions.
     Note that the default parameters are the same as provided in the author's code.
 
     :param network:
-    :param reinsertion:
-    :param model_file_ckpt:
-    :param strategy_id:
-    :param step_ratio:
-    :param reinsert_step:
+    :param l:
+    :param stop_condition:
+    :param logger:
     :param kwargs:
     :return:
     """
@@ -29,9 +31,11 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
 
     from operator import itemgetter
     from os import remove, close
-    from subprocess import check_output, STDOUT
+    from subprocess import run, CalledProcessError
 
     from graph_tool.all import remove_parallel_edges, remove_self_loops
+
+    from network_dismantling.common.logging.pipe import LogPipe
 
     folder = f"network_dismantling/CI/"
     cd_cmd = f"cd {folder} && "
@@ -78,19 +82,23 @@ def _collective_influence_l(network: Graph, l, stop_condition, **kwargs):
 
                 tmp.write("\n")
 
-        for cmd in cmds:
-            try:
-                print(f"Running cmd: {cmd}")
-                print(
-                    check_output(
+        with (
+            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+        ):
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running: {cd_cmd + cmd}")
+                    run(
                         cd_cmd + cmd,
                         shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
                         text=True,
-                        stderr=STDOUT,
+                        check=True,
                     )
-                )
-            except Exception as e:
-                raise RuntimeError(f"ERROR! When running cmd: {cmd}. {e}")
+                except CalledProcessError as e:
+                    raise RuntimeError(f"CI binary failed on cmd '{cmd}': {e}") from e
 
         with open(output_fd, "r+") as tmp:
             for line in tmp.readlines():

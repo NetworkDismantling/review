@@ -1,3 +1,5 @@
+import logging
+
 from graph_tool import Graph
 from parse import compile
 
@@ -12,21 +14,24 @@ executable = "exploimmun"
 
 
 # TODO use tempfile.NamedTemporaryFile?
-# TODO use logger instead of print
 
 
 def _explosive_immunization(
         network: Graph,
         stop_condition: int,
         sigma: int,
-        candidates: int, **kwargs
+        candidates: int,
+        logger: logging.Logger = logging.getLogger("dummy"),
+        **kwargs
 ):
     import tempfile
     from os import close, remove
-    from subprocess import check_output, STDOUT
+    from subprocess import run, CalledProcessError
 
     import numpy as np
     from graph_tool.all import remove_parallel_edges, remove_self_loops
+
+    from network_dismantling.common.logging.pipe import LogPipe
 
     # Not sure if EI supports parallel edges or self-loops.
     # Remove them as this fixes a bug and as they do not alter the dismantling set
@@ -63,20 +68,23 @@ def _explosive_immunization(
             f"./{executable} {candidates} {network_path} {output_path} {stop_condition} {sigma} {threshold_condition_path}",
         ]
 
-        for cmd in cmds:
-            try:
-                print(f"Running cmd: {cmd}")
-
-                print(
-                    check_output(
+        with (
+            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+        ):
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running: {cd_cmd + cmd}")
+                    run(
                         cd_cmd + cmd,
                         shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
                         text=True,
-                        stderr=STDOUT,
+                        check=True,
                     )
-                )
-            except Exception as e:
-                exit("ERROR! {}".format(e))
+                except CalledProcessError as e:
+                    raise RuntimeError(f"EI binary failed on cmd '{cmd}': {e}") from e
 
         # # Safety check
         # with open(threshold_condition_fd, 'r+') as tmp:

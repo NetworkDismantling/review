@@ -325,7 +325,7 @@ def _GDM(
         df = df_reader(
             args.output_file,
             include_removals=False,
-            raise_on_missing_file=True,
+            raise_on_missing_file=False,
             expected_columns=args.output_df_columns,
         )
 

@@ -34,7 +34,7 @@ from network_dismantling.GDM.models import BaseModel
 from network_dismantling.GDM.python_interface import models_folder_path
 from network_dismantling._sorters import dismantling_method
 from network_dismantling.common.data_structures import dotdict, product_dict
-from network_dismantling.common.storage.pandas.csv import start_df_writer
+from network_dismantling.common.storage.pandas.parquet import ParquetDataFrameWriter
 
 folder = 'network_dismantling/CoreGDM/'
 cd_cmd = f'cd {folder} && '
@@ -164,126 +164,123 @@ def grid(df,
         "rem_num": network_df["rem_num"].min() or np.inf,
     }
 
-    # Create and start the Dataset Writer Thread
-    dp: threading.Thread = start_df_writer(args=args,
-                                           df_queue=df_queue,
-                                           logger=logger,
-                                           )
+    # Use context manager to guarantee the writer is closed even on exceptions
+    with ParquetDataFrameWriter(
+        output_file=args.output_file,
+        columns=args.output_df_columns,
+        queue=df_queue,
+        logger=logger,
+    ) as parquet_writer:
 
-    devices = []
-    locks = dict()
+        devices = []
+        locks = dict()
 
-    logger.debug(f"Using package {network_dismantling.__file__}")
-    if cuda.is_available() and not args.force_cpu:
-        logger.info("Using GPU(s).")
-        for device in range(cuda.device_count()):
-            device = "cuda:{}".format(device)
+        logger.debug(f"Using package {network_dismantling.__file__}")
+        if cuda.is_available() and not args.force_cpu:
+            logger.info("Using GPU(s).")
+            for device in range(cuda.device_count()):
+                device = "cuda:{}".format(device)
+                devices.append(device)
+                locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
+        else:
+            logger.info("Using CPU.")
+            device = 'cpu'
             devices.append(device)
             locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
-    else:
-        logger.info("Using CPU.")
-        device = 'cpu'
-        devices.append(device)
-        locks[device] = mp_manager.BoundedSemaphore(args.simultaneous_access)
-
-    args.devices = devices
-    args.locks = locks
-
-    new_runs_buffer = []
-    for features in tqdm(args.features,
-                         desc="Features",
-                         ):
-        key = '_'.join(features)
-
-        def storage_provider_callback(filename, network):
-            network_size = network.num_vertices()
-
-            stop_condition = int(np.ceil(network_size * float(args.threshold)))
-
-            logger.info(f"Dismantling {filename} according to the predictions. "
-                        f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
-                        )
-
-            # CoreHD does not support nor parallel edges nor self-loops.
-            # Remove them.
-            remove_parallel_edges(network)
-            remove_self_loops(network)
-
-            training_data_extractor(network,
-                                    compute_targets=False,
-                                    features=features,
-                                    # logger=print,
-                                    )
-
-        # Prepare the network for GDM
-        networks_provider = {}
-
-        networks_provider[key] = [(network_name, network,
-                                   prepare_graph(network,
-                                                 features=features,
-                                                 targets=None,
-                                                 ),
-                                   )
-                                  ]
-
-        # logger.info(f"Test network LOADED: {len(test_networks)}: {test_networks}")
-        # Fill the params queue
-        # TODO ANY BETTER WAY?
-        for i, params in enumerate(params_list):
-            # device = devices[i % len(devices)]
-            # params.device = device
-            # params.lock = locks[device]
-            params_queue.put(params)
-
-        # Create the pool
-        with multiprocessing.Pool(processes=args.jobs, initializer=tqdm.set_lock,
-                                  initargs=(multiprocessing.Lock(),)) as p:
-
-            with tqdm(total=len(params_list),
-                      leave=False,
-                      desc="Parameters",
-                      ) as pb:
-                # Create and start the ProgressBar Thread
-                pbt = threading.Thread(target=progressbar_thread,
-                                       args=(iterations_queue, pb,),
-                                       daemon=True,
+    
+        args.devices = devices
+        args.locks = locks
+    
+        new_runs_buffer = []
+        for features in tqdm(args.features,
+                             desc="Features",
+                             ):
+            key = '_'.join(features)
+    
+            def storage_provider_callback(filename, network):
+                network_size = network.num_vertices()
+    
+                stop_condition = int(np.ceil(network_size * float(args.threshold)))
+    
+                logger.info(f"Dismantling {filename} according to the predictions. "
+                            f"Aiming to reach LCC size {stop_condition} ({stop_condition * 100 / network_size:.3f}%)"
+                            )
+    
+                # CoreHD does not support nor parallel edges nor self-loops.
+                # Remove them.
+                remove_parallel_edges(network)
+                remove_self_loops(network)
+    
+                training_data_extractor(network,
+                                        compute_targets=False,
+                                        features=features,
+                                        # logger=print,
+                                        )
+    
+            # Prepare the network for GDM
+            networks_provider = {}
+    
+            networks_provider[key] = [(network_name, network,
+                                       prepare_graph(network,
+                                                     features=features,
+                                                     targets=None,
+                                                     ),
                                        )
-                pbt.start()
-
-                for i in range(args.jobs):
-                    # torch.cuda._lazy_init()
-
-                    # p.apply_async(
-                    apply_async(pool=p,
-                                func=process_parameters_wrapper,
-                                kwargs=dict(
-                                    args=args,
-                                    df=df,
-                                    nn_model=nn_model,
-                                    params_queue=params_queue,
-                                    train_networks=train_networks,
-                                    test_networks=networks_provider,
-                                    df_queue=df_queue,
-                                    iterations_queue=iterations_queue,
-                                    early_stopping_dict=early_stopping_dict,
-                                    logger=logger,
-                                ),
-                                callback=new_runs_buffer.extend,
-                                error_callback=partial(logger.exception, exc_info=True),
-                                )
-
-                # Close the pool
-                p.close()
-                p.join()
-
-                # Close the progress bar thread
-                iterations_queue.put(None)
-                pbt.join()
-
-    # Gracefully close the daemons
-    df_queue.put(None)
-
-    dp.join()
+                                      ]
+    
+            # logger.info(f"Test network LOADED: {len(test_networks)}: {test_networks}")
+            # Fill the params queue
+            # TODO ANY BETTER WAY?
+            for i, params in enumerate(params_list):
+                # device = devices[i % len(devices)]
+                # params.device = device
+                # params.lock = locks[device]
+                params_queue.put(params)
+    
+            # Create the pool
+            with multiprocessing.Pool(processes=args.jobs, initializer=tqdm.set_lock,
+                                      initargs=(multiprocessing.Lock(),)) as p:
+    
+                with tqdm(total=len(params_list),
+                          leave=False,
+                          desc="Parameters",
+                          ) as pb:
+                    # Create and start the ProgressBar Thread
+                    pbt = threading.Thread(target=progressbar_thread,
+                                           args=(iterations_queue, pb,),
+                                           daemon=True,
+                                           )
+                    pbt.start()
+    
+                    for i in range(args.jobs):
+                        # torch.cuda._lazy_init()
+    
+                        # p.apply_async(
+                        apply_async(pool=p,
+                                    func=process_parameters_wrapper,
+                                    kwargs=dict(
+                                        args=args,
+                                        df=df,
+                                        nn_model=nn_model,
+                                        params_queue=params_queue,
+                                        train_networks=train_networks,
+                                        test_networks=networks_provider,
+                                        df_queue=df_queue,
+                                        iterations_queue=iterations_queue,
+                                        early_stopping_dict=early_stopping_dict,
+                                        logger=logger,
+                                    ),
+                                    callback=new_runs_buffer.extend,
+                                    error_callback=partial(logger.exception, exc_info=True),
+                                    )
+    
+                    # Close the pool
+                    p.close()
+                    p.join()
+    
+                    # Close the progress bar thread
+                    iterations_queue.put(None)
+                    pbt.join()
 
     new_df_runs = pd.DataFrame(new_runs_buffer, columns=df.columns)
 
@@ -304,7 +301,7 @@ def _CoreGDM(network: Graph,
     from network_dismantling.CoreGDM.core_grid import parse_parameters
     from network_dismantling.GDM.extract_gdm_best import extract_best_runs as best_run_extractor
     from network_dismantling.GDM.reinsert import main as reinsert, parse_parameters as reinsert_parse_parameters
-    from network_dismantling.common.df_helpers import df_reader
+    from network_dismantling.common.storage.pandas.parquet import df_reader
     from network_dismantling.common.helpers import extend_filename
 
     parameters = parameters.replace("{threshold}", str(threshold))
@@ -384,6 +381,7 @@ method_info = dict(
     citation=None,
     authors=None,
     source="https://github.com/NetworkScienceLab/CoreGDM/",
+    required_imports=["graph-tool", "torch-geometric", "torch", "torch-sparse"],
     # plot_color=None,
     # plot_marker=None,
 )

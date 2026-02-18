@@ -204,7 +204,7 @@ def GND(network: Graph,
 
             nodes.append(node)
 
-        if len(nodes) < 0:
+        if len(nodes) == 0:
             raise RuntimeError("No removals found!")
 
     for n, p in zip(nodes, list(reversed(range(1, len(nodes) + 1)))):

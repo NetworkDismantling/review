@@ -1,3 +1,5 @@
+import logging
+
 from parse import compile
 
 from network_dismantling import dismantler_wrapper
@@ -11,17 +13,18 @@ executable = "coreHD"
 
 
 # TODO use tempfile.NamedTemporaryFile?
-# TODO use logger instead of print
 
 
 @dismantler_wrapper
-def _coreHD(network, **kwargs):
+def _coreHD(network, logger: logging.Logger = logging.getLogger("dummy"), **kwargs):
     import tempfile
     from os import close, remove
-    from subprocess import check_output
+    from subprocess import run, CalledProcessError
 
     import numpy as np
     from graph_tool.all import remove_parallel_edges, remove_self_loops
+
+    from network_dismantling.common.logging.pipe import LogPipe
 
     # CoreHD does not support parallel edges or self-loops.
     # Remove them.
@@ -69,21 +72,23 @@ def _coreHD(network, **kwargs):
             #     int prerun = 14000000; //you can set it to another value
         ]
 
-        for cmd in cmds:
-            try:
-                print(f"Running cmd: {cmd}")
-
-                print(
-                    check_output(
+        with (
+            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+        ):
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running: {cd_cmd + cmd}")
+                    run(
                         cd_cmd + cmd,
                         shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
                         text=True,
-                        # close_fds=True,
-                        # stderr=STDOUT,
+                        check=True,
                     )
-                )
-            except Exception as e:
-                raise RuntimeError(f"ERROR! When running cmd: {cmd} {e}")
+                except CalledProcessError as e:
+                    raise RuntimeError(f"CoreHD binary failed on cmd '{cmd}': {e}") from e
 
         with open(output_fd, "r+") as tmp:
             lines = tmp.readlines()

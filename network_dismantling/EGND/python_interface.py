@@ -1,3 +1,5 @@
+import logging
+
 from network_dismantling import dismantler_wrapper
 from network_dismantling._sorters import dismantling_method
 
@@ -11,19 +13,21 @@ reinsertion_strategy = 2
 
 # TODO USE BOOST COMMAND LINE PARSER
 # TODO use tempfile.NamedTemporaryFile?
-# TODO use logger instead of print
 
 
 @dismantler_wrapper
 def _ensemble_generalized_network_dismantling(
-        network, reinsertion=False, remove_strategy=3, runs=1000, **kwargs
+        network, reinsertion=False, remove_strategy=3, runs=1000,
+        logger: logging.Logger = logging.getLogger("dummy"), **kwargs
 ):
     import tempfile
     from os import close, remove
     from os.path import relpath, dirname, realpath
-    from subprocess import check_output, STDOUT
+    from subprocess import run, CalledProcessError
 
     import numpy as np
+
+    from network_dismantling.common.logging.pipe import LogPipe
 
     static_id = network.vertex_properties["static_id"]
 
@@ -81,20 +85,23 @@ def _ensemble_generalized_network_dismantling(
         else:
             output = broken_fd
 
-        for cmd in cmds:
-            try:
-                print(f"Running cmd: {cmd}")
-
-                print(
-                    check_output(
+        with (
+            LogPipe(logger=logger, level=logging.INFO) as stdout_pipe,
+            LogPipe(logger=logger, level=logging.ERROR) as stderr_pipe,
+        ):
+            for cmd in cmds:
+                try:
+                    logger.debug(f"Running: {cd_cmd + cmd}")
+                    run(
                         cd_cmd + cmd,
                         shell=True,
+                        stdout=stdout_pipe,
+                        stderr=stderr_pipe,
                         text=True,
-                        stderr=STDOUT,
+                        check=True,
                     )
-                )
-            except Exception as e:
-                raise RuntimeError(f"ERROR! When running cmd: {cmd} {e}")
+                except CalledProcessError as e:
+                    raise RuntimeError(f"EGND binary failed on cmd '{cmd}': {e}") from e
 
         with open(output, "r+") as tmp:
             for line in tmp.readlines():

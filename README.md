@@ -84,14 +84,26 @@ This library integrates and provides a common interface to the following algorit
 - [Min-Sum](https://github.com/abraunst/decycler/): [reference](CITATIONS.md#min-sum-ms--greedy-reinsertion-algorithm)
 - NetworkEntanglement: [reference](CITATIONS.md#network-entanglement-ne)
 - [VertexEntanglement](https://github.com/Yiminghh/VertexEntanglement): [reference](CITATIONS.md#vertex-entanglement-ve)
-- Node heuristics (to be integrated in the main dismantler, need to use the separate script for now)
+- Node heuristics
     - Degree
     - Betweenness
     - Eigenvector centrality
     - PageRank
+    - Random
 
-The package also includes the greedy reinsertion algorithm proposed for the reinsertion phase
-of [Min-Sum](https://github.com/abraunst/decycler/).
+The package also includes the **greedy reinsertion** algorithm (proposed for [Min-Sum](https://github.com/abraunst/decycler/)), available as a standalone module in `network_dismantling/greedy_reinsertion/`.
+Two interchangeable back-ends are provided:
+
+- **Graph-tool C++ extension** (`libreinsertion_gt.so`): operates in-process on `graph_tool.Graph` objects — preferred.
+- **Subprocess binary** (`reinsertion`): writes to temp files and invokes the compiled binary — fallback.
+
+The public API auto-selects the best available back-end:
+
+```python
+from network_dismantling.greedy_reinsertion import reverse_greedy_reinsertion
+```
+
+All +R algorithm variants (GDM+R, CoreGDM+R, GND+R, Multiscale+R, VertexEntanglement+R) use this shared module.
 
 **If you use any of these algorithms, please also cite the original papers.
 See the [Citations file](CITATIONS.md) for more information.**
@@ -109,7 +121,7 @@ curl -fsSL https://pixi.sh/install.sh | bash
 
 # Clone and setup
 cd review
-pixi install              # Install dependencies
+# pixi install              # Install dependencies [OPTIONAL, setup-all also does this]
 pixi run setup-all        # Install PyTorch + compile C++ code
 ```
 
@@ -284,6 +296,15 @@ If you wish to use this code to dismantle your own networks, you can do so as fo
 ## Running the dismantler
 
 To run the dismantler, you first need to set up the environment as detailed in section [Setup](#setup).
+If you use Pixi (recommended), simply prefix commands with `pixi run`:
+
+```bash
+pixi run python network_dismantling/dismantler.py -l <DATASET_FOLDER> -H <ALGORITHM(s)> -t <THRESHOLD>
+```
+
+<details>
+<summary><b>Legacy: manual conda environment activation</b></summary>
+
 After that, you should activate the right environment, depending on the algorithm you want to run.
 For example, to run the GDM algorithm, you should run:
 
@@ -305,6 +326,8 @@ conda activate dismantling
 
 Please note that a script that takes care of switching to the right environment is provided in currently in the works.
 
+</details>
+
 Then, you can run the dismantler script as follows:
 [//]: # (3. you can add the node features and other info required via:)
 
@@ -314,8 +337,8 @@ cd review
 python network_dismantling/dismantler.py -l <DATASET_FOLDER> -H <DISMANTLING_ALGORITHM(s)> -t <DISMANTLING_THRESHOLD> [-i <INPUT_DATAFRAME(s)] [-o <OUTPUT_DATAFRAME>] [-F <DATA_FILTER] 
 ```
 
-The script will run all the algorithms and save the results in the _out_ folder.
-In particular, by default, the results will be saved in the _out/df/heuristics.csv_ DataFrame file.
+The script will run all the algorithms and save the results.
+By default, the results will be saved in Parquet format in the _out/df/_ folder.
 The file will contain the results of all the algorithms, and will be used by the plotting scripts.
 
 The parameters are as follows:
@@ -433,6 +456,16 @@ All the table scripts will produce a .csv output along with a table in .tex form
 
 It is worth mentioning that the -P flag (--pivot) will pivot the table.
 
+## Testing
+
+Run the full test suite with:
+
+```bash
+pixi run test
+```
+
+This executes `pytest` on the `tests/` directory, which includes regression tests for the C++ dismantler extensions, reinsertion back-ends, Parquet storage, and heuristic scoring functions.
+
 ## Issues
 
 If you find any issue with the code after reading this file carefully, please feel free to submit an Issue in the GitHub repository.
@@ -444,7 +477,7 @@ Please provide information about your system, your environment, the traceback of
 This repository is meant to be a collaborative project, where new dismantling algorithms can be easily integrated and benchmarked.
 To do so, we have built a simple framework that allows to easily integrate new algorithms and compare them with the existing ones.
 New algorithms can be integrated by implementing a simple function that takes as input an undirected graph-tool graph and returns a list of nodes to remove.
-The function should then be registered using the `@dismantling_algorithm` decorator.
+The function should then be registered using the `@dismantling_method` decorator.
 
 [//]: # (You can integrate a new algorithm just by providing a function)
 If you wish to contribute to this project, please feel free to submit a Pull Request in the GitHub repository.

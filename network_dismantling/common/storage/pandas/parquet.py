@@ -6,6 +6,7 @@ from collections import defaultdict
 from itertools import accumulate
 from pathlib import Path
 from typing import Callable, List, Union, Dict, Optional, Tuple, Literal
+from warnings import deprecated
 
 import numpy as np
 import pandas as pd
@@ -67,14 +68,14 @@ def get_removals_schema() -> pa.DataType:
     ]))
 
 
-def convert_removals_to_struct(removals_list: RemovalsList) -> List[Dict[str, Union[int, float]]]:
+def convert_removals_to_struct(removals_list: Union[List[Removal], np.ndarray, None]) -> List[Dict[str, Union[int, float]]]:
     """Convert removals from Removal objects or tuples to list of dicts for PyArrow struct.
     
     Expects removals with ABSOLUTE counts (not fractions).
-    Accepts both Removal dataclass objects and tuples.
+    Accepts Removal dataclass objects, tuples, or numpy arrays.
     
     Args:
-        removals_list: List of Removal objects or tuples (removal_num, id, prediction, lcc_size_absolute, slcc_size_absolute)
+        removals_list: List/array of Removal objects or tuples (removal_num, id, prediction, lcc_size_absolute, slcc_size_absolute)
         
     Returns:
         List of dicts with named fields, or None if input is None/empty.
@@ -84,15 +85,13 @@ def convert_removals_to_struct(removals_list: RemovalsList) -> List[Dict[str, Un
     
     # Handle both CSV (string) and Parquet (already deserialized) formats
     if isinstance(removals_list, str):
-        raise ValueError("Expected removals_list to be a list of Removal objects or tuples, got string. This likely indicates a parsing error where the list was read as a string. Check your data loading code.")
-    
-    #     # Should not happen, but handle it
-    #     from ast import literal_eval
-    #     removals_list = literal_eval(removals_list)
-    # elif isinstance(removals_list, np.ndarray):
-    #     # Parquet format: numpy array -> list
-    #     removals_list = removals_list.tolist()
-    # # else: already a list, use as-is
+        # Legacy CSV format: parse string
+        from ast import literal_eval
+        removals_list = literal_eval(removals_list)
+    elif isinstance(removals_list, np.ndarray):
+        # Parquet format: numpy array (keep as is, can iterate directly)
+        pass
+    # else: already a list, use as-is
     
     # Import Removal to check type
     from network_dismantling.common.removal import Removal
@@ -110,7 +109,7 @@ def convert_removals_to_struct(removals_list: RemovalsList) -> List[Dict[str, Un
         if not all(isinstance(r, dict) and expected_keys.issubset(r.keys()) for r in removals_list):
             raise ValueError(f"Invalid removals_list format: expected list of dicts with keys {expected_keys}")
         # Assume values are already absolute counts
-        return removals_list
+        return list(removals_list)  # Ensure it's a list, not ndarray
     else:
         raise ValueError(f"Invalid removals_list format: expected list of Removal or tuples, got {type(removals_list[0])}")
 
@@ -127,7 +126,7 @@ def convert_removals_to_struct(removals_list: RemovalsList) -> List[Dict[str, Un
     ]
 
 
-def convert_removals_from_struct(removals_list):
+def convert_removals_from_struct(removals_list: Union[List[Dict], np.ndarray, None]) -> RemovalsList:
     """Convert removals from PyArrow struct (list of dicts) back to list of tuples.
     
     Values remain as absolute counts (no conversion to fractions).
@@ -136,7 +135,7 @@ def convert_removals_from_struct(removals_list):
         removals_list: List of dicts from PyArrow struct with absolute counts.
         
     Returns:
-        List of tuples (removal_num, id, prediction, lcc_size_absolute, slcc_size_absolute).
+        List of Removal objects, or empty list if input is None/empty.
     """
     if removals_list is None or len(removals_list) == 0:
         return []
@@ -345,7 +344,7 @@ def df_writer(queue: multiprocessing.Queue,
                 logger.debug(f"Could not verify schema: {e}")
 
 
-
+@deprecated("Use ParquetDataFrameWriter class instead for better error handling and simpler API")
 def start_df_writer(output_file: Path,
                     output_df_columns: Union[str, List[str]],
                     df_queue: multiprocessing.Queue,
@@ -691,7 +690,7 @@ def get_parquet_stats(file_path: Union[Path, str]) -> Dict[str, Union[int, float
     }
 
 
-def get_df_columns(file: Path):
+def get_df_columns(file: Path) -> List[str]:
     schema = read_parquet_schema_df(str(file))
 
     cols = schema["column"].tolist()
@@ -699,10 +698,10 @@ def get_df_columns(file: Path):
     return cols
 
 
-def read_without_removals(file,
+def read_without_removals(file: Union[Path, str],
                           exclude_columns: Union[str, List[str], None] = None,
                           **kwargs,
-                          ):
+                          ) -> pd.DataFrame:
     if exclude_columns is None:
         exclude_columns = ["removals"]
     elif isinstance(exclude_columns, str):
@@ -718,12 +717,12 @@ def read_without_removals(file,
 
 
 def read_without_columns(
-        file,
+        file: Union[Path, str],
         exclude_columns: Optional[Union[str, List[str]]],
         read_index: Union[None, int, List[int]] = None,
-        dtype_dict=None,
+        dtype_dict: Optional[Dict] = None,
         logger: logging.Logger = logging.getLogger("dummy"),
-):
+) -> pd.DataFrame:
     if not isinstance(file, Path):
         file = Path(file)
     file = file.resolve()
@@ -1040,20 +1039,23 @@ def df_reader(
             logger=logger,
         )
 
-        if (not include_removals) and (expected_columns):
-            if ("removals" in expected_columns):
-                expected_columns.remove("removals")
-
         if expected_columns is not None:
-            for column in ["idx", "file"]:
-                if column not in expected_columns:
-                    expected_columns += [column]
+            # Work on a local copy to avoid mutating the caller's list
+            _validate_columns = list(expected_columns)
 
-            if (len(df.columns) != len(expected_columns)) or (df.columns != expected_columns).all():
+            if (not include_removals) and ("removals" in _validate_columns):
+                _validate_columns.remove("removals")
+
+            for column in ["idx", "file"]:
+                if column not in _validate_columns:
+                    _validate_columns.append(column)
+
+            if (len(df.columns) != len(_validate_columns)) or (df.columns != _validate_columns).all():
                 raise ValueError(
                     f"Input file {file} columns {list(df.columns)} "
-                    f"do not match the expected columns {expected_columns}."
+                    f"do not match the expected columns {_validate_columns}."
                 )
+
 
         if file_callbacks is not None:
             if not isinstance(file_callbacks, List):

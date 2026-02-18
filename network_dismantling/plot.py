@@ -19,7 +19,6 @@
 
 import logging
 from argparse import ArgumentParser, Namespace
-from ast import literal_eval
 from operator import attrgetter, itemgetter
 from pathlib import Path
 

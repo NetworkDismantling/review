@@ -26,7 +26,7 @@ import seaborn as sns
 from parse import compile
 
 from network_dismantling import dismantling_methods
-from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.storage.pandas.parquet import df_reader
 from network_dismantling.common.humanize_helper import intword
 from network_dismantling.plot import replace_labels
 from network_dismantling.table_output import reorder_heuristics
@@ -195,7 +195,7 @@ def display_df(args, df, print=print):
                         )
 
         print("df post reindex", df)
-        output_df = df.append(df_sum)
+        output_df = pd.concat([df, df_sum.to_frame().T])
 
     else:
         df = df.div(df.min(axis='index'))
@@ -295,7 +295,7 @@ if __name__ == "__main__":
         "-fh",
         "--heuristics_file",
         type=Path,
-        default="./out/df/heuristics.SYNTH.csv",
+        default="./out/df/heuristics.SYNTH.parquet",
         required=False,
         help="Heuristics output DataFrame file location",
         nargs="*",

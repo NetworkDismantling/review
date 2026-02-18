@@ -26,7 +26,7 @@ import pandas as pd
 import seaborn as sns
 
 from network_dismantling import dismantling_methods
-from network_dismantling.common.df_helpers import df_reader
+from network_dismantling.common.storage.pandas.parquet import df_reader
 from network_dismantling.plot import replace_labels, rename_networks
 
 pd.options.mode.chained_assignment = None
@@ -199,7 +199,7 @@ def display_df(args, df, print=print):
                         axis="columns",
                         )
 
-        output_df = df.append(df_sum)
+        output_df = pd.concat([df, df_sum.to_frame().T])
 
     else:
         df = df.div(df.min(axis='index'))

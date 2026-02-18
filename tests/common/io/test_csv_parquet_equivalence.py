@@ -395,16 +395,9 @@ def test_schema_mismatch_detection(tmp_path):
     chunk2 = pd.DataFrame({"a": [4], "b": [5], "d": [6]})  # Different column 'd' instead of 'c'
     
     parquet_file = tmp_path / "schema_mismatch.parquet"
-    writer = parquet.ParquetDataFrameWriter(parquet_file, columns1, logger=logger)
-    
-    try:
+    with parquet.ParquetDataFrameWriter(parquet_file, columns1, logger=logger) as writer:
         writer.write(chunk1)  # This will succeed
         writer.write(chunk2)  # This will fail due to missing column 'c'
-    finally:
-        try:
-            writer.close()
-        except:
-            pass
     
     # Verify that only the first chunk was written successfully
     if parquet_file.exists():
@@ -468,21 +461,17 @@ def test_parquet_writer_class(tmp_path, sample_dismantling_data):
     chunk1 = sample_dismantling_data.iloc[:2]
     chunk2 = sample_dismantling_data.iloc[2:]
     
-    # Use class-based writer
-    writer = parquet.ParquetDataFrameWriter(
+    # Use class-based writer with context manager
+    with parquet.ParquetDataFrameWriter(
         output_file=output_file,
         columns=columns,
         logger=logger,
-    )
-    
-    try:
+    ) as writer:
         writer.write(chunk1)
         assert writer.is_alive(), "Writer should be alive after first write"
         
         writer.write(chunk2)
         assert writer.is_alive(), "Writer should be alive after second write"
-    finally:
-        writer.close()
     
     # Verify data was written correctly
     df = parquet.read_without_columns(file=str(output_file), exclude_columns=[])
@@ -523,25 +512,21 @@ def test_parquet_writer_error_detection(tmp_path):
     columns = ["a", "b", "c"]
     output_file = tmp_path / "test_error.parquet"
     
-    writer = parquet.ParquetDataFrameWriter(output_file, columns, logger=logger)
-    
-    # Write valid data
-    chunk1 = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
-    writer.write(chunk1)
-    
-    # Write invalid data (missing column 'c', extra column 'd')
-    chunk2 = pd.DataFrame({"a": [4], "b": [5], "d": [6]})
-    writer.write(chunk2)
-    time.sleep(0.5)  # Give writer thread time to process
-    
-    # Writer should still be alive — next valid write should succeed
-    chunk3 = pd.DataFrame({"a": [7], "b": [8], "c": [9]})
-    writer.write(chunk3)
-    
-    writer.close()
+    with parquet.ParquetDataFrameWriter(output_file, columns, logger=logger) as writer:
+        # Write valid data
+        chunk1 = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+        writer.write(chunk1)
+        
+        # Write invalid data (missing column 'c', extra column 'd')
+        chunk2 = pd.DataFrame({"a": [4], "b": [5], "d": [6]})
+        writer.write(chunk2)
+        time.sleep(0.5)  # Give writer thread time to process
+        
+        # Writer should still be alive — next valid write should succeed
+        chunk3 = pd.DataFrame({"a": [7], "b": [8], "c": [9]})
+        writer.write(chunk3)
     
     # Verify: only chunk1 and chunk3 are in the file (chunk2 was skipped)
-    import pandas as pd
     result = pd.read_parquet(str(output_file))
     assert len(result) == 2, f"Expected 2 rows (chunk1 + chunk3), got {len(result)}"
     assert result["a"].tolist() == [1, 7]

@@ -1,6 +1,6 @@
 import logging
 from functools import wraps
-from operator import itemgetter
+from operator import attrgetter, itemgetter
 from typing import Dict, Callable, Union, Optional, Tuple
 
 import numpy as np
@@ -182,7 +182,7 @@ def kcore_lcc_threshold_dismantler(
             generator.close()
             break
 
-        current_auc = simpson(list(map(itemgetter(3), removals)), dx=1)
+        current_auc = simpson(list(map(lambda r: r.lcc_size, removals)), dx=1)
         if (i > early_stopping_removals) and (current_auc > early_stopping_auc):
             # if current_auc > early_stopping_auc:
 
@@ -466,7 +466,7 @@ def dismantler_wrapper(
                 # **generator_args,
             )
 
-            peak_slcc = max(removals, key=itemgetter(RemovalsColumns.SLCC_SIZE))
+            peak_slcc = max(removals, key=attrgetter("slcc_size"))
             rem_num = len(removals)
 
             if rem_num > 0:
@@ -478,7 +478,7 @@ def dismantler_wrapper(
 
             run = {
                 # "network": name,
-                "removals": removals,
+                "removals": np.array(removals, dtype=object),
 
                 "slcc_peak_at": peak_slcc[RemovalsColumns.REMOVAL_NUM],
                 "lcc_size_at_peak": peak_slcc[RemovalsColumns.LCC_SIZE],

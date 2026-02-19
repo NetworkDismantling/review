@@ -172,11 +172,10 @@ def df_reader(
             read_index=read_index[file] if read_index is not None else None,
         )
 
-        if (not include_removals) and (expected_columns):
-            if ("removals" in expected_columns):
+        if expected_columns is not None:
+            if (not include_removals) and ("removals" in expected_columns):
                 expected_columns.remove("removals")
 
-        if expected_columns is not None:
             for column in ["idx", "file"]:
                 if column not in expected_columns:
                     expected_columns += [column]

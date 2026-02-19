@@ -6,7 +6,25 @@ from collections import defaultdict
 from itertools import accumulate
 from pathlib import Path
 from typing import Callable, List, Union, Dict, Optional, Tuple, Literal
-from warnings import deprecated
+
+try:
+    from warnings import deprecated  # Python 3.13+
+except ImportError:
+    # TODO: move to a separate file...
+    
+    # Fallback for Python < 3.13
+    import functools
+
+    def deprecated(msg: str):  # type: ignore[misc]
+        """Simple @deprecated decorator fallback."""
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                import warnings
+                warnings.warn(f"{func.__name__} is deprecated: {msg}", DeprecationWarning, stacklevel=2)
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
 
 import numpy as np
 import pandas as pd
@@ -68,7 +86,7 @@ def get_removals_schema() -> pa.DataType:
     ]))
 
 
-def convert_removals_to_struct(removals_list: Union[List[Removal], np.ndarray, None]) -> List[Dict[str, Union[int, float]]]:
+def convert_removals_to_struct(removals_list: Union[List[Removal], np.ndarray, None]) -> Optional[List[Dict[str, Union[int, float]]]]:
     """Convert removals from Removal objects or tuples to list of dicts for PyArrow struct.
     
     Expects removals with ABSOLUTE counts (not fractions).
@@ -531,13 +549,13 @@ class ParquetDataFrameWriter(BaseDataFrameWriter):
 
     def _check_writer_alive(self):
         """Check if writer thread is still alive and raise if not."""
-        if not self._thread.is_alive() and not self._closed:
+        if not self._thread.is_alive() and not self._closed:  # type: ignore[union-attr]
             self.logger.error(f"Writer thread died unexpectedly!")
-            raise RuntimeError(f"Writer thread '{self._thread.name}' terminated")
+            raise RuntimeError(f"Writer thread '{self._thread.name}' terminated")  # type: ignore[union-attr]
 
         if self._error_event.is_set():
             self.logger.error(f"Writer thread encountered an error!")
-            raise RuntimeError(f"Writer thread '{self._thread.name}' signaled error")
+            raise RuntimeError(f"Writer thread '{self._thread.name}' signaled error")  # type: ignore[union-attr]
 
     def write(self, df: pd.DataFrame):
         """Write a DataFrame to the Parquet file.
@@ -963,12 +981,12 @@ def read_without_columns(
 def df_reader(
         files: Union[Union[Path, str], List[Union[Path, str]]],
         include_removals: bool = False,
-        file_callbacks: Union[Callable, List[Callable]] = None,
+        file_callbacks: Optional[Union[Callable, List[Callable]]] = None,
         raise_on_missing_file: bool = True,
-        expected_columns: Union[str, List[str]] = None,
-        exclude_columns: Union[str, List[str]] = None,
+        expected_columns: Optional[Union[str, List[str]]] = None,
+        exclude_columns: Optional[Union[str, List[str]]] = None,
         at_least_one_file: bool = False,
-        dtype_dict: Dict = None,
+        dtype_dict: Optional[Dict] = None,
         read_index: Union[None, int, List[int], Dict[Union[str, Path], List[int]]] = None,
         logger: logging.Logger = logging.getLogger("dummy"),
 ):
@@ -1012,8 +1030,8 @@ def df_reader(
                         f"read_index must have a value for each file. Missing value for {file}."
                     )
         elif (isinstance(read_index, int) or
-              np.issubdtype(read_index, np.integer)):
-            read_index = {file: int(read_index) for file in files}
+              np.issubdtype(type(read_index), np.integer)):
+            read_index = {file: [int(read_index)] for file in files}
 
         else:
             raise ValueError(f"Invalid read_index {read_index} (type {type(read_index)}.")

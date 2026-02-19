@@ -33,16 +33,16 @@ from network_dismantling.common.storage.pandas.parquet import (
 #         index_col=index_col,
 #     )
 
-# class RemovalsColumns:
-#     REMOVAL_NUM = 0
-#     ID = 1
-#     PREDICTION = 2
-#     LCC_SIZE = 3
-#     SLCC_SIZE = 4
-
 class RemovalsColumns:
-    REMOVAL_NUM = "removal_num"
-    ID = "id"
-    PREDICTION = "prediction"
-    LCC_SIZE = "lcc_size"
-    SLCC_SIZE = "slcc_size"
+    REMOVAL_NUM = 0
+    ID = 1
+    PREDICTION = 2
+    LCC_SIZE = 3
+    SLCC_SIZE = 4
+
+# class RemovalsColumns:
+#     REMOVAL_NUM = "removal_num"
+#     ID = "id"
+#     PREDICTION = "prediction"
+#     LCC_SIZE = "lcc_size"
+#     SLCC_SIZE = "slcc_size"

@@ -211,3 +211,4 @@ CMakeLists.txt
 # Xcode
 *.dSYM/
 .cmake
+*.lock

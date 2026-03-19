@@ -7,24 +7,7 @@ from itertools import accumulate
 from pathlib import Path
 from typing import Callable, List, Union, Dict, Optional, Tuple, Literal
 
-try:
-    from warnings import deprecated  # Python 3.13+
-except ImportError:
-    # TODO: move to a separate file...
-    
-    # Fallback for Python < 3.13
-    import functools
-
-    def deprecated(msg: str):  # type: ignore[misc]
-        """Simple @deprecated decorator fallback."""
-        def decorator(func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                import warnings
-                warnings.warn(f"{func.__name__} is deprecated: {msg}", DeprecationWarning, stacklevel=2)
-                return func(*args, **kwargs)
-            return wrapper
-        return decorator
+from network_dismantling.common.deprecation import deprecated
 
 import numpy as np
 import pandas as pd
@@ -54,12 +37,6 @@ from network_dismantling.common.removal import RemovalsList, Removal
 # - Snappy compression offers best balance between speed and compression ratio
 # - Files are compatible between fastparquet and pyarrow (both follow Apache Parquet standard)
 
-
-    
-    
-        
-        
-    
 
 
 def get_removals_schema() -> pa.DataType:
@@ -158,16 +135,6 @@ def convert_removals_from_struct(removals_list: Union[List[Dict], np.ndarray, No
     if removals_list is None or len(removals_list) == 0:
         return []
     
-    return [
-        # Removal(
-        #     removal_num=r['removal_num'],
-        #     node_id=r['id'],
-        #     prediction=r['prediction'],
-        #     lcc_size=r['lcc_size'],       # absolute (no division)
-        #     slcc_size=r['slcc_size'],      # absolute (no division)
-        # )
-        Removal.from_dict(r) for r in removals_list
-    ]
 
 
 def df_writer(queue: multiprocessing.Queue,
@@ -774,7 +741,6 @@ def read_without_columns(
             raise ValueError(f"Invalid read_index {read_index} (type {type(read_index)}.")
 
         pf = ParquetFile(str(file))
-        logger.info(f"Attributes of ParquetFile: {dir(pf)}")
         meta = pf.metadata
 
         # 3. collect row counts and compute cumulative offsets
@@ -843,139 +809,8 @@ def read_without_columns(
         else:
             df[dtype_col] = df[dtype_col].astype(dtype)
 
+
     return df
-
-
-# def read_without_columns(
-#         file,
-#         exclude_columns: Union[str, List[str]],
-#         read_index: Union[None, int, List[int]] = None,
-#         dtype_dict=None,
-# ):
-#     if exclude_columns is None:
-#         exclude_columns = []
-#
-#     if isinstance(exclude_columns, str):
-#         exclude_columns = [exclude_columns]
-#
-#     # Read column names from file
-#     cols = get_df_columns(file)
-#     usecols = [i for i in cols if i not in exclude_columns]
-#
-#     read_kwargs = {
-#         "columns": usecols,
-#         "engine": "pyarrow",
-#         "use_threads": True,
-#         "dtype": dtype_dict,
-#     }
-#     # Read the schema of the file
-#     indices_to_read = None
-#     if read_index is not None:
-#         if isinstance(read_index, int):
-#             indices_to_read = [read_index]
-#
-#         indices_to_read = sorted(indices_to_read)
-#
-#         buffer = []
-#         first_row_of_group = 0 #-1
-#         parquet_file = ParquetFile(str(file))
-#
-#         # Get metadata
-#         metadata = parquet_file.metadata
-#         if metadata is None:
-#             raise ValueError(f"Metadata is None for file {file}.")
-#         if metadata.num_row_groups < 1:
-#             raise ValueError(f"Metadata has no row groups for file {file}.")
-#
-#         # Define a groups generator:
-#         groups_iterator = enumerate(iter(range(parquet_file.num_row_groups)))
-#         i, group = next(groups_iterator)
-#         row_group_metadata = metadata.row_group(i)
-#         row_group = None
-#         current_row_group = None
-#
-#         # # Print number of rows in each row group
-#         # for i in range(metadata.num_row_groups):
-#         #     row_group = metadata.row_group(i)
-#         for index_to_read in indices_to_read:
-#             if index_to_read < 0:
-#                 raise ValueError(f"Invalid read_index {index_to_read} (type {type(index_to_read)}.")
-#
-#             # if index_to_read >= metadata.num_rows:
-#             #     raise ValueError(f"Index {index_to_read} is out of bounds for file {file}.")
-#
-#             # Check if the index_to_read is NOT in the current row group
-#             if not (first_row_of_group <= index_to_read < first_row_of_group + row_group_metadata.num_rows):
-#                 # Navigate to the row group that contains the index_to_read
-#                 for i, group in groups_iterator:
-#                     # Get the row group that contains the index_to_read
-#                     row_group_metadata = metadata.row_group(i)
-#                     first_row_of_group += row_group_metadata.num_rows
-#                     print(f"Row group {i} has {row_group_metadata.num_rows} rows.")
-#                     print(f"First row of group {i} is {first_row_of_group}.")
-#
-#                 if first_row_of_group <= index_to_read < first_row_of_group + row_group_metadata.num_rows:
-#                     break
-#
-#                 else: # This else is executed when the for loop is exhausted and break is not executed
-#                     # We have exhausted all row groups and didn't find the index_to_read
-#                     # If we reach here, it means we didn't find the index_to_read in any group
-#                     raise ValueError(f"Index {index_to_read} is out of bounds for file {file}.")
-#
-#             if current_row_group != group: # Check if we are in a new row group or we have never loaded one
-#                 # If we reach here, it means we found the index_to_read in group i
-#                 current_row_group = group
-#                 print(f"Reading row group {group}.")
-#                 # Get the row group that contains the index_to_read
-#                 row_group = parquet_file.read_row_group(group,
-#                                                         columns=usecols,
-#                                                         use_threads=True,
-#                                                         # memory_map=True,
-#                                                         )
-#
-#
-#             # Filter the desired row
-#             read_df = row_group.slice(index_to_read, 1)
-#
-#             # Convert to pandas dataframe
-#             read_df = read_df.to_pandas()
-#
-#             # # read_df = parquet_file.read_row_group(index_to_read, columns=usecols).to_pandas()
-#             # # first_ten_rows = next(pf.iter_batches(batch_size=10))
-#             # # read_df = pa.Table.from_batches([first_ten_rows]).to_pandas()
-#             #
-#             # read_df = pd.read_parquet(
-#             #     str(file),
-#             #     skiprows=index_to_read + 1,
-#             #     nrows=1,
-#             #     # columns=usecols,
-#             #     # usecols=usecols,
-#             #     # names=usecols,
-#             #     # dtype=dtype_dict,
-#             #     # engine="pyarrow",
-#             #     **read_kwargs,
-#             # )
-#             read_df["idx"] = index_to_read
-#
-#             buffer.append(read_df)
-#
-#         df = pd.concat(buffer,
-#                        ignore_index=True,
-#                        )
-#     else:
-#         df = pd.read_parquet(
-#             str(file),
-#             # usecols=usecols,
-#             # dtype=dtype_dict,
-#             # engine="pyarrow",
-#             **read_kwargs,
-#         )
-#         df["idx"] = df.index
-#
-#     df["file"] = f"{file}"
-#     df["file"] = df["file"].astype("category")
-#
-#     return df
 
 
 def df_reader(
@@ -1110,7 +945,5 @@ def df_reader(
             df_buffer,
             ignore_index=True,
         )
-    # if "network" in df and df["network"].dtype != str:
-    #     df["network"] = df["network"].astype(str)
 
     return df

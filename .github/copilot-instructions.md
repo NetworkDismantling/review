@@ -39,14 +39,19 @@ dismantler.py (CLI)  →  @dismantling_method registry (auto-discovered)
 
 - **Language**: English in all code, docstrings, comments, and commit messages.
 - **Indentation**: 4 spaces. Named parameters for functions with >2 params.
-- **Delegate to libraries**: use `graph_tool`, `numpy`, `scipy`, `pandas`, `pyarrow` APIs instead of reimplementing (e.g., use `graph.to_undirected()`, not manual edge filtering). Always check `common/`, libraries (already available first, to avoid too many dependencies) and existing code before writing new utilities.
+- **Delegate to libraries**: use well-enstablished libraries instead of reimplementing functionality. For example, use `argparse` for CLI parsing, `pathlib` for path handling, `graph_tool` for graph operations, `numpy`/`scipy` for numerical work, `pandas`/`pyarrow` for data storage. Check `common/`, existing code, and available libraries before writing new utilities. For graph operations, prefer built-in `graph_tool` methods (e.g., `graph.to_undirected()`) over manual implementations (e.g., filtering edges).
 - **Parametric code**: avoid hardcoded values for features, layer sizes, thresholds, relationship types. Use arguments or configuration.
 - **Modular, low-coupling design**: small functions with single responsibility. Follow software engineering best practices (SRP, DRY, low coupling).
 - **Prefer simple solutions**: use state-of-the-art techniques only when simpler approaches are demonstrably insufficient.
-- **No monkeypatch**: avoid `unittest.mock.patch` of production code internals; prefer dependency injection or test-specific fixtures.
+- **No monkeypatching**: avoid modifying imported modules or classes at runtime. Use subclassing or composition instead.
 - **Code from notebooks → .py**: validated notebook code gets consolidated into `.py` modules for performance and clarity.
 - **Avoid mutating shared state**: do not modify lists/dicts passed by reference from callers (e.g., `expected_columns += [...]` mutates the caller's list). Use `.copy()` or create new lists.
 - **pandas ≥ 2.0 required**: use `pd.concat([df, new])` instead of the removed `df.append()`.
+- **When uncertain on architectural or data decisions, ask for clarification before implementing** — do not guess on design choices that affect correctness or interoperability.
+- **Information integrity**: never fabricate numbers, benchmark results, or code behavior. Every quantitative claim must come from the actual code, data, or an explicit user statement. If unsure, flag with a placeholder and ask.
+- **Deprecation decorator**: use `@deprecated` from `network_dismantling.common.deprecation` (Python 3.13+ native with fallback for older versions).
+- **Logging**: use the `logging` module for all output, never `print()`. For subprocesses, use `LogPipe` to capture stdout/stderr.
+- **File placement**: new modules should be placed in the most specific existing package (e.g., `common/`, `utils/`) or a new subpackage if warranted. Avoid creating new top-level packages unless necessary. Also avoid placing general utilities in non-general packages (e.g., don't put a general CSV→Parquet converter in `GDM/`). Chose carefully between `common/` (for code shared across multiple algorithms) and `utils/` (for standalone scripts/utilities that are not imported by the main codebase).
 
 ## Testing
 
@@ -58,7 +63,7 @@ dismantler.py (CLI)  →  @dismantling_method registry (auto-discovered)
 ## Storage Migration (In Progress)
 
 - **CSV → Parquet**: primary storage is now Parquet (`common/storage/pandas/parquet.py`). CSV reader exists as legacy (`common/storage/pandas/csv.py`).
-- Migration utilities in `network_dismantling/utils/`: `migrate_csv_to_parquet.py`, `convert_csv_to_parquet.py`, `verify_parquet_schema.py`.
+- Migration utilities in `network_dismantling/utils/`: `migrate_to_parquet.py` for converting old CSV files to Parquet.
 - DataFrame columns: `network`, `network_size`, `heuristic`, `slcc_peak_at`, `lcc_size_at_peak`, `slcc_size_at_peak`, `removals`, `static`, `r_auc`, `rem_num`, `prediction_time`, `dismantle_time`, `threshold`.
 - Removals schema: `list<struct<removal_num:uint32, id:uint32, prediction:float32, lcc_size:uint32, slcc_size:uint32>>`.
 - **`idx` and `file` columns**: synthetic, added at read-time by `read_without_columns()` for internal tracking. They must NOT be written to Parquet or leaked into the output schema. Always drop them before writing.
@@ -72,6 +77,7 @@ dismantler.py (CLI)  →  @dismantling_method registry (auto-discovered)
 - **Migration target**: subprocess-based C++ algorithms should be migrated to Boost.Python compiled extensions (like `external_dismantlers/` or `greedy_reinsertion/`) for better performance. Requires extensive testing — behavior must not change (unless fixing bugs).
 - **Node indexing**: Python is 0-indexed; many C++ extensions use 1-indexed — watch for `+1`/`-1` at boundaries.
 - Setup hooks (`_setup_hook.py`) let each submodule define its own build step, executed during `pip install -e .`.
+- `graph-tool` integration: the libraries is written in C++ and exposes a Python interface via Boost.Python. For C++ extensions that use `graph-tool`, the recommended approach is to compile them as Boost.Python modules that can be imported directly in Python (like `libreinsertion_gt.so`), rather than using subprocesses. This allows direct manipulation of `graph_tool.Graph` objects without serialization overhead. If subprocesses are necessary (e.g., for legacy code), ensure that the graph is written to disk in a format that preserves all necessary properties (e.g., using `graph_tool.save_graph()`) and read back correctly.
 
 ## Known Issues & Workarounds
 
@@ -94,7 +100,8 @@ dismantler.py (CLI)  →  @dismantling_method registry (auto-discovered)
 ## Documentation Policy
 
 - Maintain **one primary doc file** (this `copilot-instructions.md` for AI agents; `README.md` for users, `CHANGES.md` as changelog). Do NOT create additional markdown files unless targeting a distinct audience.
-- Update this file when discovering new patterns, conventions, or workarounds.
+- Update this file when discovering new patterns, conventions, workarounds, issues or useful information during development. This is the single source of truth for AI agents, along with the code itself, user statements and (if any) user conventions, preferences and instructions.
+- For user-facing documentation (e.g., `README.md`, docstrings), maintain a clear distinction between user-facing content (how to use the library, explanations of algorithms, etc.) and developer-facing content (implementation details, architectural decisions, etc.). The former goes in `README.md` and docstrings; the latter goes in `copilot-instructions.md`. Avoid mixing the two audiences in the same document.
 
 ## Key File Reference
 
@@ -109,9 +116,12 @@ dismantler.py (CLI)  →  @dismantling_method registry (auto-discovered)
 | Graph loading | `network_dismantling/common/loaders.py`, `common/dataset_providers.py` |
 | C++ fast dismantler | `network_dismantling/common/external_dismantlers/` |
 | Greedy reinsertion (canonical) | `network_dismantling/greedy_reinsertion/` |
+| Reinsertion backward-compat shim | `network_dismantling/common/reinsertion/` |
 | Heuristics (auto-registered) | `network_dismantling/heuristics/python_interface.py` |
 | Heuristic scoring functions | `network_dismantling/heuristics/sorters.py` |
 | Node→edge transform | `network_dismantling/common/from_node_to_edge.py` |
+| Deprecation decorator | `network_dismantling/common/deprecation.py` |
+| Migration tool (CSV→Parquet) | `network_dismantling/utils/migrate_to_parquet.py` |
 | Dataset files | `dataset/` |
 | Tests | `tests/` |
 | Plot/table scripts | `network_dismantling/plot.py`, `table_output*.py` |
